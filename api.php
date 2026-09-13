@@ -31,7 +31,12 @@ function out(array $o, int $code = 200): void { http_response_code($code); echo 
 function fail(string $msg, int $code = 400): void { out(['ok' => false, 'error' => $msg], $code); }
 function cleanId(?string $s): string { return preg_replace('/[^A-Za-z0-9_-]/', '', (string)$s); }
 function adminHash(): ?string { return is_file(ADMIN_FILE) ? trim((string)file_get_contents(ADMIN_FILE)) : null; }
-function keyFromRequest(): string { return preg_replace('/[^a-f0-9:]/i', '', (string)($_SERVER['HTTP_X_ADMIN_KEY'] ?? ($_POST['key'] ?? ''))); }
+function keyFromRequest(): string {
+  // Header first (logged-in admin), else the form field (login/claim). An empty header must fall through.
+  $k = (string)($_SERVER['HTTP_X_ADMIN_KEY'] ?? '');
+  if ($k === '') $k = (string)($_POST['key'] ?? '');
+  return preg_replace('/[^a-f0-9:]/i', '', $k);
+}
 function requireAdmin(): void {
   $h = adminHash(); $k = keyFromRequest();
   if ($h === null || $k === '' || !password_verify($k, $h)) { usleep(300000); fail('Admin PIN required', 401); }

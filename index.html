@@ -851,7 +851,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13p";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-13q";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -933,7 +933,7 @@ async function api(action, body, file){
   const fd=new FormData();
   Object.entries(body||{}).forEach(([k,v])=>fd.append(k,String(v)));
   if(file) fd.append("file",file,"photo.jpg");
-  const r=await fetch(API+"?action="+action,{method:"POST",body:fd,headers:{"X-Admin-Key":adminKey()}});
+  const key=adminKey(); const r=await fetch(API+"?action="+action,{method:"POST",body:fd,headers:key?{"X-Admin-Key":key}:{}});
   let j=null; try{ j=await r.json(); }catch(_){}
   if(!j) throw new Error("Server error "+r.status);
   if(r.status===401 && isAdmin()){ setAdmin(false); toast("Admin session expired — log in again"); }
