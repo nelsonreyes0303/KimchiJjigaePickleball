@@ -497,6 +497,22 @@ window.addEventListener("error",function(e){
   .hist-card .ht{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-weight:700;font-size:1.2rem;margin:0}
   .hist-card .hm{color:var(--muted);font-size:.85rem;margin:4px 0 0}
   .hist-card .hmeta{display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}
+  .up-label{margin:0 0 10px;font-size:.72rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .up-list{display:grid;gap:12px;margin-bottom:12px}
+  .up-block{margin-bottom:26px}
+  .up-card{cursor:default}
+  .up-card .ht{margin:0 0 4px}
+  .up-card .hm{margin:0}
+  .up-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .up-right .btn-accent{padding:10px 16px;font-size:.88rem;border-radius:12px;text-decoration:none;white-space:nowrap}
+  .up-empty{color:var(--muted);font-size:.92rem;margin:0 0 12px}
+  .up-form label{margin-top:14px}
+  .up-form > label:first-child{margin-top:0}
+  .up-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:719px){ .up-card{grid-template-columns:1fr} .up-right{justify-content:flex-start} .up-right .btn-accent{flex:1;text-align:center} }
+  .home-next{position:relative;z-index:2;margin:10px 0 0;font-size:.92rem;color:var(--muted)}
+  .home-next a{color:var(--accent);font-weight:800;text-decoration:none}
+  .home-next a:hover{text-decoration:underline}
   .htag{font-size:.68rem;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:5px 9px;border-radius:8px;border:1px solid var(--line);color:var(--muted);background:var(--panel-2)}
   .htag.live{color:var(--int);border-color:var(--int)}
   .htag.champ{color:var(--win);border-color:#4a3f13}
@@ -706,6 +722,7 @@ window.addEventListener("error",function(e){
       <button type="button" class="btn-accent" id="landingGoCourts" hidden>Open courts</button>
     </div>
     <p class="home-status" id="landingRoster"></p>
+    <p class="home-next" id="landingNext" hidden></p>
 
     <svg class="kj-rally" viewBox="0 0 420 152" role="img" aria-label="Two players rallying a pickleball">
       <g class="kj-sparks">
@@ -761,7 +778,7 @@ window.addEventListener("error",function(e){
     <label class="btn-ghost btn-sm admin-only" title="Load a backup file made on another device" style="cursor:pointer">📥 Import<input type="file" accept="application/json,.json" data-restore style="display:none"></label>
     <button type="button" class="btn-ghost btn-sm admin-only" id="histLockBtn" title="Lock admin on this device">Log out</button>
   </div>
-  <div class="page-body"><div id="histBody" class="hist-list"></div></div>
+  <div class="page-body"><div id="upcomingBody" class="up-block" hidden></div><div id="histBody" class="hist-list"></div></div>
 </div>
 
 <div id="sessionPage" class="hist-page hidden">
@@ -803,6 +820,29 @@ window.addEventListener("error",function(e){
     <div class="modalfoot">
       <button class="btn-ghost btn-sm" id="askCancel">Cancel</button>
       <button class="btn-accent btn-sm" id="askOk" style="margin-left:auto">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="upModal" class="modal ask-modal hidden" role="dialog" aria-modal="true" aria-labelledby="upModalTitle">
+  <div class="modalcard">
+    <div class="modalhead"><b id="upModalTitle">Add open play</b><button class="btn-ghost btn-sm" data-upclose>Close</button></div>
+    <div class="modalbody up-form">
+      <label for="upName">Title</label>
+      <input id="upName" type="text" autocomplete="off" spellcheck="false">
+      <div class="up-row">
+        <div><label for="upDate">Date</label><input id="upDate" type="date"></div>
+        <div><label for="upTime">Start time</label><input id="upTime" type="time"></div>
+      </div>
+      <label for="upVenue">Venue</label>
+      <input id="upVenue" type="text" autocomplete="off">
+      <label for="upRsvp">RSVP link</label>
+      <input id="upRsvp" type="url" placeholder="https://" autocomplete="off" spellcheck="false">
+      <p class="hint" id="upErr" style="color:#e05252"></p>
+    </div>
+    <div class="modalfoot">
+      <button class="btn-ghost btn-sm" data-upclose>Cancel</button>
+      <button class="btn-accent btn-sm" id="upSave" style="margin-left:auto">Save</button>
     </div>
   </div>
 </div>
@@ -851,7 +891,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13t";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-13u";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -947,6 +987,7 @@ const serverReady=(async()=>{
     if(j&&j.server){ server.on=true; server.pin=!!j.pin; }
   }catch(e){ console.warn("api.php not reachable — running in this browser only", e); return; }
   const fn=$("footNote"); if(fn) fn.textContent="Open play history and photos are saved on the website · live queue runs on this device";
+  loadUpcoming();
   await pullHistory();
 })();
 /* Merge the website's list into state.history. The website wins for anything it has; open plays that only
@@ -1600,6 +1641,7 @@ function showLanding(){
     ? ("● Live now — <b>"+esc(state.session.name||"Open play")+"</b>")
     : (n ? ("<b>"+n+"</b> saved open play"+(n===1?"":"s")+" in history") : "No open plays saved yet — check back after the next session.");
   const tb=$("homeThemeBtn"); if(tb) tb.textContent=state.theme==="light"?"☀️":"🌙";
+  renderUpcoming();
   syncAdminUI();
   syncScrollLock();
 }
@@ -1787,6 +1829,102 @@ async function importBackup(file){
 }
 document.addEventListener("click",e=>{ if(e.target.closest("[data-backup]")) exportBackup(); });
 document.addEventListener("change",e=>{ const inp=e.target.closest("[data-restore]"); if(inp&&inp.files&&inp.files[0]){ importBackup(inp.files[0]); inp.value=""; } });
+/* ---------- upcoming open plays ----------
+   Scheduled open plays (title, local start, venue, RSVP link) live in data/upcoming.json on the website, read and
+   written through api.php. Everyone sees the ones that haven't happened yet; admins add, edit and remove them
+   from the history page. Opened from file:// the section stays hidden. */
+let upcomingAll=[];
+let upEditing=null;
+function upDate(ev){ const m=/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(ev.start||""); if(!m) return null; return new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0)); }
+function upWhen(d){ return d.toLocaleDateString([],{weekday:"short",month:"short",day:"numeric"})+" · "+d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); }
+function setUpcoming(list){ upcomingAll=(Array.isArray(list)?list:[]).map(ev=>Object.assign({},ev,{d:upDate(ev)})).filter(ev=>ev.d).sort((a,b)=>a.d-b.d); }
+function upcomingShown(){ const today=new Date(); today.setHours(0,0,0,0); return upcomingAll.filter(ev=>ev.d>=today); }
+async function loadUpcoming(){
+  if(!server.on) return;
+  try{ const r=await fetch(API+"?action=upcoming&t="+Date.now(),{cache:"no-store"}); const j=await r.json(); setUpcoming(j.events); }
+  catch(e){ console.warn("could not read upcoming open plays", e); return; }
+  renderUpcoming();
+}
+function renderUpcoming(){
+  const list=upcomingShown(), next=list[0], admin=server.on&&isAdmin();
+  const ln=$("landingNext");
+  if(ln){
+    ln.hidden=!next;
+    if(next) ln.innerHTML='📅 Next open play: <b>'+esc(upWhen(next.d))+'</b>'+(next.venue?' · 📍 '+esc(next.venue):'')+(next.rsvp?' · <a href="'+esc(next.rsvp)+'" target="_blank" rel="noopener">RSVP ↗</a>':'');
+  }
+  const box=$("upcomingBody"); if(!box) return;
+  box.hidden=!(list.length||admin);
+  if(box.hidden){ box.innerHTML=""; return; }
+  box.innerHTML='<p class="up-label">📅 Upcoming open plays</p>'
+    +(list.length
+      ? '<div class="up-list">'+list.map(ev=>'<div class="hist-card up-card">'
+          +'<div><p class="ht">'+esc(ev.title||"Open play")+'</p><p class="hm">⏰ '+esc(upWhen(ev.d))+(ev.venue?' · 📍 '+esc(ev.venue):'')+'</p></div>'
+          +'<div class="up-right">'
+            +(ev.rsvp?'<a class="btn-accent" href="'+esc(ev.rsvp)+'" target="_blank" rel="noopener">RSVP ↗</a>':'')
+            +(admin?'<button type="button" class="btn-ghost btn-sm" data-upedit="'+esc(ev.id)+'">Edit</button><button type="button" class="btn-ghost btn-sm" data-updel="'+esc(ev.id)+'" title="Remove">✕</button>':'')
+          +'</div></div>').join("")+'</div>'
+      : '<p class="up-empty">Nothing scheduled yet.</p>')
+    +(admin?'<button type="button" class="btn btn-sm" data-upadd>+ Add open play</button>':'')
+    +(list.length?'<p class="up-label" style="margin-top:22px">Past open plays</p>':'');
+}
+async function saveUpcoming(){
+  if(!server.on){ toast("Only available on the website"); return false; }
+  const cutoff=Date.now()-30*864e5;                                    // let long-past dates fall out of the file
+  const events=upcomingAll.filter(ev=>ev.d.getTime()>=cutoff).map(ev=>({id:ev.id||"",title:ev.title||"",start:ev.start,venue:ev.venue||"",rsvp:ev.rsvp||""}));
+  try{
+    const j=await api("saveUpcoming",{events:JSON.stringify(events)});
+    if(!j.ok){ toast(j.error||"Could not save"); return false; }
+    setUpcoming(j.events||events); renderUpcoming(); return true;
+  }catch(e){ console.warn(e); toast("Could not reach the website"); return false; }
+}
+function openUpModal(ev){
+  upEditing=ev||null;
+  const last=upcomingAll[upcomingAll.length-1];
+  $("upModalTitle").textContent=ev?"Edit open play":"Add open play";
+  $("upName").value=ev?(ev.title||""):(last&&last.title||"Kimchi Jjigae OP - All Levels 🥬🥒🌶️");
+  $("upDate").value=ev?(ev.start||"").slice(0,10):"";
+  $("upTime").value=ev?(ev.start||"").slice(11,16):(last?(last.start||"").slice(11,16):"14:00");
+  $("upVenue").value=ev?(ev.venue||""):(last&&last.venue||"The Dink Ticket");
+  $("upRsvp").value=ev?(ev.rsvp||""):"";
+  $("upErr").textContent="";
+  $("upModal").classList.remove("hidden");
+  setTimeout(()=>$(ev?"upName":"upDate").focus(),40);
+}
+function closeUpModal(){ $("upModal").classList.add("hidden"); upEditing=null; }
+async function submitUpModal(){
+  const title=$("upName").value.trim(), date=$("upDate").value, time=$("upTime").value, venue=$("upVenue").value.trim(), rsvp=$("upRsvp").value.trim();
+  const err=$("upErr");
+  if(!title){ err.textContent="Give it a title."; return; }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ err.textContent="Pick a date."; return; }
+  if(!/^\d{2}:\d{2}$/.test(time)){ err.textContent="Pick a start time."; return; }
+  if(rsvp && !/^https?:\/\/\S+$/i.test(rsvp)){ err.textContent="The RSVP link should start with https://"; return; }
+  const rec={id:upEditing?upEditing.id:("up_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),title,start:date+"T"+time,venue,rsvp};
+  const plain=upcomingAll.map(ev=>({id:ev.id,title:ev.title,start:ev.start,venue:ev.venue,rsvp:ev.rsvp}));
+  const i=upEditing?plain.findIndex(ev=>ev.id===upEditing.id):-1;
+  if(i>=0) plain[i]=rec; else plain.push(rec);
+  const before=upcomingAll; setUpcoming(plain);
+  const wasEdit=!!upEditing;
+  $("upSave").disabled=true;
+  const ok=await saveUpcoming();
+  $("upSave").disabled=false;
+  if(ok){ closeUpModal(); toast(wasEdit?"Open play updated":"Open play added"); }
+  else upcomingAll=before;
+}
+async function deleteUpcoming(id){
+  const ev=upcomingAll.find(x=>x.id===id); if(!ev) return;
+  if(!confirm("Remove “"+(ev.title||"Open play")+"” on "+upWhen(ev.d)+"?")) return;
+  const before=upcomingAll; upcomingAll=upcomingAll.filter(x=>x.id!==id);
+  if(await saveUpcoming()) toast("Open play removed"); else { upcomingAll=before; renderUpcoming(); }
+}
+document.addEventListener("click",e=>{
+  if(e.target.closest("[data-upclose]")){ closeUpModal(); return; }
+  if(e.target.closest("#upSave")){ submitUpModal(); return; }
+  if(e.target===$("upModal")){ closeUpModal(); return; }
+  const add=e.target.closest("[data-upadd]"); if(add){ if(!isAdmin()){ toast("Admin only"); return; } openUpModal(null); return; }
+  const ed=e.target.closest("[data-upedit]"); if(ed){ if(!isAdmin()) return; openUpModal(upcomingAll.find(x=>x.id===ed.dataset.upedit)||null); return; }
+  const del=e.target.closest("[data-updel]"); if(del){ if(!isAdmin()) return; deleteUpcoming(del.dataset.updel); }
+});
+document.addEventListener("keydown",e=>{ if($("upModal")&&!$("upModal").classList.contains("hidden")&&e.key==="Escape") closeUpModal(); });
 function playerBreakdown(log){
   const m={}; const get=o=>{ if(!m[o.id])m[o.id]={name:o.name,games:0,wins:0,losses:0,partners:{},opp:{}}; return m[o.id]; };
   (log||[]).forEach(g=>{
@@ -1876,6 +2014,7 @@ function renderPlayerGames(pid,pname){
 }
 function renderHistory(){
   const el=$("histBody"); if(!el) return;
+  renderUpcoming();
   const items=[];
   if(state.session&&state.session.active){
     items.push({live:true,id:"live",name:state.session.name||"Open play in progress",startedAt:state.session.startedAt,endedAt:Date.now(),games:state.games,players:standings(),photos:[]});

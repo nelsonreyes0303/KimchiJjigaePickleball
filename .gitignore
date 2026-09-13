@@ -4,3 +4,5 @@ data/openplays.json.tmp
 data/photos/
 data/.admin
 data/.lock
+data/upcoming.json
+data/upcoming.json.tmp
