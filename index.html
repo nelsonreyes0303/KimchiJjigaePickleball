@@ -810,7 +810,6 @@ window.addEventListener("error",function(e){
     <button type="button" class="page-brand" data-gohome title="Club home"><img src="logo.png" alt="" class="marklogo">Kimchi Jjigae</button>
     <span class="sep" aria-hidden="true"></span>
     <button type="button" class="btn-ghost btn-sm" id="sessBackBtn">← All open plays</button>
-    <h1 id="sessTitle">Session</h1>
     <div class="spacer"></div>
     <button type="button" class="btn btn-sm" id="sessContinue" hidden>Continue open play</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="sessDelete">Delete</button>
@@ -916,7 +915,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13z";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-14b";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -2086,7 +2085,7 @@ async function renderSessionPage(id){
   let s=null, live=false;
   if(String(id)==="live"){
     if(!(state.session&&state.session.active)){
-      $("sessTitle").textContent="Not found";
+      document.title="Kimchi Jjigae · "+"Not found";
       $("sessBody").innerHTML='<div class="hist-empty">No open play running.</div>';
       const c=$("sessContinue"); if(c) c.hidden=true;
       const d=$("sessDelete"); if(d){ d.hidden=true; d.style.display="none"; }
@@ -2098,12 +2097,12 @@ async function renderSessionPage(id){
     s=(state.history||[]).find(h=>String(h.id)===String(id));
   }
   if(!s){
-    $("sessTitle").textContent="Not found";
+    document.title="Kimchi Jjigae · "+"Not found";
     $("sessBody").innerHTML='<div class="hist-empty">This open play was removed.</div>';
     const c=$("sessContinue"); if(c) c.hidden=true;
     return;
   }
-  $("sessTitle").textContent=s.name||fmtDate(s.endedAt);
+  document.title="Kimchi Jjigae · "+s.name||fmtDate(s.endedAt);
   const del=$("sessDelete"); if(del){ del.dataset.delhist=live?"":String(s.id); del.hidden=!!live; del.style.display=live?"none":""; }
   const cont=$("sessContinue"); if(cont) cont.hidden=!live;
   const champ=s.players&&s.players[0];
