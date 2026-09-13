@@ -346,6 +346,7 @@ window.addEventListener("error",function(e){
   .glmatch{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px}
   .glpair{display:inline-flex;align-items:baseline;gap:.35em;white-space:nowrap;max-width:100%}
   .glpair.win{font-weight:700;color:var(--int)}
+  .gltrophy{font-size:.8em;line-height:1;opacity:.9;margin-right:.1em}
   .glpair.lose{font-weight:600;color:var(--danger)}
   .glpair.win .glamp{color:var(--int);opacity:.5;font-weight:600}
   .glpair.lose .glamp{color:var(--danger);opacity:.5;font-weight:600}
@@ -924,7 +925,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-14d";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-14e";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -2502,7 +2503,7 @@ function saveGameEdit(){
 }
 /* ---- game log rows + player filter (shared by the live panel, history cards and session page) ---- */
 function glName(x){ return '<span class="gp">'+esc(x.name)+'</span>'; }
-function glPair(side, players){ return '<span class="glpair '+side+'">'+players.map(glName).join('<span class="glamp">&amp;</span>')+'</span>'; }
+function glPair(side, players){ return '<span class="glpair '+side+'">'+(side==="win"?'<span class="gltrophy" aria-label="Winners">🏆</span>':'')+players.map(glName).join('<span class="glamp">&amp;</span>')+'</span>'; }
 function glRow(g,i,editable){
   const names=[...g.w,...g.l].map(x=>String(x.name).toLowerCase()).join("|");
   const meta='<span class="glmeta">'
