@@ -291,6 +291,15 @@ window.addEventListener("error",function(e){
   .lb td.lname{text-align:left;font-weight:700}
   .lb td.w{color:var(--int);font-weight:800} .lb td.l{color:var(--danger)}
   .lb tr.top td{background:linear-gradient(90deg,rgba(251,191,36,.08),transparent)}
+  /* podium: gold, silver, bronze */
+  .lb tr.p1 td{background:linear-gradient(90deg,rgba(245,179,1,.20),rgba(245,179,1,.04))}
+  .lb tr.p2 td{background:linear-gradient(90deg,rgba(148,163,184,.22),rgba(148,163,184,.04))}
+  .lb tr.p3 td{background:linear-gradient(90deg,rgba(205,127,50,.20),rgba(205,127,50,.04))}
+  .lb tr.p1 td:first-child{box-shadow:inset 3px 0 0 #f5b301}
+  .lb tr.p2 td:first-child{box-shadow:inset 3px 0 0 #9aa5b1}
+  .lb tr.p3 td:first-child{box-shadow:inset 3px 0 0 #cd7f32}
+  .lb tr.top td.rank{font-size:1.15rem}
+  .lb tr.top td.lname{font-weight:800;font-size:.98rem}
   .lb tbody tr:last-child td{border-bottom:none}
   .pst{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
   .pst.q{color:var(--accent)} .pst.court{color:var(--win)}
@@ -915,7 +924,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-14c";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-14d";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1963,6 +1972,9 @@ document.addEventListener("click",e=>{
   const del=e.target.closest("[data-updel]"); if(del){ if(!isAdmin()) return; deleteUpcoming(del.dataset.updel); }
 });
 document.addEventListener("keydown",e=>{ if($("upModal")&&!$("upModal").classList.contains("hidden")&&e.key==="Escape") closeUpModal(); });
+/* Top three with at least one game get a medal and a podium row tint. */
+function podiumClass(i,p){ return (i<3&&p&&p.games>0)?"top p"+(i+1):""; }
+function medalOf(i,p){ return (i<3&&p&&p.games>0)?["🥇","🥈","🥉"][i]:(i+1); }
 function playerBreakdown(log){
   const m={}; const get=o=>{ if(!m[o.id])m[o.id]={name:o.name,games:0,wins:0,losses:0,partners:{},opp:{}}; return m[o.id]; };
   (log||[]).forEach(g=>{
@@ -1974,7 +1986,7 @@ function playerBreakdown(log){
 function fmtCounts(obj){ return Object.entries(obj).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([n,c])=>esc(n)+(c>1?' ×'+c:'')).join(", "); }
 function renderSession(s,isLive){
   const champ=s.players[0], log=s.log||[], showLvl=isAdmin();
-  const rows=s.players.map((p,i)=>`<tr><td class="rank">${i+1}</td><td class="lname">${esc(p.name)}</td>${showLvl?`<td>${p.level?lvlAbbr(p.level):'-'}</td>`:''}<td>${p.games}</td><td class="w">${p.wins}</td><td class="l">${p.losses}</td><td>${p.games?Math.round(p.wins/p.games*100):0}%</td></tr>`).join("");
+  const rows=s.players.map((p,i)=>`<tr class="${podiumClass(i,p)}"><td class="rank">${medalOf(i,p)}</td><td class="lname">${esc(p.name)}</td>${showLvl?`<td>${p.level?lvlAbbr(p.level):'-'}</td>`:''}<td>${p.games}</td><td class="w">${p.wins}</td><td class="l">${p.losses}</td><td>${p.games?Math.round(p.wins/p.games*100):0}%</td></tr>`).join("");
   const glEdit = isLive ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint" style="padding:6px">No games recorded yet.</div>', glEdit);
   const bd=playerBreakdown(log);
@@ -2111,7 +2123,7 @@ async function renderSessionPage(id){
   const log=s.log||[];
   const showLvl=isAdmin();
   const abbr=typeof lvlAbbr==="function"?lvlAbbr:(x=>x||"-");
-  const rows=(s.players||[]).map((p,i)=>'<tr><td class="rank">'+(i+1)+'</td><td class="lname">'+esc(p.name)+'</td>'+(showLvl?'<td>'+(p.level?abbr(p.level):'-')+'</td>':'')+'<td>'+p.games+'</td><td class="w">'+p.wins+'</td><td class="l">'+p.losses+'</td><td>'+(p.games?Math.round(p.wins/p.games*100):0)+'%</td></tr>').join("");
+  const rows=(s.players||[]).map((p,i)=>'<tr class="'+podiumClass(i,p)+'"><td class="rank">'+medalOf(i,p)+'</td><td class="lname">'+esc(p.name)+'</td>'+(showLvl?'<td>'+(p.level?abbr(p.level):'-')+'</td>':'')+'<td>'+p.games+'</td><td class="w">'+p.wins+'</td><td class="l">'+p.losses+'</td><td>'+(p.games?Math.round(p.wins/p.games*100):0)+'%</td></tr>').join("");
   const emptyStand='<tr><td colspan="'+(showLvl?7:6)+'" style="color:var(--muted)">'+(live?"No games finished yet — standings appear as games end.":"No players")+'</td></tr>';
   const glEdit = live ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint">'+(live?"No games finished yet.":"No games recorded.")+'</div>', glEdit);
@@ -2546,8 +2558,8 @@ function renderBoard(){
   if(!ids.length){ el.innerHTML='<div class="qempty">No players yet — add some to the roster.</div>'; return; }
   const pst=id=>onCourt(id)?'<span class="pst court">On court</span>':(state.queue.includes(id)?'<span class="pst q">In queue</span>':'<span class="pst">Bench</span>');
   el.innerHTML=`<table class="lb"><thead><tr><th>#</th><th>Player</th>${showCats()?'<th>Lvl</th>':''}<th>Status</th><th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th></tr></thead><tbody>`
-    + ids.map((id,i)=>{const p=P(id);const medal=(i<3&&p.games>0)?(i===0?'🥇':i===1?'🥈':'🥉'):(i+1);
-        return `<tr class="${(i<3&&p.games>0)?'top':''}"><td class="rank">${medal}</td><td class="lname"><span class="edit" data-rename="${id}" title="Click to rename">${esc(p.name)}</span> <button class="rx phist" data-phist="${id}" title="Game history">📊</button></td><td style="text-align:left">${chip(id)}</td><td style="text-align:left">${pst(id)}</td><td>${p.games}</td><td class="w edit" data-editw="${id}" title="Click to edit wins">${p.wins}</td><td class="l edit" data-editl="${id}" title="Click to edit losses">${p.losses}</td><td>${p.games?winpct(p)+'%':'—'}</td></tr>`;}).join("")
+    + ids.map((id,i)=>{const p=P(id);const medal=medalOf(i,p);
+        return `<tr class="${podiumClass(i,p)}"><td class="rank">${medal}</td><td class="lname"><span class="edit" data-rename="${id}" title="Click to rename">${esc(p.name)}</span> <button class="rx phist" data-phist="${id}" title="Game history">📊</button></td><td style="text-align:left">${chip(id)}</td><td style="text-align:left">${pst(id)}</td><td>${p.games}</td><td class="w edit" data-editw="${id}" title="Click to edit wins">${p.wins}</td><td class="l edit" data-editl="${id}" title="Click to edit losses">${p.losses}</td><td>${p.games?winpct(p)+'%':'—'}</td></tr>`;}).join("")
     + `</tbody></table>`;
 }
 function ord(l){const i=lvlIdx(l);return i<0?9:i;}
