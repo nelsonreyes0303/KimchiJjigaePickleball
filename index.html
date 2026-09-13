@@ -851,7 +851,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13s";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-13t";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1097,7 +1097,7 @@ async function removePhotoFromSession(sessionId,photoId){
   save(); renderSessionPage(sessionId);
 }
 
-function fresh(){ return { players:{}, queue:[], courts:[], seq:1, courtSeq:1, games:0, sort:"name", challenge:false, mixDefaulted:true, theme:"dark", grpSeq:0, session:{active:false,startedAt:null}, history:[], log:[], locked:false, qlocked:[], audit:[], layout:{} }; }
+function fresh(){ return { players:{}, queue:[], courts:[], seq:1, courtSeq:1, games:0, sort:"name", challenge:false, mixDefaulted:true, theme:"light", grpSeq:0, session:{active:false,startedAt:null}, history:[], log:[], locked:false, qlocked:[], audit:[], layout:{} }; }
 /* ---------- audit trail ----------
    Records every action you take, with a snapshot of the queue, so a problem can be
    traced afterwards. Kept to the most recent 1500 entries; export it from 🧾 Audit. */
@@ -2615,7 +2615,7 @@ document.addEventListener("drop",e=>{ const el=e.target.closest("[data-swap]"); 
 ensureCourts();
 if(!["name","nolevel","bench"].includes(state.sort)) state.sort="name";
 $("sortSel").value=state.sort;
-if(!state.theme)state.theme="dark";
+if(!state.theme)state.theme="light";   // new visitors start in light mode; the toggle remembers their choice
 if(!state.layout||typeof state.layout!=="object") state.layout={};
 try{
   const bm=$("brandMark"); if(bm) bm.title="Build "+APP_BUILD;
