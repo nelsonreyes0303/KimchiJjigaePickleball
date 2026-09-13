@@ -1,0 +1,2450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<title>Kimchi Jjigae Pickleball Club</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght,SOFT@9..144,500..700,50&display=swap" rel="stylesheet">
+<link rel="icon" href="logo.png">
+
+<script>
+/* Never fail silently to a blank page — show what went wrong instead. */
+window.addEventListener("error",function(e){
+  try{
+    if(document.getElementById("bootErr"))return;
+    var d=document.createElement("div"); d.id="bootErr";
+    d.style.cssText="position:fixed;inset:0;z-index:9999;background:#12180f;color:#eaf0e2;font:14px/1.6 system-ui,sans-serif;padding:28px;overflow:auto";
+    d.innerHTML="<h2 style='margin:0 0 8px'>🏓 Something stopped the app loading</h2>"+
+      "<p style='color:#9fb08e;margin:0 0 14px'>Usually a stale cached copy. Press <b>Ctrl+Shift+R</b> to hard-refresh. If it keeps happening, re-upload the file and purge your host's cache.</p>"+
+      "<pre style='background:#0b0f09;border:1px solid #2b3626;border-radius:10px;padding:12px;white-space:pre-wrap;color:#f7b7be'>"+
+      String(e.message||e)+"\n\n"+String((e.filename||"")+" line "+(e.lineno||"?"))+"</pre>";
+    (document.body||document.documentElement).appendChild(d);
+  }catch(_){}
+});
+</script>
+<style>
+  :root{
+    /* DARK — deep-green tint, pink accent (Kimchi Jjigae palette) */
+    --bg:#141a12; --bg2:#20301b; --panel:#1b2416; --panel-2:#24311e; --line:#36452d;
+    --txt:#eef4ea; --muted:#9fb290;
+    --beg:#5fb3e6; --beg-soft:#123040;
+    --nov:#eab35f; --nov-soft:#392c12;
+    --int:#8fbf6e; --int-soft:#20331a;
+    --hi:#c39bf2; --hi-soft:#2c2340;
+    --accent:#f2a5ad; --accent-h:#f7b7be; --ink:#2c211f;
+    --headerbg:rgba(20,26,18,.82);
+    --danger:#f27070; --win:#f4c542; --gold:#f0b84a;
+    --radius:18px; --shadow:0 10px 30px rgba(0,0,0,.4);
+    font-size:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{background:radial-gradient(1200px 700px at 80% -10%, var(--bg2) 0%, var(--bg) 55%);
+    color:var(--txt);font-family:"DM Sans",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;padding:0 0 40px}
+  header{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);background:var(--headerbg);
+    border-bottom:1px solid var(--line);padding:14px clamp(16px,3vw,32px);
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:1.2rem}
+  .brandlogo{width:38px;height:38px;flex:none;border-radius:50%;object-fit:cover}
+  .ball{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fde047,#eab308);
+    box-shadow:inset -3px -4px 8px rgba(0,0,0,.25);flex:none}
+  .brand small{display:block;font-weight:500;font-size:.7rem;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+  .spacer{flex:1}
+  .stat{display:flex;flex-direction:column;align-items:center;padding:0 12px;border-left:1px solid var(--line)}
+  .stat b{font-size:1.15rem} .stat span{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:12px;font-weight:700;transition:.15s}
+  button:active{transform:scale(.96)} button:disabled{opacity:.35;cursor:not-allowed}
+  .btn{background:var(--panel-2);color:var(--txt);padding:11px 16px;border:1px solid var(--line);font-size:.9rem}
+  .btn:hover:not(:disabled){background:var(--line)}
+  .btn-accent{background:var(--accent);color:var(--ink)}
+  .btn-accent:hover:not(:disabled){background:var(--accent-h)}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .btn.on{background:var(--int);color:#111;border-color:var(--int)}
+  .btn-ghost.on{background:var(--accent);color:var(--ink);border-color:var(--accent)}
+  .grpm{font-size:.72rem;flex:none}
+  .pill.pairing{outline:2px solid var(--accent);outline-offset:1px}
+  .pairm{font-size:.66rem;color:var(--accent);font-weight:800;white-space:nowrap}
+  .btn-sm{padding:7px 11px;font-size:.8rem;border-radius:10px}
+
+  .wrap{
+    --side-w: clamp(300px,28vw,420px);
+    --queue-w: 300px;
+    padding:clamp(16px,2.5vw,36px);
+    display:grid;
+    gap:clamp(16px,2vw,28px);
+    width:100%;
+    max-width:none;
+    margin:0;
+    box-sizing:border-box;
+    grid-template-columns:1fr;
+    grid-template-areas:
+      "top"
+      "side"
+      "bottom";
+  }
+  .main-top{grid-area:top;min-width:0}
+  .side{grid-area:side;min-width:0;display:flex;flex-direction:column;gap:14px;position:relative}
+  .main-bottom{grid-area:bottom;min-width:0}
+  .split{display:none;flex:none;touch-action:none;z-index:6;background:transparent;border:none;padding:0;margin:0}
+  .split-v{cursor:col-resize}
+  .split-v::after{content:"";position:absolute;inset:0 -5px;border-radius:6px;background:transparent;transition:background .12s}
+  .split-v:hover::after,.split-v.dragging::after{background:var(--accent);opacity:.4}
+  body.resizing{cursor:col-resize;user-select:none}
+  body.resizing *{cursor:col-resize !important}
+  /* Desktop: sidebar spans courts + queue/board so no empty void beside the leaderboard */
+  @media(min-width:1080px){
+    .wrap{
+      grid-template-columns:minmax(0,1fr) var(--side-w);
+      grid-template-areas:
+        "top side"
+        "bottom side";
+      align-items:start;
+    }
+    .side{
+      position:sticky;
+      top:72px;
+      max-height:calc(100vh - 88px);
+      overflow:auto;
+      padding-bottom:8px;
+    }
+    .side > .split-v{
+      display:block;
+      position:absolute;
+      left:-11px;
+      top:0;
+      bottom:0;
+      width:10px;
+    }
+  }
+  @media(min-width:1400px){
+    .wrap{--side-w:clamp(340px,26vw,460px)}
+  }
+  @media(min-width:1800px){
+    .wrap{
+      --side-w:clamp(380px,24vw,520px);
+      padding:28px 40px;
+      gap:28px;
+    }
+  }
+  @media(min-width:2400px){
+    .wrap{
+      --side-w:clamp(420px,22vw,580px);
+      padding:36px 48px;
+    }
+  }
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .card h2{margin:0;padding:15px 18px;font-size:1rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}
+  .sec>summary{margin:0;padding:15px 18px;font-size:1rem;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;font-weight:700;user-select:none}
+  .sec>summary::-webkit-details-marker{display:none}
+  .sec>summary:hover{background:var(--panel-2)}
+  .sec:not([open])>summary{border-bottom:none}
+  .secttl{display:flex;align-items:center;gap:9px}
+  .secarrow{margin-left:auto;color:var(--muted);font-size:.8rem;transition:transform .15s}
+  .sec[open]>summary .secarrow{transform:rotate(180deg)}
+  .sec>summary .hint{margin-left:auto;font-weight:500}
+  .sec>summary .hint+.secarrow{margin-left:8px}
+
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+
+  /* level chips */
+  .chip{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:2px 6px;border-radius:6px;flex:none}
+  .chip.beg{background:var(--beg-soft);color:var(--beg)} .chip.int{background:var(--int-soft);color:var(--int)} .chip.nov{background:var(--nov-soft);color:var(--nov)} .chip.hi{background:var(--hi-soft);color:var(--hi)}
+  .badge.mix{background:#2f3a2a;color:#cfe1b5} .badge.nov{background:var(--nov-soft);color:var(--nov)} .badge.hi{background:var(--hi-soft);color:var(--hi)}
+
+  /* courts — auto-fit so cards stretch to fill the main column (no dead gap at 67%/ultrawide) */
+  .courts{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));margin-bottom:22px}
+  @media(min-width:1400px){.courts{gap:20px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}}
+  @media(min-width:1800px){.courts{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
+  .court{border-radius:var(--radius);border:1px solid var(--line);overflow:hidden;background:var(--panel)}
+  .court.live{box-shadow:inset 0 0 0 2px rgba(143,191,110,.38)}
+  .chead{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+  .chead b{font-size:1rem}
+  .badge{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:4px 9px;border-radius:999px}
+  .badge.live{background:#123024;color:#9fd07d} .badge.open{background:#2a2f36;color:var(--muted)}
+  .badge.beg{background:var(--beg-soft);color:var(--beg)} .badge.int{background:var(--int-soft);color:var(--int)}
+  .timer{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--txt);font-size:1rem;font-weight:800;background:var(--panel-2);padding:4px 10px;border-radius:10px;border:1px solid var(--line)}
+  .timer.off{color:var(--muted);font-weight:600;background:transparent;border-color:transparent}
+  .net{padding:14px 16px}
+  .team{border-radius:14px;padding:12px;background:var(--panel-2);border:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .player{display:flex;align-items:center;gap:8px;font-weight:700;cursor:grab;border-radius:8px;padding:2px 4px;margin:-2px -4px;user-select:none}
+  .selsw{outline:2px solid var(--accent) !important;outline-offset:1px}
+  .dragging{opacity:.45}
+  .dragover{outline:2px dashed var(--accent) !important;outline-offset:1px}
+  .pip{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+  .prec{margin-left:auto;font-size:.7rem;color:var(--muted);font-weight:600}
+  .vs{text-align:center;color:var(--muted);font-weight:800;font-size:.8rem;letter-spacing:2px;padding:8px 0}
+  .cfoot{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .cidle{padding:24px 16px;text-align:center;color:var(--muted)}
+  .cidle p{margin:0 0 12px;font-size:.9rem}
+  .hint{font-size:.72rem;color:var(--muted)}
+  .winprompt{padding:14px 16px;border-top:1px solid var(--line);background:#1b2a1a33}
+  .winprompt p{margin:0 0 10px;font-size:.82rem;color:var(--muted)}
+  .winrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .winpick{padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt);font-weight:700;text-align:left;font-size:.85rem}
+  .winpick:hover{border-color:var(--win);background:#2a2410}
+
+  /* queue */
+  .qhead{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--line)}
+  .qhead .count{font-size:.72rem;color:var(--muted)}
+  .qlist{padding:9px;display:flex;flex-direction:column;gap:7px;min-height:56px;max-height:min(440px,50vh);overflow:auto}
+  @media(min-width:1600px){.qlist{max-height:min(560px,55vh)}}
+  .qempty{color:var(--muted);text-align:center;padding:20px 10px;font-size:.82rem}
+  .qitem{display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:11px;background:var(--panel-2);border:1px solid var(--line);cursor:grab;user-select:none}
+  .qbody{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .qline{display:flex;align-items:center;gap:7px;min-width:0}
+  .qmeta{display:flex;align-items:center;gap:9px;flex-wrap:wrap;line-height:1.1}
+  .qnum{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:.75rem;font-weight:800;color:var(--ink);flex:none;background:var(--accent)}
+  .qname{flex:1;min-width:0;font-weight:600;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qgms{font-size:.66rem;color:var(--muted);font-weight:700;flex:none;white-space:nowrap}
+  .qwait{font-size:.66rem;color:var(--muted);font-weight:700;flex:none;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .qwait::before{content:"⏳ "}
+  .qwait.long{color:var(--win)}
+  /* longest-waiting strip (top 3) */
+  .qtop{padding:9px 9px 0}
+  .qtop[hidden]{display:none}
+  .qtoph{font-size:.6rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);padding:0 2px 6px}
+  .qtiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .qtile{display:flex;flex-direction:column;gap:3px;padding:8px 9px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line);min-width:0}
+  .qtile b{font-size:.78rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qtile .qwait{font-size:.7rem}
+  .qtile small{font-size:.58rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .qtile.first{border-color:var(--win)}
+  .qrec{font-size:.7rem;color:var(--muted)}
+  .qgroup{display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:12px;padding:8px;background:rgba(255,255,255,.02)}
+  .qgroup.nextg{border-color:var(--accent);background:rgba(242,165,173,.10)}
+  .qgroup.leftover{opacity:.7;border-style:dashed}
+  .qrepeat{margin:0 2px 6px;padding:5px 8px;border-radius:8px;font-size:.66rem;font-weight:700;line-height:1.35;
+    color:var(--win);background:rgba(244,197,66,.12);border:1px solid rgba(244,197,66,.38)}
+  body.light .qrepeat{background:#fbeed0;color:#8a5a10;border-color:#e8cf94}
+  .qghead{display:flex;align-items:center;justify-content:space-between;padding:0 2px 2px}
+  .qgtag{font-size:.6rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .qgroup.nextg .qgtag{color:var(--accent)}
+  .qghd-r{display:flex;align-items:center;gap:6px}
+  .qglock{background:none;border:none;cursor:pointer;font-size:.82rem;line-height:1;padding:0;opacity:.5}
+  .qglock:hover{opacity:.9}
+  .qglock.on{opacity:1}
+  .qglock.static{cursor:default;opacity:.9}
+  .qgroup.lockedg{border-color:var(--win);background:rgba(212,175,55,.06)}
+  .qnum.wait{background:#3a4652;color:var(--muted)}
+  .qteam{display:flex;flex-direction:column;gap:6px;padding:6px;border-radius:10px;border-left:3px solid var(--accent);background:rgba(255,255,255,.02)}
+  .qteam.b{border-left-color:var(--int)}
+  .qvs{text-align:center;font-size:.62rem;font-weight:800;letter-spacing:1.5px;color:var(--muted)}
+  body.light .qteam{background:rgba(0,0,0,.025)}
+
+  /* roster */
+  .addbox{padding:14px 16px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--line)}
+  .addbox textarea{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);
+    color:var(--txt);font-size:.95rem;outline:none;resize:vertical;min-height:46px;font-family:inherit}
+  .addbox textarea:focus{border-color:var(--accent)}
+  .rtools{display:flex;gap:8px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .rtools select{background:var(--panel-2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:.8rem;font-family:inherit}
+  .rsearch{width:calc(100% - 32px);margin:0 16px 8px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt);font-size:.9rem;outline:none}
+  .rsearch:focus{border-color:var(--accent)}
+  /* Never set display:flex on <details> — Chrome collapses its height and the next card overlaps */
+  .roster{max-height:min(360px,42vh);overflow:auto;padding:8px}
+  @media(min-width:1080px){
+    .side #rosterSec{flex:1 1 auto;min-height:0}
+    .side #logSec{flex:0 0 auto}
+    .roster{max-height:min(480px,calc(100vh - 420px))}
+  }
+  @media(min-width:1800px){
+    .roster{max-height:min(560px,calc(100vh - 400px))}
+  }
+  .side #logSec .glwrap{max-height:min(240px,28vh);overflow:auto}
+  .rrow{display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);margin-bottom:6px;flex-wrap:wrap}
+  .rname{font-weight:700;font-size:.95rem;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px}
+  .rname .rnametext{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rnametext,.cname{cursor:pointer;border-radius:6px;padding:1px 4px;margin:-1px -4px} .rnametext:hover,.cname:hover{background:var(--line)}
+  .rstat{display:flex;gap:7px;font-size:.68rem;color:var(--muted);margin-left:auto;font-variant-numeric:tabular-nums}
+  .rstat b{color:var(--txt)} .rstat .w b{color:var(--int)} .rstat .l b{color:var(--danger)}
+  .pills{display:flex;gap:4px;flex:1 1 100%}
+  .pill{padding:5px 9px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);font-size:.68rem;font-weight:800}
+  .pill.sel.beg{background:var(--beg-soft);border-color:var(--beg);color:var(--beg)}
+  .pill.sel.nov{background:var(--nov-soft);border-color:var(--nov);color:var(--nov)}
+  .pill.sel.int{background:var(--int-soft);border-color:var(--int);color:var(--int)}
+  .pill.sel.hi{background:var(--hi-soft);border-color:var(--hi);color:var(--hi)}
+  .pill.sel.bench{background:#2a2f36;border-color:#3a4652;color:var(--txt)}
+  .oncourt{font-size:.66rem;font-weight:800;color:var(--win);border:1px solid #4a3f13;background:#2a2410;padding:5px 9px;border-radius:8px;flex:none}
+  .rx{background:transparent;color:var(--muted);font-size:1rem;padding:2px 7px;border-radius:8px;flex:none}
+  .ricons{display:flex;align-items:center;gap:2px;flex:none}
+  .rx:hover{color:var(--danger);background:#2a1a1a}
+
+  /* lower grid: queue + leaderboard side by side, both compact */
+  .lowgrid{display:grid;gap:22px;grid-template-columns:1fr;--queue-w:300px}
+  @media(min-width:1080px){
+    .lowgrid{grid-template-columns:var(--queue-w) 10px minmax(0,1fr);gap:0;align-items:stretch}
+    .lowgrid > .split-v{display:block;position:relative;width:10px;align-self:stretch;min-height:120px}
+  }
+  .board-wrap{grid-column:1/-1}
+  .lb{width:100%;border-collapse:collapse;font-size:.9rem}
+  .lb th{font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);font-weight:700}
+  .lb th:nth-child(1),.lb th:nth-child(2),.lb th:nth-child(3){text-align:left}
+  .lb td{padding:11px 12px;border-bottom:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums}
+  .lb td.rank{text-align:left;font-weight:800;width:52px;font-size:1rem}
+  .lb td.lname{text-align:left;font-weight:700}
+  .lb td.w{color:var(--int);font-weight:800} .lb td.l{color:var(--danger)}
+  .lb tr.top td{background:linear-gradient(90deg,rgba(251,191,36,.08),transparent)}
+  .lb tbody tr:last-child td{border-bottom:none}
+  .pst{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .pst.q{color:var(--accent)} .pst.court{color:var(--win)}
+  .lb td.edit{cursor:pointer} .lb td.edit:hover{background:var(--line);border-radius:6px}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--accent);color:var(--ink);padding:12px 20px;border-radius:12px;font-weight:700;
+    opacity:0;pointer-events:none;transition:.25s;box-shadow:var(--shadow);z-index:50;max-width:90vw;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .foot{width:100%;margin:22px auto 0;padding:0 clamp(16px,2.5vw,48px);color:var(--muted);font-size:.75rem;text-align:center;box-sizing:border-box}
+  .opactive{background:var(--int)!important;color:#111!important;border-color:var(--int)!important}
+  .hidden{display:none!important}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);z-index:300;display:flex;align-items:flex-start;justify-content:center;padding:5vh 16px;overflow:auto}
+  .modalcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+  .modalhead{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line);font-size:1.05rem}
+  .modalbody{padding:14px 16px;overflow:auto}
+  .modalfoot{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--line);background:var(--panel-2)}
+  .pgsum{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .pgsum>div{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:.8rem}
+  @media(max-width:640px){.pgsum{grid-template-columns:1fr}}
+  .slist{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;max-height:44vh;overflow:auto}
+  .sitem{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);cursor:pointer;font-size:.86rem}
+  .sitem:hover{border-color:var(--accent)}
+  .sitem.on{border-color:var(--accent);background:rgba(242,165,173,.14);font-weight:700}
+  .sitem.off{opacity:.45;cursor:not-allowed}
+  .sitem .sg{margin-left:auto;font-size:.7rem;color:var(--muted);font-weight:600}
+  .spicks{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;min-height:4px}
+  .spick{display:flex;align-items:center;gap:6px;background:rgba(242,165,173,.16);border:1px solid var(--accent);border-radius:999px;padding:4px 10px;font-size:.8rem;font-weight:700}
+  .spick button{background:none;border:none;cursor:pointer;color:var(--muted);font-size:.8rem;line-height:1;padding:0}
+  .histitem{border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:var(--panel-2);overflow:hidden}
+  .histitem summary{cursor:pointer;padding:12px 14px;font-weight:700;list-style:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .histitem summary::-webkit-details-marker{display:none}
+  .histitem summary .meta{font-weight:500;color:var(--muted);font-size:.8rem}
+  .histdel{margin-left:auto;background:none;border:1px solid var(--line);color:var(--muted);cursor:pointer;font-size:.8rem;line-height:1;padding:4px 8px;border-radius:8px;flex:none}
+  .histdel:hover{color:var(--lose);border-color:var(--lose)}
+  .histinner{padding:4px 12px 14px}
+  .sub{margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+  .sub summary{cursor:pointer;font-weight:700;font-size:.85rem;list-style:none;padding:4px 2px;color:var(--muted)}
+  .sub summary::-webkit-details-marker{display:none}
+  .glwrap,.pbwrap{max-height:260px;overflow:auto;padding:4px 2px}
+  .gl{display:flex;align-items:flex-start;gap:10px;padding:11px 8px;border-bottom:1px solid var(--line);font-size:.86rem;line-height:1.4}
+  .gl:last-child{border-bottom:none}
+  .gl[hidden]{display:none}
+  .glmatch{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px}
+  .glpair{display:inline-flex;align-items:baseline;gap:.35em;white-space:nowrap;max-width:100%}
+  .glpair.win{font-weight:700;color:var(--int)}
+  .glpair.lose{font-weight:600;color:var(--danger)}
+  .glpair.win .glamp{color:var(--int);opacity:.5;font-weight:600}
+  .glpair.lose .glamp{color:var(--danger);opacity:.5;font-weight:600}
+  .gp{display:inline}
+  /* Search hit: soft underline marker — keeps win green / lose red readable */
+  .gp.hit{
+    color:inherit;font-weight:800;
+    background:none;
+    background-image:linear-gradient(to top, rgba(242,165,173,.55) 0, rgba(242,165,173,.55) .28em, transparent .28em);
+    box-shadow:none;border-radius:0;padding:0;
+    box-decoration-break:clone;-webkit-box-decoration-break:clone;
+  }
+  body.light .gp.hit{
+    background-image:linear-gradient(to top, rgba(232,120,132,.45) 0, rgba(232,120,132,.45) .28em, transparent .28em);
+  }
+  .glpair.win .gp.hit{
+    background-image:linear-gradient(to top, rgba(143,191,110,.45) 0, rgba(143,191,110,.45) .28em, transparent .28em);
+  }
+  body.light .glpair.win .gp.hit{
+    background-image:linear-gradient(to top, rgba(90,125,76,.35) 0, rgba(90,125,76,.35) .28em, transparent .28em);
+  }
+  .glpair.lose .gp.hit{
+    background-image:linear-gradient(to top, rgba(242,112,112,.4) 0, rgba(242,112,112,.4) .28em, transparent .28em);
+  }
+  body.light .glpair.lose .gp.hit{
+    background-image:linear-gradient(to top, rgba(201,75,75,.32) 0, rgba(201,75,75,.32) .28em, transparent .28em);
+  }
+  .gledit{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.78rem;line-height:1;padding:3px 5px;border-radius:6px;flex:none;opacity:.5;font-family:inherit;margin-top:1px}
+  body:not(.admin-on) .gledit{display:none!important}
+  .gledit:hover{opacity:1;color:var(--accent);background:var(--panel-2)}
+  .gl:hover .gledit{opacity:.9}
+  .logmatch{padding:0 16px 6px;min-height:1.1em}
+  .sess-block .rsearch,.histinner .rsearch{width:100%;margin:0 0 8px}
+  .sess-block .logmatch,.histinner .logmatch{padding:0 2px 6px}
+  .sess-block .glwrap{max-height:min(520px,55vh)}
+  .gln{width:26px;color:var(--muted);font-size:.7rem;flex:none;padding-top:.25em;font-variant-numeric:tabular-nums}
+  .gld{color:var(--muted);font-size:.62rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;flex:none;padding:.15em .45em;border-radius:999px;background:rgba(159,178,144,.12);border:1px solid var(--line)}
+  body.light .gld{background:rgba(90,100,60,.06)}
+  .glmeta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none;padding-top:.15em;min-width:3.2rem}
+  .gllv{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+  .gltm{font-size:.62rem;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .pb{padding:7px 6px;border-bottom:1px solid var(--line)} .pb:last-child{border-bottom:none} .pb .hint{margin-top:2px}
+  .pg{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line);font-size:.85rem}
+  .pg:last-child{border-bottom:none}
+  .pgres{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-weight:800;font-size:.72rem;flex:none}
+  .pgres.w{background:var(--int-soft);color:var(--int)} .pgres.l{background:#3a1a1a;color:var(--danger)}
+  body.light .pgres.l{background:#f7dcdf}
+  .pgm{flex:1;min-width:0} .pgmeta{color:var(--muted);font-size:.68rem;text-align:right;flex:none;white-space:nowrap}
+  .rx.phist:hover{color:var(--accent);background:transparent}
+  .landing{position:fixed;inset:0;z-index:200;display:flex;flex-direction:column;color:var(--txt);
+    background:linear-gradient(165deg,rgba(20,26,18,.55) 0%,rgba(20,26,18,.88) 48%,var(--bg) 100%),radial-gradient(900px 520px at 70% 10%,#3a4a2e 0%,transparent 60%),var(--bg);overflow-x:hidden;overflow-y:auto}
+  .landing.hidden{display:none}
+  body.scroll-lock{overflow:hidden}
+  .hist-page{overscroll-behavior:contain}
+  .home-court{position:absolute;inset:0;pointer-events:none;opacity:.35;
+    background-image:linear-gradient(90deg,transparent 0 12%,rgba(242,165,173,.18) 12% 12.4%,transparent 12.4% 87.6%,rgba(242,165,173,.18) 87.6% 88%,transparent 88%),linear-gradient(0deg,transparent 0 18%,rgba(238,244,234,.12) 18% 18.35%,transparent 18.35% 81.65%,rgba(238,244,234,.12) 81.65% 82%,transparent 82%),linear-gradient(0deg,transparent 48.5%,rgba(242,165,173,.22) 48.5% 51.5%,transparent 51.5%);
+    transform:perspective(900px) rotateX(52deg) scale(1.35);transform-origin:50% 80%;animation:courtDrift 18s ease-in-out infinite alternate}
+  @keyframes courtDrift{from{transform:perspective(900px) rotateX(52deg) scale(1.32)}to{transform:perspective(900px) rotateX(50deg) scale(1.38) translateY(-2%)}}
+  .home-top{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px clamp(18px,4vw,40px)}
+  .home-brandmark{display:flex;align-items:center;gap:9px;font-weight:800;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  .marklogo{width:26px;height:26px;border-radius:50%;object-fit:cover;flex:none}
+  .home-logo{width:clamp(96px,17vh,178px);height:auto;margin:0 0 clamp(10px,2vh,22px);
+    filter:drop-shadow(0 10px 22px rgba(0,0,0,.20));animation:kjFloat 6s ease-in-out infinite}
+  @keyframes kjFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+
+  /* rally scene */
+  .kj-rally{display:block;height:clamp(88px,18vh,164px);width:auto;max-width:96%;margin:clamp(14px,3vh,34px) auto 0;overflow:visible}
+  .kj-line{fill:none;stroke:var(--txt);stroke-width:3.4;stroke-linecap:round;stroke-linejoin:round;opacity:.8}
+  .kj-paddle{fill:var(--accent);stroke:var(--txt);stroke-width:2.6;opacity:.9}
+  .kj-ground{stroke:var(--line);stroke-width:2.4;stroke-linecap:round}
+  .kj-net line{stroke:var(--line);stroke-width:2.2;stroke-linecap:round}
+  .kj-post{stroke:var(--txt)!important;opacity:.55;stroke-width:3.2!important}
+  .kj-tape{stroke:var(--txt)!important;opacity:.7;stroke-width:4!important}
+  .kj-mesh line{stroke-width:1.5;opacity:.75}
+  .kj-shadow{fill:var(--txt);opacity:.10}
+  .kj-ball{fill:var(--accent);stroke:var(--txt);stroke-width:1.6;opacity:.96}
+  .kj-sparks path{fill:var(--accent);opacity:.5;animation:kjTwinkle 3.6s ease-in-out infinite}
+  .kj-sparks path:nth-child(2){fill:var(--int);animation-delay:1.2s}
+  .kj-sparks path:nth-child(3){animation-delay:2.4s}
+  @keyframes kjTwinkle{0%,100%{opacity:.18;transform:scale(.82)}50%{opacity:.72;transform:scale(1.1)}}
+  .kj-sparks path{transform-box:fill-box;transform-origin:50% 50%}
+
+  /* ball: straight across, arcing twice per round trip */
+  .kj-ballx{animation:kjBallX 1.9s cubic-bezier(.42,0,.58,1) infinite alternate}
+  .kj-ball{transform-box:view-box;transform-origin:146px 94px;animation:kjBallY .95s ease-out infinite alternate}
+  @keyframes kjBallX{from{transform:translateX(0)}to{transform:translateX(128px)}}
+  @keyframes kjBallY{from{transform:translateY(5px)}to{transform:translateY(-44px)}}
+
+  /* each player swings as the ball reaches them */
+  .kj-fig{transform-box:view-box;animation:kjBob 1.9s ease-in-out infinite}
+  .kj-fig-l{transform-origin:86px 134px}
+  .kj-fig-r{transform-origin:334px 134px;animation-delay:.95s}
+  @keyframes kjBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .kj-arm{transform-box:view-box}
+  .kj-arm-l{transform-origin:86px 80px;animation:kjSwing 3.8s ease-in-out infinite}
+  .kj-arm-r{transform-origin:334px 80px;animation:kjSwing 3.8s ease-in-out infinite;animation-delay:1.9s}
+  @keyframes kjSwing{
+    0%{transform:rotate(24deg)}
+    6%{transform:rotate(-34deg)}
+    16%{transform:rotate(10deg)}
+    45%{transform:rotate(16deg)}
+    100%{transform:rotate(24deg)}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .home-logo,.kj-ballx,.kj-ball,.kj-fig,.kj-arm,.kj-sparks path{animation:none}
+  }
+  .home-hero{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:clamp(20px,4vh,48px) clamp(18px,4vw,40px) clamp(22px,5vh,56px);max-width:960px;width:100%;margin:0 auto;animation:homeIn .7s ease both}
+  @media(max-width:719px){
+    .home-hero{align-items:flex-start;text-align:left;padding-bottom:clamp(52px,8vh,68px)}
+    .home-hero .home-ctas{justify-content:flex-start}
+    .home-logo{width:clamp(78px,13.5vh,124px);margin-bottom:clamp(8px,1.4vh,16px)}
+    .home-hero h1{font-size:clamp(1.85rem,7.6vw,2.6rem);margin-bottom:12px}
+    .home-lead{font-size:.95rem;line-height:1.5;margin-bottom:clamp(16px,2.4vh,26px)}
+    .home-ctas .btn-accent{padding:12px 18px;font-size:.94rem}
+    .home-status{margin-top:clamp(12px,2vh,20px);font-size:.8rem}
+    .kj-rally{height:clamp(72px,12.5vh,116px);margin-top:clamp(10px,2vh,22px);max-width:100%}
+  }
+  /* short handsets: one more step down so the rally still clears the corner link */
+  @media(max-height:668px){
+    .home-hero{padding-bottom:54px}
+    .home-logo{width:clamp(62px,10.5vh,96px);margin-bottom:8px}
+    .home-hero h1{font-size:clamp(1.55rem,6.4vw,2.05rem);margin-bottom:10px}
+    .home-lead{font-size:.87rem;line-height:1.45;margin-bottom:14px}
+    .home-ctas .btn-accent{padding:10px 16px;font-size:.9rem}
+    .home-status{margin-top:10px;font-size:.75rem}
+    .kj-rally{height:clamp(58px,9.6vh,92px);margin-top:9px}
+  }
+  /* very short screens (landscape phones, small handsets) — drop the scene rather than crush it */
+  @media(max-height:520px){
+    .kj-rally{display:none}
+    .home-logo{width:clamp(64px,16vh,96px)}
+  }
+  @keyframes homeIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+  .home-kicker{font-size:.72rem;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 18px}
+  .home-hero h1{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-weight:600;font-size:clamp(2.5rem,5.5vw,5.2rem);line-height:1.04;margin:0 0 20px;letter-spacing:-.015em;text-wrap:balance;max-width:14ch}
+  .home-lead{margin:0 0 32px;max-width:40ch;font-size:clamp(1rem,1.8vw,1.15rem);color:var(--muted);line-height:1.55;text-wrap:pretty}
+  .home-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center}
+  .home-ctas .btn-accent{padding:14px 22px;font-size:1rem;border-radius:14px}
+  .home-ctas .btn{padding:12px 18px;font-size:.9rem;border-radius:12px}
+  .home-status{margin:26px 0 0;font-size:.85rem;color:var(--muted)}
+  .home-adminlink{position:absolute;right:clamp(10px,3vw,26px);bottom:clamp(8px,1.8vh,20px);z-index:5;
+    background:transparent;border:none;color:var(--muted);opacity:.6;
+    font-family:inherit;font-size:.72rem;font-weight:700;letter-spacing:.06em;
+    padding:6px 8px;border-radius:8px;cursor:pointer;transition:opacity .15s,color .15s}
+  .home-adminlink:hover{opacity:1;color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+  .home-adminlink[hidden]{display:none}
+  .home-status b{color:var(--txt)}
+  body.light .landing{background:linear-gradient(165deg,rgba(251,250,241,.5) 0%,rgba(242,239,227,.92) 50%,var(--bg) 100%),radial-gradient(900px 520px at 70% 10%,#dcebcf 0%,transparent 60%),var(--bg)}
+  body.light .home-court{opacity:.22}
+  .hist-page{position:fixed;inset:0;z-index:210;display:flex;flex-direction:column;background:radial-gradient(1000px 600px at 90% -10%,var(--bg2) 0%,var(--bg) 55%);overflow:auto}
+  .hist-page.hidden{display:none}
+  .page-bar{position:sticky;top:0;z-index:5;backdrop-filter:blur(12px);background:var(--headerbg);border-bottom:1px solid var(--line);padding:14px clamp(16px,3vw,32px);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .page-bar h1{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-size:clamp(1.2rem,2.5vw,1.5rem);margin:0;font-weight:700}
+  .page-body{padding:clamp(20px,3vw,36px);max-width:1100px;margin:0 auto;width:100%;box-sizing:border-box}
+  .hist-list{display:flex;flex-direction:column;gap:14px}
+  .hist-card{display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center;padding:18px 20px;border:1px solid var(--line);border-radius:16px;background:var(--panel);cursor:pointer;text-align:left;width:100%;color:inherit;font:inherit;transition:border-color .15s,transform .15s}
+  .hist-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .hist-card .ht{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-weight:700;font-size:1.2rem;margin:0}
+  .hist-card .hm{color:var(--muted);font-size:.85rem;margin:4px 0 0}
+  .hist-card .hmeta{display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}
+  .htag{font-size:.68rem;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:5px 9px;border-radius:8px;border:1px solid var(--line);color:var(--muted);background:var(--panel-2)}
+  .htag.live{color:var(--int);border-color:var(--int)}
+  .htag.champ{color:var(--win);border-color:#4a3f13}
+  .hist-empty{padding:48px 20px;text-align:center;color:var(--muted);line-height:1.5}
+  .sess-hero{margin-bottom:22px}
+  .sess-fold{padding:0;overflow:hidden}
+  .sess-fold>summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;user-select:none;
+    padding:15px 18px;font-family:"Fraunces",Georgia,"Times New Roman",serif;font-size:1.05rem;font-weight:700}
+  .sess-fold>summary::-webkit-details-marker{display:none}
+  .sess-fold>summary:hover{background:var(--panel-2)}
+  .sess-fold[open]>summary{border-bottom:1px solid var(--line)}
+  .foldcount{margin-left:auto;font-family:"DM Sans",system-ui,sans-serif;font-size:.72rem;font-weight:600;color:var(--muted)}
+  .foldarrow{color:var(--muted);font-size:.75rem;transition:transform .18s}
+  .sess-fold[open] .foldarrow{transform:rotate(180deg)}
+  .lbwrap{max-height:min(430px,48vh);overflow:auto;padding:2px 6px 8px}
+  .lbwrap thead th{position:sticky;top:0;background:var(--panel);z-index:1}
+  .lbwrap .lb{table-layout:auto;width:100%}
+  @media(max-width:620px){
+    .lbwrap{padding:2px 2px 8px}
+    .lbwrap .lb{font-size:.8rem}
+    .lbwrap .lb th,.lbwrap .lb td{padding:8px 5px}
+    .lbwrap .lb th:first-child,.lbwrap .lb td:first-child{padding-left:8px}
+    .lbwrap .lb th:last-child,.lbwrap .lb td:last-child{padding-right:8px}
+  }
+  .sess-hero h2{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-size:clamp(1.7rem,4vw,2.4rem);margin:0 0 8px;font-weight:700;line-height:1.1}
+  .sess-hero p{margin:0;color:var(--muted)}
+  .sess-grid{display:grid;gap:22px}
+  @media(min-width:900px){.sess-grid{grid-template-columns:1.1fr .9fr}}
+  .sess-block{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
+  .sess-block h3{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-size:1.05rem;margin:0 0 12px;font-weight:700}
+  .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+  .photo-cell{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--panel-2);cursor:zoom-in;padding:0}
+  .photo-cell img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+  .photo-cell .phdel{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:.85rem;display:none;z-index:2;place-items:center}
+  body.admin-on .photo-cell .phdel{display:grid}
+  .photo-add{aspect-ratio:1;border-radius:12px;border:1px dashed var(--line);background:transparent;color:var(--muted);cursor:pointer;font-weight:700;font-size:.85rem;display:grid;place-items:center;padding:12px;text-align:center;font-family:inherit}
+  .photo-add:hover{border-color:var(--accent);color:var(--accent)}
+  .photo-add input{display:none}
+  .lightbox{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
+  .lightbox.hidden{display:none}
+  .lightbox img{max-width:min(960px,100%);max-height:90vh;border-radius:12px;box-shadow:var(--shadow)}
+  .pin-modal .modalcard{max-width:400px}
+  .pin-modal input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt);font-size:1.1rem;letter-spacing:.2em;text-align:center;outline:none;font-family:inherit;box-sizing:border-box}
+  .pin-modal input:focus{border-color:var(--accent)}
+  .ask-modal .modalcard{max-width:460px}
+  .ask-modal label{display:block;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+  .ask-modal input{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt);font-size:1.05rem;font-weight:600;outline:none;font-family:inherit;box-sizing:border-box}
+  .ask-modal input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(242,165,173,.25)}
+  .ask-modal .hint{margin:10px 0 0;line-height:1.45}
+  /* fix a recorded game */
+  .game-modal .modalcard{max-width:520px}
+  .ge-team{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--panel-2)}
+  .ge-team.b{border-left-color:var(--int)}
+  .ge-team.won{border-color:var(--win)}
+  .ge-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:.66rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+  .ge-team.won .ge-hd{color:var(--win)}
+  .ge-team select{width:100%;padding:10px 11px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--txt);font-size:.92rem;font-weight:600;font-family:inherit;outline:none;box-sizing:border-box}
+  .ge-team select:focus{border-color:var(--accent)}
+  .ge-vs{text-align:center;font-size:.6rem;font-weight:800;letter-spacing:1.5px;color:var(--muted);padding:9px 0}
+  .ge-winrow{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .ge-winbtn{padding:12px 10px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:var(--muted);font-weight:700;font-size:.85rem;font-family:inherit;cursor:pointer;text-align:center}
+  .ge-winbtn:hover{border-color:var(--win);color:var(--txt)}
+  .ge-winbtn.on{border-color:var(--win);background:rgba(244,197,66,.14);color:var(--win)}
+  body.light .ge-winbtn.on{background:#fbeed0;color:#8a5a10}
+  .ge-err{color:var(--danger);font-size:.78rem;min-height:1.2em;margin:12px 0 0}
+  .ge-note{font-size:.76rem;color:var(--muted);margin:12px 0 0;line-height:1.45}
+  .sess-warn{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 15px;border-radius:12px;border:1px solid var(--win);background:rgba(244,197,66,.10);font-size:.85rem;line-height:1.45}
+  .sess-warn b{color:var(--win)}
+  body.light .sess-warn{background:#fbeed0}
+  body.light .sess-warn b{color:#8a5a10}
+  .admin-badge{font-size:.62rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--ink);background:var(--accent);padding:4px 8px;border-radius:8px;display:none;margin-left:8px}
+  body.admin-on .admin-badge{display:inline-block}
+  body:not(.admin-on) .admin-only{display:none!important}
+  .app-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:6px}
+  .app-nav .navlink{background:transparent;border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:10px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit}
+  .app-nav .navlink:hover{color:var(--txt);border-color:var(--accent)}
+
+  /* ---- LIGHT THEME (cream + sage, pink accent) ---- */
+  body.light{
+    --bg:#f2efe3; --bg2:#e7edd8; --panel:#fbfaf1; --panel-2:#eef0e0; --line:#dcdec5;
+    --txt:#2c3a24; --muted:#6f7d63;
+    --beg:#2f80b0; --beg-soft:#dcecf6;
+    --nov:#c07a1e; --nov-soft:#f7e6cd;
+    --int:#5a7d4c; --int-soft:#dcebcf;
+    --hi:#7c4fd0; --hi-soft:#e9e0fb;
+    --accent:#f2a5ad; --accent-h:#f7b7be; --ink:#3a2226;
+    --headerbg:rgba(251,250,241,.86);
+    --danger:#c94b4b; --win:#a86f14; --gold:#b8842a;
+    --shadow:0 12px 30px rgba(90,100,60,.14);
+  }
+  body.light .badge.open{ background:#e7edd8; color:var(--muted); }
+  body.light .badge.live{ background:#dcebcf; color:#3f5f37; }
+  body.light .badge.mix{ background:#eae7d3; color:#5a7d4c; }
+  body.light .pill.sel.bench{ background:#e7edd8; border-color:#cbd3b8; color:var(--txt); }
+  body.light .qnum.wait{ background:#cbd3b8; color:#556047; }
+  body.light .qgroup{ background:rgba(0,0,0,.025); }
+  body.light .winprompt{ background:#f0f6ea; }
+  body.light .winpick:hover{ background:#fbeed0; }
+  body.light .rx:hover{ background:#f7dcdf; }
+  body.light .oncourt{ background:#fbe6d0; border-color:#f0cfa6; color:#9a6414; }
+  body.light .btn.on{ color:#fff; }
+  body.light .court.live{ box-shadow:inset 0 0 0 2px rgba(106,143,94,.4); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand" id="brandMark"><img src="logo.png" alt="" class="brandlogo"><div>Kimchi Jjigae Pickleball Club<small>Your queue · you control the order</small></div></div>
+  <div class="spacer"></div>
+  <div class="app-nav">
+    <button type="button" class="navlink" id="navHomeBtn">Club home</button>
+    <button type="button" class="navlink" id="navHistoryBtn">History</button>
+    <span class="admin-badge">Admin</span>
+    <button type="button" class="btn-ghost btn-sm" id="navAdminBtn" title="Login as admin">Admin login</button>
+    <button type="button" class="btn-ghost btn-sm admin-only" id="tierToggle" title="Show or hide player categories everywhere in open play">Hide categories</button>
+    <button type="button" class="btn-ghost btn-sm admin-only" id="adminLockBtn" title="Lock admin on this device">Log out</button>
+  </div>
+  <div class="stat"><b id="stRoster">0</b><span>Roster</span></div>
+  <div class="stat"><b id="stPlaying">0</b><span>Playing</span></div>
+  <div class="stat"><b id="stWaiting">0</b><span>Waiting</span></div>
+  <div class="stat"><b id="stGames">0</b><span>Games</span></div>
+  <button id="themeBtn" class="btn btn-sm" style="margin-left:18px">🌙 Dark</button>
+</header>
+
+<div class="wrap">
+  <!-- TOP: courts -->
+  <div class="main-top">
+    <div class="toolbar">
+      <button class="btn-accent btn-sm admin-only" id="opBtn">▶ Start open play</button>
+      <span id="opStatus" class="hint" style="font-weight:700"></span>
+      <button class="btn btn-sm" id="historyBtn">🕘 History</button>
+      <button class="btn btn-sm admin-only" id="challengeBtn" title="Force everyone to play only within their own level — no mixing across tiers">🎯 Challenge</button>
+      <button class="btn btn-sm admin-only" id="addCourt">+ Court</button>
+      <button class="btn-ghost btn-sm admin-only" id="undoBtn" title="Undo the last action — shuffle, drag, start, or game">↶ Undo</button>
+      <button class="btn-ghost btn-sm admin-only" id="resetBtn">Reset scores</button>
+      <button class="btn-ghost btn-sm admin-only" id="resetAllBtn">Reset all</button>
+      <button class="btn-ghost btn-sm admin-only" id="auditBtn" title="Download a log of every action — send it over if something looks wrong">🧾 Audit</button>
+    </div>
+    <div class="courts" id="courts"></div>
+  </div>
+
+  <!-- SIDE: roster + history (spans full height on wide screens) -->
+  <div class="side">
+    <button type="button" class="split split-v" id="sideSplit" aria-label="Resize roster panel" title="Drag to resize · double-click to reset"></button>
+    <details class="card sec" id="rosterSec" open>
+      <summary><span class="secttl">👥 Player roster</span><span class="hint" id="rosterCount"></span><span class="secarrow">▾</span></summary>
+      <div class="addbox admin-only">
+        <textarea id="nameInput" placeholder="Paste your participant list — numbered, comma-separated, or one per line. Duplicates are skipped."></textarea>
+        <button class="btn-accent" id="addBtn" style="padding:12px">Add to roster</button>
+      </div>
+      <div class="rtools">
+        <label class="hint" style="margin-left:auto">Sort
+          <select id="sortSel">
+            <option value="name">Name</option>
+            <option value="nolevel">No category</option>
+            <option value="bench">Bench</option>
+          </select>
+        </label>
+      </div>
+      <input id="rSearch" class="rsearch" placeholder="🔍 Search players…" autocomplete="off">
+      <div class="roster" id="roster"></div>
+    </details>
+
+    <details class="card sec" id="logSec">
+      <summary><span class="secttl">🎾 Game history</span><span class="hint" id="logCount"></span><span class="secarrow">▾</span></summary>
+      <input id="logSearch" class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off">
+      <div class="hint logmatch"></div>
+      <div class="glwrap" id="liveLog"></div>
+    </details>
+  </div>
+
+  <!-- BOTTOM: queue + leaderboard -->
+  <div class="main-bottom lowgrid">
+    <div class="card queue-pane">
+      <div class="qhead"><b>Queue</b><div style="display:flex;align-items:center;gap:8px"><span class="count" id="qCount">0 waiting</span><button class="btn-ghost btn-sm admin-only" id="setupBtn" title="Pick 4 players to play together">🎯 Set up game</button></div></div>
+      <div class="qtop" id="qTop" hidden></div>
+      <div class="qlist" id="queue"></div>
+    </div>
+    <button type="button" class="split split-v" id="queueSplit" aria-label="Resize queue panel" title="Drag to resize · double-click to reset"></button>
+    <div class="card board-pane">
+      <h2>🏆 Leaderboard <span class="hint" id="boardTotal" style="margin-left:auto;font-weight:500"></span></h2>
+      <div id="board" style="padding:4px 6px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="foot">Runs entirely on this device · session saves automatically · no internet needed</div>
+<div class="toast" id="toast"></div>
+
+<div id="landing" class="landing hidden">
+  <div class="home-court" aria-hidden="true"></div>
+  <div class="home-top">
+    <div class="home-brandmark"><img src="logo.png" alt="" class="marklogo">Kimchi Jjigae</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button type="button" class="btn-ghost btn-sm admin-only" id="landLockBtn" title="Lock admin on this device">Log out</button>
+      <button type="button" class="btn btn-sm" id="homeThemeBtn" title="Toggle theme">🌙</button>
+    </div>
+  </div>
+  <div class="home-hero">
+    <img src="logo.png" alt="Kimchi Jjigae Pickleball Club" class="home-logo">
+    <h1>Kimchi Jjigae<br>Pickleball Club</h1>
+    <p class="home-lead">Open play nights, standings, and the moments between games — all in one place.</p>
+    <div class="home-ctas">
+      <button type="button" class="btn-accent" id="landingLive" hidden>View live open play</button>
+      <button type="button" class="btn-accent" id="landingHistory">Open play history</button>
+      <button type="button" class="btn-accent" id="landingGoCourts" hidden>Open courts</button>
+    </div>
+    <p class="home-status" id="landingRoster"></p>
+
+    <svg class="kj-rally" viewBox="0 0 420 152" role="img" aria-label="Two players rallying a pickleball">
+      <g class="kj-sparks">
+        <path d="M28 44 l3.2 8.4 8.4 3.2 -8.4 3.2 -3.2 8.4 -3.2 -8.4 -8.4 -3.2 8.4 -3.2z"/>
+        <path d="M396 62 l2.6 6.8 6.8 2.6 -6.8 2.6 -2.6 6.8 -2.6 -6.8 -6.8 -2.6 6.8 -2.6z"/>
+        <path d="M210 26 l2.2 5.8 5.8 2.2 -5.8 2.2 -2.2 5.8 -2.2 -5.8 -5.8 -2.2 5.8 -2.2z"/>
+      </g>
+      <ellipse class="kj-shadow" cx="86" cy="136" rx="30" ry="4.5"/>
+      <ellipse class="kj-shadow" cx="334" cy="136" rx="30" ry="4.5"/>
+      <line class="kj-ground" x1="10" y1="136" x2="410" y2="136"/>
+      <g class="kj-net">
+        <line class="kj-post" x1="186" y1="136" x2="186" y2="84"/>
+        <line class="kj-post" x1="234" y1="136" x2="234" y2="84"/>
+        <line class="kj-tape" x1="184" y1="84" x2="236" y2="84"/>
+        <g class="kj-mesh">
+          <line x1="198" y1="86" x2="198" y2="136"/><line x1="210" y1="86" x2="210" y2="136"/><line x1="222" y1="86" x2="222" y2="136"/>
+          <line x1="186" y1="98" x2="234" y2="98"/><line x1="186" y1="112" x2="234" y2="112"/><line x1="186" y1="126" x2="234" y2="126"/>
+        </g>
+      </g>
+      <g class="kj-fig kj-fig-l">
+        <circle class="kj-line" cx="86" cy="56" r="10"/>
+        <path class="kj-line" d="M86 66 V104"/>
+        <path class="kj-line" d="M86 104 L72 133"/><path class="kj-line" d="M86 104 L101 133"/>
+        <path class="kj-line" d="M86 80 L68 96"/>
+        <g class="kj-arm kj-arm-l">
+          <path class="kj-line" d="M86 80 L118 88"/>
+          <ellipse class="kj-paddle" cx="130" cy="91" rx="10" ry="12.5" transform="rotate(-20 130 91)"/>
+        </g>
+      </g>
+      <g class="kj-fig kj-fig-r">
+        <circle class="kj-line" cx="334" cy="56" r="10"/>
+        <path class="kj-line" d="M334 66 V104"/>
+        <path class="kj-line" d="M334 104 L319 133"/><path class="kj-line" d="M334 104 L348 133"/>
+        <path class="kj-line" d="M334 80 L352 96"/>
+        <g class="kj-arm kj-arm-r">
+          <path class="kj-line" d="M334 80 L302 88"/>
+          <ellipse class="kj-paddle" cx="290" cy="91" rx="10" ry="12.5" transform="rotate(20 290 91)"/>
+        </g>
+      </g>
+      <g class="kj-ballx"><circle class="kj-ball" cx="146" cy="94" r="6"/></g>
+    </svg>
+  </div>
+  <button type="button" class="home-adminlink" id="landingAdmin" title="Admin sign in">Admin login</button>
+</div>
+
+<div id="historyPage" class="hist-page hidden">
+  <div class="page-bar">
+    <button type="button" class="btn-ghost btn-sm" id="histHomeBtn">← Club home</button>
+    <h1>Open play history</h1>
+    <div class="spacer"></div>
+    <button type="button" class="btn btn-sm" id="histAdminPlay">Admin login</button>
+    <button type="button" class="btn-ghost btn-sm admin-only" id="histLockBtn" title="Lock admin on this device">Log out</button>
+  </div>
+  <div class="page-body"><div id="histBody" class="hist-list"></div></div>
+</div>
+
+<div id="sessionPage" class="hist-page hidden">
+  <div class="page-bar">
+    <button type="button" class="btn-ghost btn-sm" id="sessBackBtn">← All open plays</button>
+    <h1 id="sessTitle">Session</h1>
+    <div class="spacer"></div>
+    <button type="button" class="btn btn-sm" id="sessContinue" hidden>Continue open play</button>
+    <button type="button" class="btn btn-sm" id="sessAdminLogin">Admin login</button>
+    <button type="button" class="btn-ghost btn-sm admin-only" id="sessDelete">Delete</button>
+    <button type="button" class="btn-ghost btn-sm admin-only" id="sessLockBtn" title="Lock admin on this device">Log out</button>
+  </div>
+  <div class="page-body" id="sessBody"></div>
+</div>
+
+<div id="pinModal" class="modal pin-modal hidden">
+  <div class="modalcard">
+    <div class="modalhead"><b id="pinTitle">Admin PIN</b><button class="btn-ghost btn-sm" id="pinClose">Close</button></div>
+    <div class="modalbody">
+      <p class="hint" id="pinHint" style="margin:0 0 12px">Enter your admin PIN to run open play.</p>
+      <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="••••">
+      <p class="hint" id="pinErr" style="margin:10px 0 0;min-height:1.2em;color:var(--danger)"></p>
+    </div>
+    <div class="modalfoot">
+      <button class="btn-ghost btn-sm" id="pinCancel">Cancel</button>
+      <button class="btn-accent btn-sm" id="pinSubmit" style="margin-left:auto">Continue</button>
+    </div>
+  </div>
+</div>
+
+<div id="askModal" class="modal ask-modal hidden" role="dialog" aria-modal="true" aria-labelledby="askTitle">
+  <div class="modalcard">
+    <div class="modalhead"><b id="askTitle">Edit</b><button class="btn-ghost btn-sm" id="askClose">Close</button></div>
+    <div class="modalbody">
+      <label for="askInput" id="askLabel">Value</label>
+      <input id="askInput" type="text" autocomplete="off" spellcheck="false">
+      <p class="hint" id="askHint"></p>
+    </div>
+    <div class="modalfoot">
+      <button class="btn-ghost btn-sm" id="askCancel">Cancel</button>
+      <button class="btn-accent btn-sm" id="askOk" style="margin-left:auto">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="gameModal" class="modal game-modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameEditTitle">
+  <div class="modalcard">
+    <div class="modalhead"><b id="gameEditTitle">Game</b><button class="btn-ghost btn-sm" id="gameEditClose">Close</button></div>
+    <div class="modalbody" id="gameEditBody"></div>
+    <div class="modalfoot">
+      <button class="btn-ghost btn-sm" id="gameEditCancel">Cancel</button>
+      <button class="btn-accent btn-sm" id="gameEditSave" style="margin-left:auto">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<div id="lightbox" class="lightbox hidden" title="Click to close"></div>
+
+<div id="playerModal" class="modal hidden">
+  <div class="modalcard">
+    <div class="modalhead"><b id="playerTitle">Player</b><button class="btn-ghost btn-sm" id="playerClose">Close</button></div>
+    <div id="playerBody" class="modalbody"></div>
+  </div>
+</div>
+
+<div id="setupModal" class="modal hidden">
+  <div class="modalcard">
+    <div class="modalhead"><b>🎯 Set up a game</b><button class="btn-ghost btn-sm" id="setupClose">Close</button></div>
+    <div class="modalbody">
+      <div class="hint" style="margin-bottom:10px">Pick any 4 players — they'll be queued together as one game. Tier rules are ignored for a game you set up yourself.</div>
+      <input id="setupSearch" class="rsearch" placeholder="🔍 Search players…" autocomplete="off">
+      <div id="setupPicks" class="spicks"></div>
+      <div id="setupList" class="slist"></div>
+    </div>
+    <div class="modalfoot">
+      <span id="setupCount" class="hint">0 of 4 selected</span>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn-ghost btn-sm" id="setupClear">Clear</button>
+        <button class="btn btn-sm" id="setupGo">Queue this game</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- state ---------- */
+const KEY="pb_queue_v4";
+let state=migrate(load())||fresh();
+/* ---------- admin PIN + photos ---------- */
+const APP_BUILD="2026-09-13n";                              // hover the header logo to check which copy the browser loaded
+const PIN_KEY="pb_admin_pin_v1";
+const ADMIN_OK="pb_admin_ok";
+let pinMode="unlock";
+let pinResolve=null;
+let viewingSessionId=null;
+function isAdmin(){ return sessionStorage.getItem(ADMIN_OK)==="1"; }
+function setAdmin(on){ if(on) sessionStorage.setItem(ADMIN_OK,"1"); else sessionStorage.removeItem(ADMIN_OK); syncAdminUI(); }
+function syncAdminUI(){
+  const on=isAdmin();
+  const live=!!(state.session&&state.session.active);
+  document.body.classList.toggle("admin-on", on);
+  const nav=$("navAdminBtn"); if(nav) nav.hidden=on;
+  const landAdmin=$("landingAdmin");
+  const landGo=$("landingGoCourts");
+  if(landAdmin) landAdmin.hidden=on;
+  if(landGo){
+    landGo.hidden=!on;
+    landGo.textContent=live?"Continue open play":"Open courts";
+  }
+  const hap=$("histAdminPlay");
+  if(hap) hap.textContent=on?(live?"Continue open play":"Run open play"):"Admin login";
+  const sc=$("sessContinue");
+  const sa=$("sessAdminLogin");
+  const viewingLive=String(viewingSessionId)==="live" && live;
+  if(sa) sa.hidden=on;
+  if(sc) sc.hidden=!(on && viewingLive);
+}
+/* PIN hash: Web Crypto when available (https/localhost); fallback so file:// still works. */
+async function hashPin(pin){
+  const s=String(pin);
+  if(globalThis.crypto&&crypto.subtle){
+    try{
+      const buf=await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+      return "s:"+Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+    }catch(_){}
+  }
+  let h=2166136261>>>0;
+  for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619)>>>0; }
+  return "f:"+h.toString(16)+":"+s.length;
+}
+async function pinMatches(pin){
+  const stored=localStorage.getItem(PIN_KEY); if(!stored) return false;
+  const s=String(pin);
+  const candidates=[];
+  if(globalThis.crypto&&crypto.subtle){
+    try{
+      const buf=await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+      const hex=Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+      candidates.push("s:"+hex, hex);
+    }catch(_){}
+  }
+  let h=2166136261>>>0;
+  for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619)>>>0; }
+  candidates.push("f:"+h.toString(16)+":"+s.length);
+  if(candidates.includes(stored)){
+    // normalize to current preferred hash
+    try{ localStorage.setItem(PIN_KEY, await hashPin(s)); }catch(_){}
+    return true;
+  }
+  return false;
+}
+function hasAdminPin(){ return !!localStorage.getItem(PIN_KEY); }
+function openPinModal(mode){
+  pinMode=mode||(hasAdminPin()?"unlock":"create");
+  $("pinTitle").textContent=pinMode==="create"?"Create admin PIN":"Admin login";
+  $("pinHint").textContent=pinMode==="create"
+    ? "Choose a PIN (4+ characters). Only the admin can run open play and pick winners."
+    : "Enter the admin PIN to manage open play.";
+  $("pinErr").textContent=""; $("pinInput").value="";
+  $("pinModal").classList.remove("hidden");
+  setTimeout(()=>$("pinInput").focus(),40);
+  return new Promise(res=>{ pinResolve=res; });
+}
+let askResolve=null;
+function askText(o){
+  o=o||{};
+  $("askTitle").textContent=o.title||"Edit";
+  $("askLabel").textContent=o.label||"Value";
+  const h=$("askHint"); h.textContent=o.hint||""; h.style.display=o.hint?"":"none";
+  const inp=$("askInput");
+  inp.type=o.type||"text"; inp.value=o.value==null?"":String(o.value); inp.placeholder=o.placeholder||"";
+  if(o.inputmode) inp.setAttribute("inputmode",o.inputmode); else inp.removeAttribute("inputmode");
+  if(o.type==="number") inp.min="0"; else inp.removeAttribute("min");
+  $("askOk").textContent=o.ok||"Save";
+  $("askModal").classList.remove("hidden");
+  setTimeout(()=>{ inp.focus(); inp.select(); },40);
+  return new Promise(res=>{ askResolve=res; });
+}
+function closeAsk(ok){ $("askModal").classList.add("hidden"); const r=askResolve; askResolve=null; if(r) r(ok ? $("askInput").value : null); }
+function closePinModal(ok){ $("pinModal").classList.add("hidden"); const r=pinResolve; pinResolve=null; if(r) r(!!ok); }
+async function submitPin(){
+  const pin=($("pinInput").value||"").trim();
+  if(pin.length<4){ $("pinErr").textContent="Use at least 4 characters."; return; }
+  try{
+    if(pinMode==="create"){
+      const hsh=await hashPin(pin);
+      localStorage.setItem(PIN_KEY,hsh); setAdmin(true); closePinModal(true); render(); refreshHistoryViews(); toast("Admin PIN saved — you're logged in"); return;
+    }
+    if(!(await pinMatches(pin))){ $("pinErr").textContent="Wrong PIN."; return; }
+    setAdmin(true); closePinModal(true); render(); refreshHistoryViews(); toast("Admin unlocked");
+  }catch(e){
+    console.warn(e);
+    $("pinErr").textContent="Login failed on this browser. Try again, or reset the PIN from the console.";
+  }
+}
+async function requireAdmin(){ if(isAdmin()) return true; return openPinModal(hasAdminPin()?"unlock":"create"); }
+function lockAdmin(){
+  setAdmin(false); closeGameEdit(); render();
+  const hp=$("historyPage"), sp=$("sessionPage");
+  const onPublicPage=(hp&&!hp.classList.contains("hidden"))||(sp&&!sp.classList.contains("hidden"));
+  toast("Logged out — admin locked");
+  if(onPublicPage) refreshHistoryViews();     // stay put, just drop the admin controls
+  else showLanding();                         // the queue view is admin-only
+}
+const PHOTO_DB="pb_photos_v1";
+function photoDB(){ return new Promise((resolve,reject)=>{ const req=indexedDB.open(PHOTO_DB,1); req.onupgradeneeded=()=>{ if(!req.result.objectStoreNames.contains("photos")) req.result.createObjectStore("photos",{keyPath:"id"}); }; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
+async function putPhoto(rec){ const db=await photoDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction("photos","readwrite"); tx.objectStore("photos").put(rec); tx.oncomplete=()=>resolve(rec.id); tx.onerror=()=>reject(tx.error); }); }
+async function getPhoto(id){ const db=await photoDB(); return new Promise((resolve,reject)=>{ const req=db.transaction("photos","readonly").objectStore("photos").get(id); req.onsuccess=()=>resolve(req.result||null); req.onerror=()=>reject(req.error); }); }
+async function delPhoto(id){ const db=await photoDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction("photos","readwrite"); tx.objectStore("photos").delete(id); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error); }); }
+function compressImage(file,max=1400,q=0.72){ return new Promise((resolve,reject)=>{ const url=URL.createObjectURL(file); const img=new Image(); img.onload=()=>{ let w=img.width,h=img.height; if(Math.max(w,h)>max){ const s=max/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s);} const c=document.createElement("canvas"); c.width=w; c.height=h; c.getContext("2d").drawImage(img,0,0,w,h); URL.revokeObjectURL(url); c.toBlob(b=>b?resolve(b):reject(new Error("fail")),"image/jpeg",q); }; img.onerror=()=>{ URL.revokeObjectURL(url); reject(new Error("bad image")); }; img.src=url; }); }
+async function addPhotosToSession(sessionId,fileList){
+  if(!isAdmin()){ toast("Admin only"); return; }
+  const files=[...fileList].filter(f=>/^image\//.test(f.type));
+  if(!files.length){ toast("Pick image files"); return; }
+  const s=state.history.find(h=>String(h.id)===String(sessionId)); if(!s){ toast("Session not found"); return; }
+  if(!Array.isArray(s.photos)) s.photos=[];
+  for(const f of files.slice(0,12)){
+    try{ const blob=await compressImage(f); const id="ph_"+Date.now()+"_"+Math.random().toString(36).slice(2,8);
+      await putPhoto({id,sessionId:String(sessionId),blob,name:f.name,addedAt:Date.now()}); s.photos.push(id); }
+    catch(e){ console.warn(e); }
+  }
+  save(); toast("Photos added"); if(viewingSessionId&&String(viewingSessionId)===String(sessionId)) renderSessionPage(sessionId);
+}
+async function removePhotoFromSession(sessionId,photoId){
+  if(!isAdmin()) return;
+  const s=state.history.find(h=>String(h.id)===String(sessionId)); if(!s) return;
+  s.photos=(s.photos||[]).filter(id=>id!==photoId); await delPhoto(photoId); save(); renderSessionPage(sessionId);
+}
+
+function fresh(){ return { players:{}, queue:[], courts:[], seq:1, courtSeq:1, games:0, sort:"name", challenge:false, mixDefaulted:true, theme:"dark", grpSeq:0, session:{active:false,startedAt:null}, history:[], log:[], locked:false, qlocked:[], audit:[], layout:{} }; }
+/* ---------- audit trail ----------
+   Records every action you take, with a snapshot of the queue, so a problem can be
+   traced afterwards. Kept to the most recent 1500 entries; export it from 🧾 Audit. */
+const AUDIT_MAX=1500;
+function qsnap(){ try{ return state.queue.map(id=>(P(id)?P(id).name:id)).join(" > "); }catch(e){ return ""; } }
+function audit(act,detail){
+  try{
+    if(!Array.isArray(state.audit)) state.audit=[];
+    state.audit.push({t:Date.now(), a:act, d:detail===undefined?"":String(detail), q:qsnap()});
+    if(state.audit.length>AUDIT_MAX) state.audit.splice(0, state.audit.length-AUDIT_MAX);
+  }catch(e){}
+}
+function nmsafe(id){ return P(id)?P(id).name:String(id); }
+function cname(c){ if(!c) return "court"; const i=state.courts.indexOf(c); return c.name||("Court "+(i>=0?i+1:"?")); }
+function migrate(s){ if(!s)return null; if(!Array.isArray(s.queue))s.queue=[];
+  if(s.challenge===undefined)s.challenge=!!s.strictInt;   // renamed from strictInt
+  if(!s.session)s.session={active:false,startedAt:null};
+  if(!Array.isArray(s.history))s.history=[];
+  if(!Array.isArray(s.log))s.log=[];
+  if(!Array.isArray(s.audit))s.audit=[];
+  if(!Array.isArray(s.qlocked))s.qlocked=[];
+  if(!Array.isArray(s.frontPinned))s.frontPinned=[];
+  if(!s.layout||typeof s.layout!=="object")s.layout={};
+  (s.queue||[]).forEach(id=>{ const p=s.players&&s.players[id]; if(p&&!p.waitSince)p.waitSince=Date.now(); });   // wait timer added later; start it now for anyone already queued
+  (s.queue||[]).forEach(id=>{ const p=s.players&&s.players[id]; if(p&&!p.checkedInAt)p.checkedInAt=p.waitSince||Date.now(); });   // check-in time added later
+  Object.values(s.players||{}).forEach(p=>{ if(p.qkey===undefined)p.qkey=Math.random(); if(p.level==='intermediate')p.level='lowint'; }); // intermediate renamed to low intermediate
+  if(!s.mixDefaulted){ Object.values(s.players||{}).forEach(p=>p.openMix=true); s.mixDefaulted=true; }  // one-time: everyone may mix by default
+  (s.history||[]).forEach(h=>{ if(!Array.isArray(h.photos)) h.photos=[]; });
+  return s; }
+function ensureCourts(){ if(!state.courts.length){ addCourt(); addCourt(); addCourt(); } }
+function load(){ try{return JSON.parse(localStorage.getItem(KEY))}catch(e){return null} }
+function save(){ localStorage.setItem(KEY,JSON.stringify(state)); }
+function commit(){
+  selSwap=null; selPair=null; try{ pinFront(); }catch(e){} save(); render();
+  const sp=$("sessionPage");
+  if(sp && !sp.classList.contains("hidden") && String(viewingSessionId)==="live")
+    renderSessionPage("live");
+}
+let selSwap=null;   // currently-picked player for a manual teammate swap
+let selPair=null;   // currently-picked player for a fixed-pair link
+let rosterSearch=""; // roster search filter
+
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+function P(id){return state.players[id];}
+function nm(id){return P(id)?P(id).name:"—";}
+function rec(id){const p=P(id);return p?`${p.wins}-${p.losses}`:"";}
+function winpct(p){return p.games?Math.round(p.wins/p.games*100):0;}
+function onCourt(id){return state.courts.some(c=>c.seats.includes(id));}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function fmt(ms){const s=Math.max(0,Math.floor(ms/1000));return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
+const LONG_WAIT_MIN=20;   // queue rows turn gold once someone has waited this long
+function fmtWait(ms){ const m=Math.max(0,Math.floor(ms/60000)); return m<1 ? "<1m" : m<60 ? m+"m" : Math.floor(m/60)+"h "+String(m%60).padStart(2,"0")+"m"; }
+function waitSince(id){ const p=P(id); if(!p) return Date.now(); if(!p.waitSince) p.waitSince=Date.now(); return p.waitSince; }
+function waitSpan(id){ const t=waitSince(id), ms=Date.now()-t; return `<span class="qwait ${ms>=LONG_WAIT_MIN*60000?'long':''}" data-wait="${t}" title="Time waiting in the queue">${fmtWait(ms)}</span>`; }
+function cap(l){return l?l[0].toUpperCase()+l.slice(1):"";}
+function showCats(){ return !state.hideTiers; }        // one switch for every category label in open play
+function chip(id){const p=P(id);if(!showCats())return"";const p2=P(id);if(!p2||!p2.level)return"";return `<span class="chip ${lvlCls(p2.level)}">${lvlAbbr(p2.level)}</span>`;}
+
+/* Queue order = fewest games first, then the exact order players were added/returned.
+   No randomization — the queue array IS the order (stable sort), and only Shuffle randomizes. */
+const KEEP_FRONT=8;
+function enqueue(id){ if(P(id)&&!state.queue.includes(id)) P(id).waitSince=Date.now(); state.queue=state.queue.filter(x=>x!==id); state.queue.push(id); }
+function dequeueId(id){ state.queue=state.queue.filter(x=>x!==id); }
+function orderedQueue(){ return state.queue.slice(); }  // the queue array IS the order — only manual actions / start / finish change it
+/* After a game (Play-again off), spread returnees through the unlocked tail (Group 3+)
+   so the same four aren't one contiguous rematch block. Next up + Group 2 stay untouched. */
+function scatterReturn(ids){
+  const ret=ids.filter(id=>id&&P(id)&&P(id).level);
+  ret.forEach(dequeueId);
+  if(!ret.length) return;
+  const start=Math.min(KEEP_FRONT, state.queue.length);
+  if(ret.length===1 || state.queue.length<=start){ state.queue=state.queue.concat(ret); return; }
+  // Group the queue into blocks first: a run of locked players is one block, so a returning
+  // player can never be dropped inside a group the admin locked.
+  const lset=new Set(state.qlocked||[]);
+  const all=state.queue, blocks=[];
+  for(let i=0;i<all.length;i++){
+    if(lset.has(all[i])){ const blk=[all[i]]; while(i+1<all.length && lset.has(all[i+1])) blk.push(all[++i]); blocks.push(blk); }
+    else blocks.push([all[i]]);
+  }
+  // Everything up to the Next up / Group 2 boundary stays put; a locked block straddling it
+  // counts as head so it is never split either.
+  let seen=0, hb=0;
+  while(hb<blocks.length && seen<start){ seen+=blocks[hb].length; hb++; }
+  const head=[].concat.apply([], blocks.slice(0,hb));
+  const tailBlocks=blocks.slice(hb);
+  if(!tailBlocks.length){ state.queue=head.concat(ret); return; }
+  const merged=[]; const n=ret.length; let t=0;
+  for(let i=0;i<n;i++){
+    const take=Math.floor((tailBlocks.length-t)/(n-i+1));
+    for(let k=0;k<take;k++) merged.push.apply(merged, tailBlocks[t++]);
+    merged.push(ret[i]);
+  }
+  while(t<tailBlocks.length) merged.push.apply(merged, tailBlocks[t++]);
+  state.queue=head.concat(merged);
+}
+/* how many times two players have already been in the same game (teammate OR opponent) */
+/* Warn when the queue is about to re-run a foursome that has already played together.
+   An intentional "play again" group is excluded — that repeat was asked for. */
+function fourKey(ids){ return ids.slice().sort().join("|"); }
+function repeatGames(ids){
+  if(!ids || ids.length!==4) return [];
+  const key=fourKey(ids), out=[];
+  (state.log||[]).forEach((g,i)=>{ if(fourKey([...g.w,...g.l].map(x=>x.id))===key) out.push(i+1); });
+  return out;
+}
+function repeatNote(grp){
+  const gid=P(grp[0])&&P(grp[0]).grp;
+  if(gid && grp.every(id=>P(id)&&P(id).grp===gid)) return "";      // they chose to play again
+  const hits=repeatGames(grp);
+  if(!hits.length) return "";
+  const shown=hits.slice(-3).join(", #");
+  const label=hits.length===1 ? "Same four as game #"+hits[0]
+    : "These four already played "+hits.length+"\u00d7 (game"+(hits.length>1?"s":"")+" #"+shown+")";
+  return '<div class="qrepeat" title="Drag a player in or out to change the mix.">\u26a0 '+esc(label)+'</div>';
+}
+function coplayCount(){ const m={}; (state.log||[]).forEach(g=>{ const all=[...g.w,...g.l].map(x=>x.id);
+  for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){ const k=[all[i],all[j]].sort().join("|"); m[k]=(m[k]||0)+1; } }); return m; }
+function coSum(cop,grp,x){ let s=0; grp.forEach(g=>{ s+=cop[[g,x].sort().join("|")]||0; }); return s; }
+function effGames(id){ return P(id).games + (P(id).pg||0); }   // pg = late-join handicap so late players don't jump the line
+/* AUTO grouping: fewest games first (balanced), and among those, the foursome that repeats the least
+   who-plays-with-whom (variety across a player's tier and the adjacent tiers). Level rules respected. */
+function autoGroupFrom(list, cop){
+  if(list.length<4) return null;
+  cop=cop||coplayCount();
+  const byGrp={}; list.forEach(id=>{ const g=P(id).grp; if(g)(byGrp[g]=byGrp[g]||[]).push(id); });
+  for(const g in byGrp) if(byGrp[g].length>=4){ const four=byGrp[g].slice(0,4); const rm=new Set(four); for(let i=list.length-1;i>=0;i--) if(rm.has(list[i]))list.splice(i,1); return arrangeTeams(four,true); }
+  const pool=list.slice().sort((a,b)=> effGames(a)-effGames(b) );   // fewest games first (late-joiners handicapped so they don't jump)
+  for(const anchor of pool){
+    let grp=[anchor];
+    const addP=id=>{ const pt=P(id).partner; if(pt&&list.includes(pt)&&!grp.includes(pt)) grp.push(pt); };
+    addP(anchor); if(grp.length>4||!levelsOK(grp)) continue;
+    while(grp.length<4){
+      const cand=pool.filter(id=>{ if(grp.includes(id))return false;
+        const pt=P(id).partner, withPt=pt&&list.includes(pt)&&!grp.includes(pt);
+        const test=withPt? grp.concat([id,pt]) : grp.concat([id]);
+        if(test.length>4) return false; return levelsOK(test); });
+      if(!cand.length) break;
+      cand.sort((a,b)=> effGames(a)-effGames(b) || coSum(cop,grp,a)-coSum(cop,grp,b) );  // balance, then variety
+      grp.push(cand[0]); addP(cand[0]);
+    }
+    if(grp.length===4 && levelsOK(grp)){ const rm=new Set(grp); for(let i=list.length-1;i>=0;i--) if(rm.has(list[i]))list.splice(i,1); return arrangeTeams(grp,true); }
+  }
+  return null;
+}
+function queueSig(){ return state.queue.slice().sort().join("|"); }
+function manualActive(){ return state.manualSig===queueSig(); }      // true right after a drag, until the players in the queue change
+/* Groups follow your queue order. Normally they respect the level ladder (Beg↔Nov↔L.Int↔H.Int, adjacent only).
+   A manual drag flags an override so that arrangement is honored even across non-adjacent tiers. */
+function queueGroups(){
+  const man=manualActive();
+  const work=state.queue.slice();
+  const groups=[];
+  pinnedFront(work).forEach(p=>{                       // Next up + Group 2 stay exactly as they are
+    p.forEach(id=>{ const i=work.indexOf(id); if(i>=0) work.splice(i,1); });
+    groups.push(arrangeTeams(p, false, false));
+  });
+  let g; while(g=nextGroupFrom(work, man)) groups.push(g);
+  return {groups, leftovers:work, manual:man};
+}
+/* Auto-levelling. Next up + Group 2 (the first 8 in line) are YOURS — never touched.
+   From Group 3 back, players are re-ordered fewest-games-first so nobody runs away with the game count.
+   Locked groups (🔒) keep their exact slots, and fixed pairs stay adjacent. */
+function rebalanceTail(){
+  if(state.locked) return;                                   // whole queue locked = hands off
+  const q=state.queue;
+  if(q.length<=KEEP_FRONT+1) return;
+  const lset=new Set(state.qlocked||[]);
+  const freeIdx=[], freeIds=[];
+  for(let i=KEEP_FRONT;i<q.length;i++){ if(!lset.has(q[i])){ freeIdx.push(i); freeIds.push(q[i]); } }
+  if(freeIds.length<2) return;
+  const pos={}; freeIds.forEach((id,i)=>pos[id]=i);
+  const cop=coplayCount();                                    // who has already played with whom
+  const pool=freeIds.slice().sort((a,b)=> effGames(a)-effGames(b) || pos[a]-pos[b]);   // fewest games first
+  const drop=id=>{ const i=pool.indexOf(id); if(i>=0) pool.splice(i,1); };
+  const ordered=[];
+  while(pool.length){
+    if(pool.length<4){ ordered.push.apply(ordered,pool); pool.length=0; break; }
+    const grp=[pool[0]]; drop(pool[0]);
+    const addPartner=id=>{ const pt=P(id).partner; if(pt && grp.length<4 && pool.indexOf(pt)>=0){ grp.push(pt); drop(pt); } };
+    addPartner(grp[0]);
+    while(grp.length<4){
+      let cand=pool.filter(id=>levelsOK(grp.concat([id])));    // keep the foursome tier-legal
+      if(!cand.length) cand=pool.slice();                      // never strand anyone — fall back if no legal pick
+      cand.sort((a,b)=> effGames(a)-effGames(b)                // fewest games first (keeps it fair)…
+                     || coSum(cop,grp,a)-coSum(cop,grp,b)      // …then the freshest matchup (stops repeats)
+                     || pos[a]-pos[b]);
+      const pick=cand[0]; grp.push(pick); drop(pick); addPartner(pick);
+    }
+    ordered.push.apply(ordered,grp);
+  }
+  const changed=freeIdx.some((idx,k)=>q[idx]!==ordered[k]);
+  freeIdx.forEach((idx,k)=>{ q[idx]=ordered[k]; });            // drop them back into the same slots
+  if(changed) audit("autoLevel","re-ordered from Group 3 back");
+  state.manualSig=null;
+}
+function lockGroupTogether(ids){
+  state.qlocked=state.qlocked||[];
+  ids.forEach(id=>{ if(!state.qlocked.includes(id)) state.qlocked.push(id); });
+  const here=ids.filter(id=>state.queue.indexOf(id)>=0);
+  if(here.length){
+    const at=Math.min.apply(null, here.map(id=>state.queue.indexOf(id)));
+    const before=state.queue.slice(0,at).filter(id=>!ids.includes(id)).length;
+    const rest=state.queue.filter(id=>!ids.includes(id));
+    state.queue=rest.slice(0,before).concat(here, rest.slice(before));     // one solid run, in your order
+  }
+}
+/* Next up and Group 2 are pinned the moment they form: the exact same four keep playing next,
+   whatever else happens in the queue, until they actually go on court. Re-derived only when a
+   pinned group is no longer whole (it played, or someone was benched or removed). */
+function pinnedFront(work){
+  const out=[];
+  (state.frontPinned||[]).forEach(g=>{
+    if(out.length>=2) return;
+    if(Array.isArray(g) && g.length===4 && g.every(id=>work.includes(id))) out.push(g.slice());
+  });
+  return out;
+}
+function pinFront(){
+  if(!Array.isArray(state.queue)) return;
+  state.frontPinned=queueGroups().groups.slice(0,2).filter(g=>g.length===4).map(g=>g.slice());
+}
+function clearFrontPin(){ state.frontPinned=[]; }
+function toggleGroupLock(ids){                     // pin/unpin a group so auto-levelling leaves it alone
+  state.qlocked=state.qlocked||[];
+  const on=ids.every(id=>state.qlocked.includes(id));
+  if(on){ state.qlocked=state.qlocked.filter(id=>!ids.includes(id)); }
+  else lockGroupTogether(ids);
+  audit("groupLock", (on?"unlocked: ":"locked: ")+ids.map(nmsafe).join(", "));
+  commit(); toast(on?"Group unlocked — it can re-level again":"Group locked — these 4 keep this spot");
+}
+function freeGroupOf(id){ const g=P(id)&&P(id).grp; if(g) Object.values(state.players).forEach(p=>{ if(p.grp===g) p.grp=null; }); } // disband a play-again group
+function pairOff(id){ const p=P(id); if(p&&p.partner){ if(P(p.partner)) P(p.partner).partner=null; p.partner=null; } } // break a fixed pair
+function pairToggle(id){
+  if(onCourt(id))return;
+  const p=P(id);
+  if(p.partner){ const other=P(p.partner)?P(p.partner).name:""; pairOff(id); selPair=null; commit(); toast("Pair removed"+(other?" ("+other+")":"")); return; }
+  if(!selPair){ selPair=id; render(); toast("Tap 🔗 on their partner to link them"); return; }
+  if(selPair===id){ selPair=null; render(); return; }
+  const a=selPair; pairOff(a); pairOff(id); P(a).partner=id; P(id).partner=a; selPair=null;
+  audit("pairLink", nmsafe(a)+" + "+nmsafe(id));
+  const bad=Math.abs(levelOf(a)-levelOf(id))>1;
+  commit(); toast(bad?"Paired — heads up: their levels can't share a game, adjust one":"Paired for the session: "+nm(a)+" & "+nm(id));
+}
+
+function take(list,idx){ const g=idx.map(i=>list[i]); for(let k=idx.length-1;k>=0;k--)list.splice(idx[k],1); return g; }
+const LVLS=['beginner','novice','lowint','highint'];               // ladder: only adjacent tiers may mix
+function lvlIdx(l){ return LVLS.indexOf(l); }                       // Beg 0 · Nov 1 · Low Int 2 · High Int 3
+function levelOf(id){ return lvlIdx(P(id).level); }
+function lvlCls(l){ return {beginner:'beg',novice:'nov',lowint:'int',highint:'hi'}[l]||''; }
+function lvlAbbr(l){ return {beginner:'B',novice:'N',lowint:'LI',highint:'HI'}[l]||''; }
+function lvlName(l){ return {beginner:'Beginner',novice:'Novice',lowint:'Low Int',highint:'High Int'}[l]||''; }
+function lvlShort(l){ return {beginner:'Beg',novice:'Nov',lowint:'L.Int',highint:'H.Int'}[l]||''; }
+function seatsLabel(ids){
+  const set=[...new Set(ids.map(id=>P(id).level))].sort((a,b)=>lvlIdx(a)-lvlIdx(b));
+  return set.map(lvlShort).join(" / ");
+}
+function cmpCost(a,b){ for(let i=0;i<4;i++){ if(a[i]!==b[i]) return a[i]-b[i]; } return 0; }  // compare games (highest first)
+function levelsOK(ids){ const ix=ids.map(levelOf), mn=Math.min(...ix), mx=Math.max(...ix);
+  if(mx-mn>1) return false; if(state.challenge && new Set(ix).size>1) return false; return true; }   // never Beg+Int; Challenge = same level
+function teammateCount(){ const m={}; (state.log||[]).forEach(g=>{ const k=(x,y)=>[x.id,y.id].sort().join("|"); const kw=k(g.w[0],g.w[1]),kl=k(g.l[0],g.l[1]); m[kw]=(m[kw]||0)+1; m[kl]=(m[kl]||0)+1; }); return m; }
+function splits(ids){ const [a,b,c,d]=ids; return [[a,b,c,d],[a,c,b,d],[a,d,b,c]]; }   // the 3 ways to make 2v2; first = current order
+function teamGap(o){ return Math.abs((levelOf(o[0])+levelOf(o[1])) - (levelOf(o[2])+levelOf(o[3]))); }  // tier difference between the two teams
+function arrangeTeams(ids, optimize, balance){                 // teams = seats [0,1] vs [2,3]
+  const set=new Set(ids);
+  let pair=null; for(const id of ids){ const pt=P(id).partner; if(pt&&set.has(pt)){ pair=[id,pt]; break; } }
+  if(pair){ const rest=ids.filter(x=>x!==pair[0]&&x!==pair[1]); return [pair[0],pair[1]].concat(rest); }   // fixed pair locks a team
+  if(ids.length!==4) return ids.slice();
+  const opts=splits(ids);
+  if(optimize){
+    const m=teammateCount(), pc=(x,y)=>m[[x,y].sort().join("|")]||0;      // even teams first, then least-repeated partners
+    let best=opts[0], bs=[Infinity,Infinity];
+    opts.forEach(o=>{ const s=[teamGap(o), pc(o[0],o[1])+pc(o[2],o[3])];
+      if(s[0]<bs[0] || (s[0]===bs[0]&&s[1]<bs[1])){ bs=s; best=o; } });
+    return best.slice();
+  }
+  if(!balance) return ids.slice();                                        // manual/drag order kept exactly as-is
+  let best=opts[0], bg=teamGap(opts[0]);                                  // mixed tiers: split them so both teams are even
+  opts.forEach(o=>{ const g=teamGap(o); if(g<bg){ bg=g; best=o; } });      // ties keep the queue order
+  return best.slice();
+}
+/* Next foursome from `list`, which is already in queue order (fewest games first by default, drag-reordered).
+   Walks the order front-to-back and forms the first valid group; so the queue order fully controls the groups.
+   Handles play-again foursomes, fixed pairs (same team), level rules, and Challenge. */
+function nextGroupFrom(list, ignoreLevels){
+  if(list.length<4) return null;
+  const lset=new Set(state.qlocked||[]);                     // 🔒 outranks tier rules, fairness, everything
+  const byGrp={}; list.forEach(id=>{ const g=P(id).grp; if(g)(byGrp[g]=byGrp[g]||[]).push(id); });
+  const readyGrp=g=>g&&byGrp[g]&&byGrp[g].length>=4;
+  // build units in queue order: play-again foursome, fixed pair (both present), or single; a paired player waits if their partner isn't available
+  const used=new Set(), units=[];
+  for(const id of list){
+    if(used.has(id)) continue;
+    if(lset.has(id)){                                        // a locked run of 4 is one game; nothing may split it
+      const run=[];
+      for(let k=list.indexOf(id); k<list.length && run.length<4; k++){
+        const x=list[k]; if(used.has(x) || !lset.has(x)) break; run.push(x);
+      }
+      if(run.length===4){ units.push({ids:run,four:true,locked:true}); run.forEach(x=>used.add(x)); continue; }
+    }
+    const g=P(id).grp;
+    if(readyGrp(g)){ const four=byGrp[g].slice(0,4); units.push({ids:four,four:true}); four.forEach(x=>used.add(x)); continue; }
+    const pt=P(id).partner;
+    if(pt){ if(list.includes(pt)&&!used.has(pt)&&!readyGrp(P(pt).grp)){ units.push({ids:[id,pt]}); used.add(id); used.add(pt); } continue; }  // else wait for partner
+    units.push({ids:[id]}); used.add(id);
+  }
+  const emit=(ids, balance)=>{ const arranged=arrangeTeams(ids, false, balance===undefined?!ignoreLevels:balance), rm=new Set(ids);   // same players, same order — only which side of the net they're on can even out
+    for(let i=list.length-1;i>=0;i--) if(rm.has(list[i])) list.splice(i,1); return arranged; };
+  for(let a=0;a<units.length;a++){
+    if(units[a].four) return emit(units[a].ids, units[a].locked?false:undefined);   // a locked or play-again foursome plays as its own game
+    let ids=units[a].ids.slice(); if(!ignoreLevels && !levelsOK(ids)) continue;
+    for(let b=a+1;b<units.length&&ids.length<4;b++){
+      if(units[b].four) continue;
+      const u=units[b].ids; if(ids.length+u.length>4) continue;
+      const merged=ids.concat(u); if(ignoreLevels || levelsOK(merged)) ids=merged;
+    }
+    if(ids.length===4) return emit(ids);
+  }
+  return null;
+}
+
+/* ---------- roster ---------- */
+/* Accepts almost anything you paste: one per line, comma-separated, or a numbered
+   list — even all on one line like "1. Ana 2. Ben 3. Cy". Headings such as
+   "Participants (27)" and bullets are stripped; notes like "(Allen's +1)" are kept. */
+function parseNames(text){
+  let t=String(text||"").replace(/ /g," ");
+  t=t.replace(/^\s*(participants?|players?|roster|attendees?)\b\s*\(?\s*\d*\s*\)?\s*:?/i,"");  // drop a heading
+  t=t.replace(/(^|[\s,;])(\d{1,3})\s*[.)]\s+/g,"\n");         // "1." / "2)" starts a new name
+  return t.split(/[\n,;]+/)
+    .map(s=>s.replace(/^[-–—•*·]+\s*/,"").replace(/^\d{1,3}\s*[.)]\s*/,""))   // bullets / leftover numbering
+    .map(s=>s.replace(/\s+/g," ").trim())
+    .filter(Boolean);
+}
+function addPlayers(text){
+  const names=parseNames(text);
+  if(!names.length){ toast("No names found in that text"); return; }
+  const have=new Set(Object.values(state.players).map(p=>p.name.toLowerCase()));
+  let added=0, skipped=0;
+  names.forEach(n=>{
+    const k=n.toLowerCase();
+    if(have.has(k)){ skipped++; return; }                      // don't duplicate someone already on the roster
+    have.add(k); added++;
+    const id="p"+(state.seq++);
+    state.players[id]={id,name:n,level:null,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
+  });
+  audit("addPlayers", added+" added, "+skipped+" dup: "+names.join(", "));
+  commit();
+  toast(added ? added+(added>1?" players added":" player added")+(skipped?" · "+skipped+" already on the roster":"")
+              : "Everyone on that list is already on the roster");
+}
+function setLevel(id,level){
+  audit("setLevel", nmsafe(id)+" -> "+(level||"Bench")+(onCourt(id)?" (on court)":""));
+  freeGroupOf(id);
+  if(!level) pairOff(id);                 // benching a player breaks their pair so the partner isn't stuck waiting
+  const wasQueued=state.queue.includes(id);
+  P(id).level=level;
+  if(onCourt(id)){ commit(); return; }    // mid-game: just record the new tier; it applies when they return to the queue
+  if(!level){ dequeueId(id); }
+  else if(!wasQueued){
+    if(state.games>0){                    // late joiner: hand them a baseline so 0 games doesn't jump them ahead
+      const eff=Object.values(state.players).filter(p=>p.id!==id && p.level).map(p=>p.games+(p.pg||0));
+      P(id).pg = eff.length ? Math.max(0, Math.max(...eff)-P(id).games) : 0;
+    } else P(id).pg=0;
+    P(id).checkedInAt=Date.now();          // giving someone a category is their check-in
+    enqueue(id);
+  }
+  commit();
+}
+async function renamePlayer(id){ const p=P(id); if(!p)return; const nn=await askText({title:"Rename player",label:"Player name",value:p.name,ok:"Save name"}); if(nn===null)return; const t=nn.trim(); if(!t)return; audit("renamePlayer", p.name+" -> "+t); p.name=t; commit(); }
+async function editStat(id,field){ const p=P(id); if(!p)return; const v=await askText({title:"Edit "+field,label:field.charAt(0).toUpperCase()+field.slice(1)+" for "+p.name,value:p[field],type:"number",inputmode:"numeric",ok:"Save",hint:"Games played is recalculated as wins + losses."}); if(v===null)return; let n=parseInt(v,10); if(isNaN(n)||n<0)return; audit("editStat", p.name+" "+field+": "+p[field]+" -> "+n); p[field]=n; p.games=p.wins+p.losses; commit(); }
+function removePlayer(id){ audit("removePlayer", nmsafe(id));
+  const p=P(id); if(!p)return;
+  if(onCourt(id)){ toast("Finish the game before removing "+p.name); return; }
+  freeGroupOf(id); pairOff(id); dequeueId(id); delete state.players[id]; commit();
+}
+
+/* ---------- courts ---------- */
+function addCourt(){ audit("addCourt","court #"+(state.courts.length+1)); state.courts.push({id:"c"+(state.courtSeq++),seats:[null,null,null,null],started:null}); if($("courts"))commit(); else save(); }
+async function renameCourt(id){ const c=state.courts.find(x=>x.id===id); if(!c)return; const cur=c.name||("Court "+(state.courts.indexOf(c)+1)); const nn=await askText({title:"Rename court",label:"Court name",value:cur,ok:"Save name",hint:"Leave it blank to go back to the default name."}); if(nn===null)return; audit("renameCourt", cur+" -> "+(nn.trim()||cur)); c.name=nn.trim()||null; commit(); }
+function removeCourt(id){ audit("removeCourt", id);
+  const c=state.courts.find(x=>x.id===id); if(!c)return;
+  if(c.seats.some(x=>x)){ if(!confirm("Remove this court and send its players back to the queue?"))return; c.seats.forEach(pid=>{if(pid)enqueue(pid);}); }
+  state.courts=state.courts.filter(x=>x.id!==id); commit();
+}
+function startCourt(c){
+  const g=queueGroups().groups[0];
+  if(!g){ audit("startCourt-FAILED","no legal group of 4 · "+cname(c)); toast("No group of 4 is ready"); return; }
+  pushUndo();
+  audit("startCourt", cname(c)+": "+g.map(nmsafe).join(", "));
+  state.queue=state.queue.filter(x=>!g.includes(x));
+  state.qlocked=(state.qlocked||[]).filter(x=>!g.includes(x));   // a group that's on court no longer needs its queue slot held
+  state.manualSig=null;                          // arrangement consumed; remaining groups go back to level-legal
+  c.seats=[g[0],g[1],g[2],g[3]]; c.started=Date.now(); commit();
+}
+function finishGame(c,winTeam){
+  if(!isAdmin()){ toast("Admin only — login to pick the winner"); return; }
+  if(!c) return;
+  pushUndo();
+  audit("finishGame", cname(c)+" · won: "+[c.seats[winTeam==="A"?0:2],c.seats[winTeam==="A"?1:3]].map(nmsafe).join(" & ")+" · lost: "+[c.seats[winTeam==="A"?2:0],c.seats[winTeam==="A"?3:1]].map(nmsafe).join(" & "));
+  const s=c.seats;
+  const winners = winTeam==='A' ? [s[0],s[1]] : [s[2],s[3]];
+  const losers  = winTeam==='A' ? [s[2],s[3]] : [s[0],s[1]];
+  winners.forEach(id=>{const p=P(id);p.games++;p.wins++;});
+  losers .forEach(id=>{const p=P(id);p.games++;p.losses++;});
+  state.games++;
+  (state.log=state.log||[]).push({ t:Date.now(), lvl:seatsLabel(c.seats),   // game-by-game record for history
+    w:winners.map(id=>({id,name:nm(id)})), l:losers.map(id=>({id,name:nm(id)})) });
+  const four=[...winners,...losers];
+  four.forEach(id=>{ P(id).grp=null; });         // a finished game disbands any prior group
+  let together=false;
+  if(c.again && four.every(id=>P(id).level)){ state.grpSeq=(state.grpSeq||0)+1; const gid="g"+state.grpSeq; four.forEach(id=>P(id).grp=gid); c.again=false; together=true; }
+  else c.again=false;
+  // Back to queue: Play-again keeps WWLL so the locked foursome stays a block.
+  // Otherwise enqueue, rebalance for fairness, then scatter the 4 through the unlocked
+  // tail so rebalance doesn't leave them as one contiguous rematch chunk.
+  const ret=[];
+  for(let i=0;i<winners.length;i++){ ret.push(winners[i]); if(losers[i]) ret.push(losers[i]); }
+  if(together){
+    winners.forEach(id=>{ if(P(id).level) enqueue(id); });
+    losers .forEach(id=>{ if(P(id).level) enqueue(id); });
+    rebalanceTail();
+  }else{
+    ret.forEach(id=>{ if(P(id).level) enqueue(id); });
+    rebalanceTail();
+    scatterReturn(ret);
+  }
+  c.seats=[null,null,null,null]; c.started=null;
+  commit(); toast(together?"They'll play again together on their next turn":"Game recorded — court cleared");
+}
+function clearCourt(c){ pushUndo(); audit("clearCourt", cname(c)+": "+c.seats.filter(Boolean).map(nmsafe).join(", ")); c.again=false; c.seats.forEach(id=>{if(id)enqueue(id);}); c.seats=[null,null,null,null]; c.started=null; commit(); }
+function toggleAgain(c){ c.again=!c.again; audit("playAgain", cname(c)+": "+(c.again?"ON":"off")); commit(); }
+function resetScores(){
+  if(!confirm("Reset scores, levels and pairs, and clear the courts? Only the player names stay."))return;
+  Object.values(state.players).forEach(p=>{ p.games=0;p.wins=0;p.losses=0;p.grp=null;p.partner=null;p.level=null;p.pg=0; });
+  audit("resetScores","scores, levels, pairs cleared");
+  state.games=0; state.log=[];
+  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; });
+  state.queue=[];                                   // nobody is queued until you re-assign levels
+  commit(); toast("Reset — names kept, re-assign levels to play");
+}
+function resetSession(){
+  if(!confirm("Clear the roster, queue, scores and courts?\n\nOpen play keeps running but its timer restarts from zero. Saved history is kept."))return;
+  const keepHist=(state.history||[]).slice();
+  const keepAudit=(state.audit||[]).slice();
+  const keepSession=state.session&&state.session.active
+    ? {active:true,startedAt:Date.now(),name:state.session.name,id:state.session.id}
+    : {active:false,startedAt:null};
+  const keepTheme=state.theme||"dark";
+  const keepSort=["name","nolevel","bench"].includes(state.sort)?state.sort:"name";
+  const keepChallenge=!!state.challenge;
+  const keepHideTiers=!!state.hideTiers;
+  const keepSec=state.secOpen||{};
+  const keepLayout=state.layout&&typeof state.layout==="object"?{...state.layout}:{};
+  state=fresh();
+  ensureCourts();
+  state.history=keepHist;
+  state.audit=keepAudit;
+  state.session=keepSession;
+  state.theme=keepTheme;
+  state.sort=keepSort;
+  state.challenge=keepChallenge;
+  state.hideTiers=keepHideTiers;
+  state.secOpen=keepSec;
+  state.layout=keepLayout;
+  audit("resetAll","roster/queue/scores cleared · open play "+(keepSession.active?"kept running, timer restarted":"inactive")+" · history kept");
+  commit();
+  hideLanding();
+  applyTheme();
+  applyLayout();
+  const sel=$("sortSel"); if(sel) sel.value=state.sort;
+  syncTierToggle();
+  toast(keepSession.active?"Reset — open play running, timer restarted":"Reset — your saved history was kept");
+}
+
+/* ---------- open play sessions & history ---------- */
+function fmtDur(ms){ const m=Math.max(0,Math.round(ms/60000)); return m<60 ? m+" min" : Math.floor(m/60)+"h "+(m%60)+"m"; }
+function fmtDate(t){ return new Date(t).toLocaleString([], {month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}); }
+function fmtTime(t){ return new Date(t).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}); }
+function standings(){
+  return Object.values(state.players).filter(p=>p.games>0)
+    .map(p=>({name:p.name,level:p.level,games:p.games,wins:p.wins,losses:p.losses}))
+    .sort((a,b)=> b.wins-a.wins || (b.games?b.wins/b.games:0)-(a.games?a.wins/a.games:0) || b.games-a.games || a.name.localeCompare(b.name));
+}
+function showLanding(){
+  hideHistoryPages();
+  const l=$("landing"); if(!l)return; l.classList.remove("hidden");
+  const r=$("landingRoster");
+  const n=(state.history||[]).length;
+  const live=!!(state.session&&state.session.active);
+  const liveBtn=$("landingLive");
+  const histBtn=$("landingHistory");
+  if(liveBtn) liveBtn.hidden=!live;
+  if(histBtn){
+    histBtn.textContent=live?"Past open plays":"Open play history";
+    histBtn.className=live?"btn btn-sm":"btn-accent";
+  }
+  if(r) r.innerHTML = live
+    ? ("● Live now — <b>"+esc(state.session.name||"Open play")+"</b>")
+    : (n ? ("<b>"+n+"</b> saved open play"+(n===1?"":"s")+" in history") : "No open plays saved yet — check back after the next session.");
+  const tb=$("homeThemeBtn"); if(tb) tb.textContent=state.theme==="light"?"☀️":"🌙";
+  syncAdminUI();
+  syncScrollLock();
+}
+function hideLanding(){ const l=$("landing"); if(l) l.classList.add("hidden"); syncScrollLock(); }
+/* lock the page behind a full-screen overlay (landing / history) so the app underneath can't scroll */
+function syncScrollLock(){ const open=["landing","historyPage","sessionPage"].some(id=>{ const e=$(id); return e&&!e.classList.contains("hidden"); }); document.body.classList.toggle("scroll-lock",open); }
+function hideHistoryPages(){
+  ["historyPage","sessionPage"].forEach(id=>{ const el=$(id); if(el) el.classList.add("hidden"); });
+  syncScrollLock();
+}
+function resumeOpenPlay(){
+  hideLanding(); hideHistoryPages();
+  render();
+  toast("Back to courts");
+}
+async function startOP(){
+  if(!(await requireAdmin())) return;
+  if(state.session.active){ hideLanding(); hideHistoryPages(); render(); toast("Open play already running — back to courts"); return; }
+  const def="Open play — "+new Date().toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"});
+  const roster=Object.keys(state.players).length;
+  let name=await askText({ title:"Start open play", label:"Name this open play", value:def, ok:"▶ Start open play",
+    hint:(roster?roster+" player"+(roster===1?"":"s")+" on the roster. ":"")+"Scores, wait times, pairs, courts and the queue all start fresh. Names and tiers stay." });
+  if(name===null) return;
+  name=name.trim()||def;
+  const now=Date.now();
+  Object.values(state.players).forEach(p=>{ p.games=0;p.wins=0;p.losses=0;p.grp=null;p.pg=0;p.partner=null;p.waitSince=now;p.checkedInAt=p.level?now:null; });
+  state.games=0; state.log=[];
+  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; });
+  state.queue=Object.keys(state.players).filter(id=>P(id).level);   // fresh line-up, in the order players were added
+  state.qlocked=[]; state.manualSig=null; state.locked=false; state.frontPinned=[];   // last night's locks, pins and drags don't carry over
+  try{ undoStack.length=0; }catch(e){}                              // Undo must not reach back into the previous session
+  const sid=now;
+  state.session={active:true,startedAt:Date.now(),name,id:sid};
+  audit("startOpenPlay", name+" · roster "+Object.keys(state.players).length);
+  hideLanding(); hideHistoryPages(); commit(); toast("Started: "+name);
+}
+async function endOP(){
+  if(!(await requireAdmin())) return;
+  if(!state.session.active){ toast("No open play in progress"); return; }
+  const sid=state.session.id||Date.now();
+  state.history.unshift({ id:sid, name:state.session.name||"", startedAt:state.session.startedAt, endedAt:Date.now(), games:state.games, players:standings(), log:(state.log||[]).slice(), photos:[] });
+  state.session={active:false,startedAt:null};
+  audit("endOpenPlay", state.history[0]?state.history[0].name+" · "+state.history[0].games+" games":"");
+  commit(); openSessionPage(sid); toast("Open play ended — saved to history");
+}
+async function toggleOP(){ if(!(await requireAdmin())) return; state.session.active ? endOP() : startOP(); }
+let undoStack=[];
+function pushUndo(withHistory){ try{ const snap={players:state.players,queue:state.queue,courts:state.courts,games:state.games,log:state.log||[],manualSig:state.manualSig||null,challenge:state.challenge,locked:state.locked}; if(withHistory) snap.history=state.history||[]; undoStack.push(JSON.stringify(snap)); if(undoStack.length>50)undoStack.shift(); }catch(e){} }
+function undo(){
+  if(!undoStack.length){ toast("Nothing to undo"); return; }
+  audit("undo","reverted last action");
+  const s=JSON.parse(undoStack.pop());
+  state.players=s.players; state.queue=s.queue; state.courts=s.courts; state.games=s.games; state.log=s.log; state.manualSig=s.manualSig; state.challenge=s.challenge; state.locked=s.locked;
+  if(s.history) state.history=s.history;                    // a history edit snapshots the saved sessions too
+  commit(); refreshHistoryViews(); toast("Undone");
+}
+function startMixedGame(c){                       // escape hatch: play stranded players across tiers
+  const lo=queueGroups().leftovers.slice().sort((a,b)=>effGames(a)-effGames(b));
+  if(lo.length<4){ toast("Not enough waiting players for a mixed game"); return; }
+  const g=lo.slice(0,4);
+  pushUndo();
+  state.queue=state.queue.filter(x=>!g.includes(x)); state.manualSig=null;
+  c.seats=[g[0],g[1],g[2],g[3]]; c.started=Date.now(); commit(); toast("Mixed-tier game started");
+}
+function openHistory(){
+  hideLanding();
+  const sp=$("sessionPage"); if(sp) sp.classList.add("hidden");
+  const hp=$("historyPage"); if(!hp){ toast("History page missing"); return; }
+  hp.classList.remove("hidden"); syncScrollLock();
+  renderHistory();
+  syncAdminUI();
+}
+function openLiveSession(){
+  if(!(state.session&&state.session.active)){ toast("No open play in progress"); showLanding(); return; }
+  openSessionPage("live");
+}
+function closeHistory(){ hideHistoryPages(); showLanding(); }
+let deletingHistory=false;
+async function deleteHistory(id){
+  if(deletingHistory || !id) return;               // one prompt per click, whatever fires it
+  deletingHistory=true;
+  try{
+    if(!(await requireAdmin())) return;
+    const s=state.history.find(h=>String(h.id)===String(id));
+    if(!s){ toast("That open play is already gone"); return; }
+    const label=s.name||fmtDate(s.endedAt);
+    const shots=(s.photos||[]).length;
+    if(!confirm("Delete “"+label+"”?\n\n"+(s.games||0)+" game"+(s.games===1?"":"s")
+      +(shots?" and "+shots+" photo"+(shots===1?"":"s"):"")+" will be removed. This can't be undone."))return;
+    state.history=state.history.filter(h=>String(h.id)!==String(id));
+    save();
+    (s.photos||[]).forEach(pid=>delPhoto(pid).catch(()=>{}));
+    viewingSessionId=null;
+    audit("deleteHistory", label+" · "+(s.games||0)+" games");
+    openHistory(); toast("Deleted “"+label+"”");
+  } finally { deletingHistory=false; }
+}
+function csvq(s){ s=String(s); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+function exportSession(id){
+  const s=state.history.find(h=>String(h.id)===String(id)); if(!s)return;
+  let csv="Rank,Player,Level,Games,Wins,Losses,Win %\n";
+  s.players.forEach((p,i)=>{ csv+=[i+1,csvq(p.name),p.level||"",p.games,p.wins,p.losses,(p.games?Math.round(p.wins/p.games*100):0)+"%"].join(",")+"\n"; });
+  const blob=new Blob([csv],{type:"text/csv"}), url=URL.createObjectURL(blob), a=document.createElement("a");
+  a.href=url; a.download="kimchi-jjigae-pickleball-openplay-"+new Date(s.endedAt).toISOString().slice(0,10)+".csv"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+function exportAudit(){
+  const a=state.audit||[];
+  if(!a.length){ toast("Nothing recorded yet"); return; }
+  let csv="#,Time,Action,Detail,Queue order after\n";
+  a.forEach((e,i)=>{ csv+=[i+1,csvq(new Date(e.t).toLocaleString()),csvq(e.a),csvq(e.d||""),csvq(e.q||"")].join(",")+"\n"; });
+  const blob=new Blob([csv],{type:"text/csv"}), url=URL.createObjectURL(blob), dl=document.createElement("a");
+  dl.href=url; dl.download="kimchi-jjigae-pickleball-audit-"+new Date().toISOString().slice(0,10)+".csv";
+  document.body.appendChild(dl); dl.click(); dl.remove(); URL.revokeObjectURL(url);
+  toast(a.length+" actions exported");
+}
+function playerBreakdown(log){
+  const m={}; const get=o=>{ if(!m[o.id])m[o.id]={name:o.name,games:0,wins:0,losses:0,partners:{},opp:{}}; return m[o.id]; };
+  (log||[]).forEach(g=>{
+    g.w.forEach((p,i)=>{ const e=get(p); e.games++; e.wins++; const mate=g.w[1-i]; e.partners[mate.name]=(e.partners[mate.name]||0)+1; g.l.forEach(o=>e.opp[o.name]=(e.opp[o.name]||0)+1); });
+    g.l.forEach((p,i)=>{ const e=get(p); e.games++; e.losses++; const mate=g.l[1-i]; e.partners[mate.name]=(e.partners[mate.name]||0)+1; g.w.forEach(o=>e.opp[o.name]=(e.opp[o.name]||0)+1); });
+  });
+  return m;
+}
+function fmtCounts(obj){ return Object.entries(obj).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([n,c])=>esc(n)+(c>1?' ×'+c:'')).join(", "); }
+function renderSession(s,isLive){
+  const champ=s.players[0], log=s.log||[], showLvl=isAdmin();
+  const rows=s.players.map((p,i)=>`<tr><td class="rank">${i+1}</td><td class="lname">${esc(p.name)}</td>${showLvl?`<td>${p.level?lvlAbbr(p.level):'-'}</td>`:''}<td>${p.games}</td><td class="w">${p.wins}</td><td class="l">${p.losses}</td><td>${p.games?Math.round(p.wins/p.games*100):0}%</td></tr>`).join("");
+  const glEdit = isLive ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
+  const gl=glList(log, '<div class="hint" style="padding:6px">No games recorded yet.</div>', glEdit);
+  const bd=playerBreakdown(log);
+  const pb=Object.values(bd).length? Object.values(bd).sort((a,b)=>b.games-a.games||a.name.localeCompare(b.name)).map(e=>`<div class="pb"><b>${esc(e.name)}</b> · ${e.games}g · ${e.wins}-${e.losses}<div class="hint">🤝 with: ${fmtCounts(e.partners)||'—'}</div><div class="hint">⚔️ vs: ${fmtCounts(e.opp)||'—'}</div></div>`).join("") : '<div class="hint" style="padding:6px">No games yet.</div>';
+  const cols=showLvl?7:6;
+  return `<details class="histitem"><summary>${isLive?'🟢':'🏓'} ${esc(s.name||fmtDate(s.endedAt))}<span class="meta">· ${isLive?'in progress':fmtDate(s.endedAt)} · ${s.games} games${s.endedAt&&s.startedAt?' · '+fmtDur(s.endedAt-s.startedAt):''}${champ?' · 🏆 '+esc(champ.name):''}</span>${(!isLive&&isAdmin())?`<button class="histdel" data-delhist="${s.id}" title="Delete this saved session">✕</button>`:''}</summary>
+    <div class="histinner">
+      <details class="sub" open><summary>🎾 Game log (${log.length}) — latest first</summary>${log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':''}<div class="glwrap">${gl}</div></details>
+      <details class="sub"><summary>🏆 Standings</summary><table class="lb"><thead><tr><th>#</th><th>Player</th>${showLvl?'<th>Lvl</th>':''}<th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th></tr></thead><tbody>${rows||'<tr><td colspan="'+cols+'" style="color:var(--muted)">No players</td></tr>'}</tbody></table></details>
+      <details class="sub"><summary>👥 Per-player — partners &amp; opponents</summary><div class="pbwrap">${pb}</div></details>
+      ${isLive?'':`<div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-sm" data-csv="${s.id}">⬇ Standings CSV</button>${isAdmin()?`<button class="btn-ghost btn-sm" data-delhist="${s.id}">Delete</button>`:''}</div>`}
+    </div></details>`;
+}
+/* ---------- set up a game: pick 4, they play together ---------- */
+let setupPick=[], setupSearch="";
+function openSetup(){ setupPick=[]; setupSearch=""; const s=$("setupSearch"); if(s)s.value=""; $("setupModal").classList.remove("hidden"); renderSetup(); if(s)s.focus(); }
+function closeSetup(){ $("setupModal").classList.add("hidden"); }
+function setupEligible(){
+  return Object.values(state.players)
+    .filter(p=>p.level && !onCourt(p.id))                       // must have a tier and not be mid-game
+    .sort((a,b)=> effGames(a.id)-effGames(b.id) || a.name.localeCompare(b.name));
+}
+function renderSetup(){
+  const q=setupSearch.trim().toLowerCase();
+  const list=setupEligible().filter(p=>!q||p.name.toLowerCase().includes(q));
+  $("setupList").innerHTML = list.length ? list.map(p=>{
+    const on=setupPick.includes(p.id), full=setupPick.length>=4&&!on;
+    return `<div class="sitem ${on?'on':''} ${full?'off':''}" data-spick="${p.id}">${on?'✓':'＋'} ${esc(p.name)}<span class="sg">${showCats()?lvlShort(p.level)+' · ':''}${P(p.id).games}g</span></div>`;
+  }).join("") : '<div class="qempty">No players match — they need a tier set and must not be on court.</div>';
+  $("setupPicks").innerHTML = setupPick.map(id=>`<span class="spick">${esc(nm(id))}<button data-sdrop="${id}" title="Remove">✕</button></span>`).join("");
+  $("setupCount").textContent = setupPick.length+" of 4 selected";
+  $("setupGo").disabled = setupPick.length!==4;
+  $("setupGo").style.opacity = setupPick.length===4 ? "1" : ".5";
+}
+function setupToggle(id){
+  const i=setupPick.indexOf(id);
+  if(i>=0) setupPick.splice(i,1);
+  else { if(setupPick.length>=4){ toast("Already have 4 — remove one first"); return; } setupPick.push(id); }
+  renderSetup();
+}
+function confirmSetup(){
+  if(setupPick.length!==4){ toast("Pick exactly 4 players"); return; }
+  pushUndo();
+  const four=setupPick.slice();
+  four.forEach(id=>freeGroupOf(id));                            // drop any old grouping first
+  state.grpSeq=(state.grpSeq||0)+1; const gid="g"+state.grpSeq;
+  four.forEach(id=>{ P(id).grp=gid; });                          // same group = they play as one foursome
+  state.queue=state.queue.filter(id=>!four.includes(id));
+  const at=Math.min(KEEP_FRONT, state.queue.length);             // slot them right after Next up + Group 2
+  state.queue.splice(at,0,...four);
+  state.qlocked=(state.qlocked||[]).filter(id=>!four.includes(id)).concat(four);  // hold the group together
+  state.manualSig=null;
+  audit("setUpGame", four.map(nmsafe).join(", ")+" -> slot "+at);
+  closeSetup(); commit();
+  toast("Game set: "+four.map(nm).join(", "));
+}
+function openPlayerHistory(id){ const p=P(id); if(!p)return; $("playerTitle").textContent="📊 "+p.name+" — this open play"; $("playerBody").innerHTML=renderPlayerGames(id,p.name); $("playerModal").classList.remove("hidden"); }
+function closePlayer(){ $("playerModal").classList.add("hidden"); }
+function renderPlayerGames(pid,pname){
+  const match=x=>x.id===pid||x.name===pname;
+  const games=[];
+  const scan=(log,label)=>{(log||[]).forEach(g=>{ const w=g.w.some(match), l=g.l.some(match); if(w||l){ const side=w?g.w:g.l, opp=w?g.l:g.w; const mate=side.find(x=>!match(x));
+    games.push({label,win:w,t:g.t,mate:mate?mate.name:'—',opp:opp.map(x=>x.name).join(" & "),oppArr:opp.map(x=>x.name),lvl:g.lvl}); } });};
+  scan(state.log,"");                       // this open play only — past sessions live in 🕘 History
+  if(!games.length) return '<div class="qempty">No games yet for this player in this open play.</div>';
+  const wins=games.filter(x=>x.win).length;
+  const tally=arr=>{const m={};arr.forEach(n=>{if(n&&n!=='—')m[n]=(m[n]||0)+1;});
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,5)
+      .map(([n,c])=>esc(n)+(c>1?' ×'+c:'')).join(", ")||'—';};
+  const mates=tally(games.map(x=>x.mate)), foes=tally(games.flatMap(x=>x.oppArr||[]));
+  const wr=(list)=>{const n=list.length,w=list.filter(x=>x.win).length;return n?Math.round(w/n*100)+'%':'—';};
+  return `<div class="hint" style="margin-bottom:8px;font-size:.85rem">${games.length} games · <b style="color:var(--int)">${wins}W</b> - <b style="color:var(--danger)">${games.length-wins}L</b> · ${Math.round(wins/games.length*100)}% win</div>`
+    + `<div class="pgsum"><div><b>🤝 Most played with</b><div class="hint">${mates}</div></div><div><b>⚔️ Most played against</b><div class="hint">${foes}</div></div></div>`
+    + games.slice().reverse().map(x=>`<div class="pg"><span class="pgres ${x.win?'w':'l'}">${x.win?'W':'L'}</span><span class="pgm">🤝 <b>${esc(x.mate)}</b> &nbsp;⚔️ ${esc(x.opp)}</span><span class="pgmeta">${esc(x.lvl)}${x.t?'<br>'+fmtTime(x.t):''}</span></div>`).join("");
+}
+function renderHistory(){
+  const el=$("histBody"); if(!el) return;
+  const items=[];
+  if(state.session&&state.session.active){
+    items.push({live:true,id:"live",name:state.session.name||"Open play in progress",startedAt:state.session.startedAt,endedAt:Date.now(),games:state.games,players:standings(),photos:[]});
+  }
+  (state.history||[]).forEach(s=>items.push(Object.assign({live:false},s)));
+  if(!items.length){
+    el.innerHTML='<div class="hist-empty">No open plays yet.<br>When the admin ends a session, it shows up here with standings and photos.</div>';
+    return;
+  }
+  el.innerHTML=items.map(s=>{
+    const champ=s.players&&s.players[0];
+    const when=s.live?"In progress":fmtDate(s.endedAt);
+    const dur=s.endedAt&&s.startedAt?fmtDur(s.endedAt-s.startedAt):"";
+    const pc=(s.photos&&s.photos.length)||0;
+    return '<button type="button" class="hist-card" data-opensess="'+(s.live?"live":s.id)+'">'+
+      '<div><p class="ht">'+esc(s.name||when)+'</p><p class="hm">'+esc(when)+(dur?" · "+dur:"")+'</p></div>'+
+      '<span class="htag">'+(s.games||0)+' games</span>'+
+      '<div class="hmeta">'+(s.live?'<span class="htag live">Live</span>':'')+(champ?'<span class="htag champ">🏆 '+esc(champ.name)+'</span>':'')+(pc?'<span class="htag">📷 '+pc+'</span>':'')+'<span class="htag">'+((s.players&&s.players.length)||0)+' players</span></div>'+
+      '</button>';
+  }).join("");
+}
+function openSessionPage(id){
+  hideLanding();
+  const hp=$("historyPage"); if(hp) hp.classList.add("hidden");
+  const sp=$("sessionPage"); if(!sp) return;
+  sp.classList.remove("hidden"); syncScrollLock();
+  viewingSessionId=id;
+  renderSessionPage(id);
+  syncAdminUI();
+}
+async function renderSessionPage(id){
+  let s=null, live=false;
+  if(String(id)==="live"){
+    if(!(state.session&&state.session.active)){
+      $("sessTitle").textContent="Not found";
+      $("sessBody").innerHTML='<div class="hist-empty">No open play running.</div>';
+      const c=$("sessContinue"); if(c) c.hidden=true;
+      const d=$("sessDelete"); if(d){ d.hidden=true; d.style.display="none"; }
+      return;
+    }
+    live=true;
+    s={id:state.session.id||"live",name:state.session.name,startedAt:state.session.startedAt,endedAt:Date.now(),games:state.games,players:standings(),log:state.log||[],photos:[]};
+  } else {
+    s=(state.history||[]).find(h=>String(h.id)===String(id));
+  }
+  if(!s){
+    $("sessTitle").textContent="Not found";
+    $("sessBody").innerHTML='<div class="hist-empty">This open play was removed.</div>';
+    const c=$("sessContinue"); if(c) c.hidden=true;
+    return;
+  }
+  $("sessTitle").textContent=s.name||fmtDate(s.endedAt);
+  const del=$("sessDelete"); if(del){ del.dataset.delhist=live?"":String(s.id); del.hidden=!!live; del.style.display=live?"none":""; }
+  const cont=$("sessContinue"); if(cont) cont.hidden=!live;
+  const champ=s.players&&s.players[0];
+  const log=s.log||[];
+  const showLvl=isAdmin();
+  const abbr=typeof lvlAbbr==="function"?lvlAbbr:(x=>x||"-");
+  const rows=(s.players||[]).map((p,i)=>'<tr><td class="rank">'+(i+1)+'</td><td class="lname">'+esc(p.name)+'</td>'+(showLvl?'<td>'+(p.level?abbr(p.level):'-')+'</td>':'')+'<td>'+p.games+'</td><td class="w">'+p.wins+'</td><td class="l">'+p.losses+'</td><td>'+(p.games?Math.round(p.wins/p.games*100):0)+'%</td></tr>').join("");
+  const emptyStand='<tr><td colspan="'+(showLvl?7:6)+'" style="color:var(--muted)">'+(live?"No games finished yet — standings appear as games end.":"No players")+'</td></tr>';
+  const glEdit = live ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
+  const gl=glList(log, '<div class="hint">'+(live?"No games finished yet.":"No games recorded.")+'</div>', glEdit);
+  let photoHtml="";
+  for(const pid of (s.photos||[])){
+    const rec=await getPhoto(pid); if(!rec||!rec.blob) continue;
+    const url=URL.createObjectURL(rec.blob);
+    photoHtml+='<button type="button" class="photo-cell" data-lightbox="'+url+'"><img src="'+url+'" alt="">'
+      +(isAdmin()?'<span class="phdel" data-delphoto="'+pid+'" data-sid="'+s.id+'" title="Remove">✕</span>':'')
+      +'</button>';
+  }
+  const addBtn=(!live&&isAdmin())?'<label class="photo-add">+ Add photos<input type="file" accept="image/*" multiple data-addphotos="'+s.id+'"></label>':"";
+  if(!photoHtml&&!addBtn) photoHtml='<div class="hint">'+(live?"Photos can be added after open play ends.":(isAdmin()?"No photos yet — tap Add photos to upload.":"No photos yet."))+'</div>';
+  const photoBlock=live&&!photoHtml.includes("photo-cell")
+    ? ""
+    : '<div class="sess-block"><h3>📷 Photos</h3><div class="photo-grid">'+photoHtml+addBtn+'</div></div>';
+  $("sessBody").innerHTML=
+    '<div class="sess-hero"><p>'+(live?'<span class="htag live">Live</span> In progress · ':"")+(!live?fmtDate(s.endedAt)+' · ':"")+(s.games||0)+' games'+(s.endedAt&&s.startedAt?" · "+fmtDur(s.endedAt-s.startedAt):"")+(champ?" · 🏆 "+esc(champ.name):"")+'</p></div>'+
+    '<div class="sess-grid">'+
+      ((!live && isAdmin() && sessionMismatch(s))
+        ? '<div class="sess-warn"><span><b>Standings and game log disagree.</b> '+sessionMismatch(s)+' player'+(sessionMismatch(s)===1?"'s record does":"s\' records do")+' not match the games recorded below.</span><button class="btn btn-sm" data-fixstand="'+esc(String(s.id))+'" style="margin-left:auto">Rebuild from game log</button></div>'
+        : '')+
+      photoBlock+
+      '<details class="sess-block sess-fold" open><summary>🏆 Standings<span class="foldcount">'+((s.players||[]).length)+' player'+(((s.players||[]).length)===1?'':'s')+'</span><span class="foldarrow">▾</span></summary>'+
+        '<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Player</th>'+(showLvl?'<th>Lvl</th>':'')+'<th>G</th><th>W</th><th>L</th><th>%</th></tr></thead><tbody>'+(rows||emptyStand)+'</tbody></table></div></details>'+
+      '<div class="sess-block" style="grid-column:1/-1"><h3>🎾 Game log</h3>'+(log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':'')+'<div class="glwrap">'+gl+'</div>'+(!live?'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-csv="'+s.id+'">⬇ Standings CSV</button></div>':'')+'</div>'+
+    '</div>';
+}
+async function loginAsAdmin(){
+  if(!(await requireAdmin())) return;
+  hideLanding(); hideHistoryPages();
+  render();
+  toast(state.session&&state.session.active ? "Admin unlocked — continue open play" : "Admin unlocked — start open play when ready");
+}
+async function adminLogin(){
+  if(!isAdmin() && !(await requireAdmin())) return false;
+  render(); refreshHistoryViews(); syncAdminUI();   // reveal admin controls, stay on this page
+  return true;
+}
+async function enterAdminPlay(){
+  if(!(await requireAdmin())) return;
+  hideLanding(); hideHistoryPages();
+  if(state.session&&state.session.active){ render(); toast("Continuing open play"); return; }
+  await startOP();
+}
+
+
+/* ---------- manual teammate swap ---------- */
+function courtById(id){ return state.courts.find(c=>c.id===id); }
+function parseSlot(s){ const p=s.split(":"); return p[0]==="court" ? {type:"court",courtId:p[1],seat:+p[2]} : {type:"queue",id:p[1]}; }
+function sameSlot(a,b){ return a.type===b.type && (a.type==="court" ? (a.courtId===b.courtId&&a.seat===b.seat) : a.id===b.id); }
+function doSwap(a,b){
+  pushUndo();
+  audit("dragSwap", (a.type==="court"?"court seat":"queue")+" "+nmsafe(a.id||"")+"  <->  "+(b.type==="court"?"court seat":"queue")+" "+nmsafe(b.id||""));
+  if(a.type==="queue"&&b.type==="court"){ const t=a; a=b; b=t; }        // normalize: court first
+  if(a.type==="court"&&b.type==="court"){
+    const ca=courtById(a.courtId), cb=courtById(b.courtId);
+    const t=ca.seats[a.seat]; ca.seats[a.seat]=cb.seats[b.seat]; cb.seats[b.seat]=t;
+  } else if(a.type==="court"&&b.type==="queue"){
+    freeGroupOf(b.id);
+    const ca=courtById(a.courtId), cp=ca.seats[a.seat];
+    ca.seats[a.seat]=b.id; dequeueId(b.id); enqueue(cp);                // sub queued player in, displaced player out to queue
+  } else if(a.type==="queue"&&b.type==="queue"){
+    // freeze the CURRENTLY SHOWN order, then swap only the two dragged players (nothing else moves)
+    const gg=queueGroups(); const flat=[]; gg.groups.forEach(g=>flat.push(...g)); gg.leftovers.forEach(id=>flat.push(id));
+    state.queue.forEach(id=>{ if(!flat.includes(id)) flat.push(id); });
+    // Players the grouper keeps together move together, otherwise it would just pull them back.
+    const blocks=[], seen=new Set();
+    flat.forEach(id=>{
+      if(seen.has(id)) return;
+      const grp=P(id)&&P(id).grp;
+      const mates=grp ? flat.filter(x=>!seen.has(x) && P(x) && P(x).grp===grp) : null;
+      if(mates && mates.length>=4){ const four=mates.slice(0,4); blocks.push(four); four.forEach(x=>seen.add(x)); return; }
+      const pt=P(id)&&P(id).partner;
+      if(pt && flat.includes(pt) && !seen.has(pt)){ blocks.push([id,pt]); seen.add(id); seen.add(pt); return; }
+      blocks.push([id]); seen.add(id);
+    });
+    const ia=blocks.findIndex(bl=>bl.includes(a.id)), ib=blocks.findIndex(bl=>bl.includes(b.id));
+    if(ia>-1&&ib>-1){
+      if(ia===ib){                                   // both are in the same block — just flip their order inside it
+        const bl=blocks[ia], x=bl.indexOf(a.id), y=bl.indexOf(b.id); const t=bl[x]; bl[x]=bl[y]; bl[y]=t;
+      } else { const t=blocks[ia]; blocks[ia]=blocks[ib]; blocks[ib]=t; }
+      state.queue=[].concat(...blocks); state.manualSig=queueSig();
+      clearFrontPin();                                  // your drag decides the new front
+    }
+  }
+}
+function handleSwap(slot){
+  if(!selSwap){ selSwap=slot; toast("Now tap another player to swap"); render(); return; }
+  if(sameSlot(selSwap,slot)){ selSwap=null; render(); return; }          // tap same player again = cancel
+  doSwap(selSwap,slot); selSwap=null; commit();
+}
+
+/* ---------- render ---------- */
+function renderCourts(){
+  const gq=queueGroups(); const preview=gq.groups.slice(); const strandable=gq.leftovers.length>=4;  // stranded players who can't form a tier-legal group
+  $("courts").innerHTML=state.courts.map((c,idx)=>{
+    const active=c.seats.every(x=>x);
+    let head=`<div class="chead"><b class="cname"${isAdmin()?` data-cname="${c.id}" title="Click to rename"`:""}>${esc(c.name||('Court '+(idx+1)))}</b>`;
+    if(active && showCats()){ const set=[...new Set(c.seats.map(id=>P(id).level))]; const lab=seatsLabel(c.seats);
+      const bc=set.length>1?'mix':lvlCls(set[0]); head+=`<span class="badge ${bc}">${lab}</span>`; }
+    else if(active){ head+=`<span class="badge live">Live</span>`; }
+    else head+=`<span class="badge open">Open</span>`;
+    const t=active&&c.started;
+    head+=`<span class="timer ${t?'':'off'}" data-timer="${t?c.started:''}">${t?fmt(Date.now()-c.started):'—:—'}</span></div>`;
+    let body;
+    if(active){
+      const st=i=>{const sw=selSwap&&selSwap.type==='court'&&selSwap.courtId===c.id&&selSwap.seat===i;
+        return `<div class="player${sw?' selsw':''}" ${isAdmin()?'draggable="true" data-swap="court:'+c.id+':'+i+'"':''}><span class="pip"></span>${esc(nm(c.seats[i]))}<span style="margin-left:auto"></span>${chip(c.seats[i])}</div>`;};
+      const winUI=isAdmin()
+        ? `<div class="winprompt"><p>Tap the winning team to end the game. Tip: tap any two players to swap teammates.</p>
+          <div class="winrow">
+            <button class="winpick" data-win="${c.id}:A">🏆 ${esc(nm(c.seats[0]))} &amp; ${esc(nm(c.seats[1]))}</button>
+            <button class="winpick" data-win="${c.id}:B">🏆 ${esc(nm(c.seats[2]))} &amp; ${esc(nm(c.seats[3]))}</button>
+          </div></div>
+        <div class="cfoot"><button class="btn-ghost btn-sm ${c.again?'on':''}" data-again="${c.id}" title="When this game ends, these 4 re-queue together and play again on their next turn">↻ Play again</button><button class="btn-ghost btn-sm" data-clear="${c.id}">Cancel game</button><button class="btn-ghost btn-sm" data-rmcourt="${c.id}">Remove court</button></div>`
+        : `<div class="winprompt"><p>Game in progress — only the admin can pick the winner.</p></div>
+        <div class="cfoot"></div>`;
+      body=`<div class="net"><div class="team">${st(0)}${st(1)}</div><div class="vs">VS</div><div class="team">${st(2)}${st(3)}</div></div>${winUI}`;
+    }else{
+      const g=preview.shift();                   // distinct preview per open court
+      let inner;
+      if(g){ inner=`<p>Next up${showCats()?' · <b>'+seatsLabel(g)+'</b>':''}: ${esc(g.map(nm).join(", "))}</p>`+(isAdmin()?`<button class="btn-accent" data-start="${c.id}" style="padding:12px 22px">Start game</button>`:""); }
+      else if(strandable){ inner=`<p>No same-tier group can form — <b>${gq.leftovers.length}</b> players are stuck waiting.</p>`+(isAdmin()?`<button class="btn-accent" data-startmix="${c.id}" style="padding:12px 22px">⤢ Start mixed-tier game</button>`:""); }
+      else{ inner=`<p>Waiting for 4 players in the queue</p>`+(isAdmin()?`<button class="btn-accent" disabled style="padding:12px 22px">Start game</button>`:""); }
+      body=`<div class="cidle">${inner}</div>
+        <div class="cfoot">${isAdmin()?`<button class="btn-ghost btn-sm" data-rmcourt="${c.id}">Remove court</button>`:""}</div>`;
+    }
+    return `<div class="court ${active?'live':''}">${head}${body}</div>`;
+  }).join("");
+}
+function qrow(id,num,wait){ const sw=selSwap&&selSwap.type==='queue'&&selSwap.id===id;
+  const swapAttrs=isAdmin()?` draggable="true" data-swap="queue:${id}"`:"";
+  return `<div class="qitem${sw?' selsw':''}"${swapAttrs}><span class="qnum ${wait?'wait':''}">${num}</span><div class="qbody"><div class="qline"><span class="qname">${esc(nm(id))}</span>${chip(id)}${P(id).partner?'<span class="grpm" title="Fixed pair">🔗</span>':''}${P(id).grp?'<span class="grpm" title="Playing again as a group">↻</span>':''}</div><div class="qmeta"><span class="qgms" title="Games played">${P(id).games} gm</span>${waitSpan(id)}</div></div></div>`; }
+function renderTopWait(){
+  const el=$("qTop"); if(!el) return;
+  const top=state.queue.filter(id=>P(id)).slice().sort((a,b)=>waitSince(a)-waitSince(b)).slice(0,3);
+  if(!top.length){ el.hidden=true; el.innerHTML=""; return; }
+  el.hidden=false;
+  el.innerHTML=`<div class="qtoph">⏳ Longest waiting</div><div class="qtiles">`
+    + top.map((id,i)=>`<div class="qtile ${i===0?'first':''}"><small>#${i+1}</small><b title="${esc(nm(id))}">${esc(nm(id))}</b>${waitSpan(id)}</div>`).join("") + `</div>`;
+}
+function renderQueue(){
+  $("qCount").textContent=state.queue.length+" waiting";
+  renderTopWait();
+  if(!state.queue.length){ $("queue").innerHTML='<div class="qempty">No one queued — assign players a level in the roster</div>'; return; }
+  const {groups,leftovers,manual}=queueGroups();
+  let n=0, html="";
+  groups.forEach((grp,gi)=>{
+    const set=[...new Set(grp.map(id=>P(id).level))];
+    const lc=set.length>1?'mix':lvlCls(set[0]);
+    const lab=seatsLabel(grp);
+    const userLocked=grp.every(id=>(state.qlocked||[]).includes(id));
+    const locked=gi<2||userLocked;
+    const lockBtn=!isAdmin() ? "" : (gi<2
+      ? `<span class="qglock static on" title="Next up and Group 2 are locked automatically — only you can change them, by dragging">🔒</span>`
+      : `<button class="qglock ${userLocked?'on':''}" data-glock="${grp.join(',')}" title="${userLocked?'Locked — these 4 stay exactly as you set them. Click to unlock.':'Lock this group so nothing can change these 4 or their spot'}">${userLocked?'🔒':'🔓'}</button>`);
+    html+=`<div class="qgroup ${gi===0?'nextg':''} ${locked?'lockedg':''}">
+        <div class="qghead"><span class="qgtag">${gi===0?'▶ Next up':'Group '+(gi+1)}</span><span class="qghd-r">${showCats()?'<span class="badge '+lc+'" style="font-size:.58rem;padding:2px 7px">'+lab+'</span>':''}${lockBtn}</span></div>
+        ${repeatNote(grp)}
+        <div class="qteam">${qrow(grp[0],++n)}${qrow(grp[1],++n)}</div>
+        <div class="qvs">VS</div>
+        <div class="qteam b">${qrow(grp[2],++n)}${qrow(grp[3],++n)}</div>
+      </div>`;
+  });
+  if(leftovers.length){
+    html+=`<div class="qgroup leftover"><div class="qghead"><span class="qgtag">Waiting for a match</span></div>`
+      + `<div class="hint" style="padding:0 3px 3px">${manual?"Not enough left for another group of 4.":(leftovers.length>=4?"Can't fill a tier-legal group — use “⤢ Start mixed-tier game” on an open court to let them play across tiers.":"Waiting for more compatible players in nearby tiers.")}</div>`
+      + leftovers.map(id=>qrow(id,'·',true)).join("") + `</div>`;
+  }
+  $("queue").innerHTML=html;
+}
+function renderRoster(){
+  const el=$("roster");
+  let ids=Object.keys(state.players);
+  if(rosterSearch) ids=ids.filter(id=>P(id).name.toLowerCase().includes(rosterSearch));   // search filter
+  const s=state.sort;
+  if(s==="bench") ids=ids.filter(id=>!P(id).level);                                     // Bench: only benched / no tier
+  ids.sort((a,b)=>{const A=P(a),B=P(b);
+    if(s==="nolevel") return (!!A.level)- (!!B.level) || A.name.localeCompare(B.name);   // No category first, then rest
+    return A.name.localeCompare(B.name);                                                 // Name (and Bench list): A–Z only
+  });
+  if(!ids.length){
+    const empty = rosterSearch ? 'No players match “'+esc(rosterSearch)+'”'
+      : s==="bench" ? 'No benched players — everyone has a level'
+      : 'Add players to build your roster';
+    el.innerHTML='<div class="qempty">'+empty+'</div>'; return;
+  }
+  el.innerHTML=ids.map(id=>{
+    const p=P(id), court=onCourt(id);
+    // Bench sits beside the name; the four tiers wrap onto their own line below.
+    // With categories hidden (or for a non-admin) the row shows one read-only status pill instead.
+    const editTiers = isAdmin() && !state.hideTiers;
+    const tiers = !editTiers ? "" : `<div class="pills">
+           <button class="pill beg ${p.level==='beginner'?'sel':''}" data-set="${id}:beginner">Beg</button>
+           <button class="pill nov ${p.level==='novice'?'sel':''}" data-set="${id}:novice">Nov</button>
+           <button class="pill int ${p.level==='lowint'?'sel':''}" data-set="${id}:lowint">L.Int</button>
+           <button class="pill hi ${p.level==='highint'?'sel':''}" data-set="${id}:highint">H.Int</button>
+         </div>`;
+    // With categories hidden they go here too. Bench still shows — that is availability, not a category.
+    const benchEl = editTiers
+      ? `<button class="pill bench ${!p.level?'sel':''}" data-set="${id}:bench">Bench</button>`
+      : (showCats()
+          ? `<span class="pill ${p.level?lvlCls(p.level)+' sel':'bench sel'}">${p.level?lvlShort(p.level):'Bench'}</span>`
+          : (p.level ? "" : `<span class="pill bench sel">Bench</span>`));
+    const pairBtn = (!isAdmin()||court) ? '' : `<button class="pill${p.partner?' sel':''}${selPair===id?' pairing':''}" data-pair="${id}" title="Lock as a fixed pair for the whole session">🔗</button>`;
+    const pm = p.partner&&P(p.partner) ? ` <span class="pairm">🔗 ${esc(P(p.partner).name)}</span>` : "";
+    const oc = court ? ` <span class="oncourt">On court</span>` : "";
+    const nameEl = isAdmin()
+      ? `<span class="rnametext" data-rename="${id}" title="Click to rename">${esc(p.name)}</span>`
+      : `<span class="rnametext">${esc(p.name)}</span>`;
+    return `<div class="rrow">
+        <span class="rname">${nameEl}${pm}${oc}</span>
+        ${benchEl}
+        <div class="ricons">${pairBtn}<button class="rx phist" data-phist="${id}" title="Game history">📊</button>${isAdmin()?`<button class="rx" data-del="${id}" title="Remove">✕</button>`:""}</div>
+        ${tiers}
+      </div>`;
+  }).join("");
+}
+/* live game history for the session in progress — newest first */
+/* ---- fix a recorded game: change the winner, or swap a player onto the right side ----
+   Works on the running open play and on any saved session in history. */
+let geIdx=null, geDraft=null, geCtx=null;
+function canEditLog(){ return isAdmin() && !!(state.session && state.session.active); }
+function canEditHistory(){ return isAdmin(); }
+/* Resolve a session key ("live" or a saved session id) to the log being edited. */
+function geResolve(sid){
+  if(sid==="live") return (state.session&&state.session.active) ? { sid, saved:false, s:null, log:(state.log=state.log||[]) } : null;
+  const s=(state.history||[]).find(h=>String(h.id)===String(sid));
+  return s ? { sid:String(s.id), saved:true, s, log:(s.log=s.log||[]) } : null;
+}
+/* Live games follow the current roster name; a saved game keeps the name it was recorded under. */
+function geLabel(x){ return (!geCtx||!geCtx.saved) && P(x.id) ? P(x.id).name : x.name; }
+function geLvl(entries){
+  let lv;
+  if(geCtx&&geCtx.saved){ const m={}; (geCtx.s.players||[]).forEach(p=>{ m[p.name]=p.level; }); lv=entries.map(x=>m[x.name]); }
+  else lv=entries.map(x=>P(x.id)&&P(x.id).level);
+  const set=[...new Set(lv)].filter(Boolean).sort((a,b)=>lvlIdx(a)-lvlIdx(b));
+  return set.map(lvlShort).join(" / ");
+}
+/* Who you can pick from: the current roster for a live game; for a saved one, that night's
+   players first, with the rest of today's roster after them. */
+function gePool(){
+  if(!geCtx||!geCtx.saved){
+    return [{label:"",items:Object.keys(state.players).sort((a,b)=>nm(a).localeCompare(nm(b))).map(id=>({id,name:nm(id)}))}];
+  }
+  const seen=new Map();
+  geCtx.log.forEach(g=>[...g.w,...g.l].forEach(x=>{ if(!seen.has(x.id)) seen.set(x.id, state.players[x.id]?nm(x.id):x.name); }));
+  const played=[...seen].map(([id,name])=>({id,name})).sort((a,b)=>a.name.localeCompare(b.name));
+  const rest=Object.keys(state.players).filter(id=>!seen.has(id)).map(id=>({id,name:nm(id)})).sort((a,b)=>a.name.localeCompare(b.name));
+  const groups=[{label:"Played that night",items:played}];
+  if(rest.length) groups.push({label:"Rest of the roster",items:rest});
+  return groups;
+}
+async function openGameEdit(sid,i){
+  if(!isAdmin()){ toast("Admin only — login from Club home"); return; }
+  if(!geResolve(sid)){ toast(sid==="live"?"No open play is running":"That saved open play is gone"); return; }
+  const ctx=geResolve(sid);
+  if(!ctx){ toast("That open play is gone"); return; }
+  const g=ctx.log[i]; if(!g){ toast("That game is no longer in the log"); return; }
+  geCtx=ctx; geIdx=i;
+  geDraft={ a:g.w.map(x=>({id:x.id,name:geLabel(x)})), b:g.l.map(x=>({id:x.id,name:geLabel(x)})), win:"A" };
+  renderGameEdit(); geValidate();
+  $("gameModal").classList.remove("hidden");
+}
+function closeGameEdit(){ $("gameModal").classList.add("hidden"); geIdx=null; geDraft=null; geCtx=null; }
+function geOpts(cur){
+  const groups=gePool();
+  const known=groups.some(gr=>gr.items.some(it=>it.id===cur.id));
+  let html = known ? "" : '<option value="'+esc(cur.id)+'" selected>'+esc(cur.name)+' (not on the roster)</option>';
+  groups.forEach(gr=>{
+    const body=gr.items.map(it=>'<option value="'+esc(it.id)+'"'+(it.id===cur.id?' selected':'')+'>'+esc(it.name)+'</option>').join("");
+    html += gr.label ? '<optgroup label="'+esc(gr.label)+'">'+body+'</optgroup>' : body;
+  });
+  return html;
+}
+/* A saved session's standings are derived from its own game log, so an edit can't leave the two disagreeing. */
+function rebuildSessionStandings(sess){
+  const lvl={}; (sess.players||[]).forEach(p=>{ lvl[p.name]=p.level; });
+  const m={};
+  const ent=n=>(m[n]=m[n]||{name:n,level:(n in lvl?lvl[n]:null),games:0,wins:0,losses:0});
+  (sess.log||[]).forEach(g=>{
+    g.w.forEach(x=>{ const e=ent(x.name); e.games++; e.wins++; });
+    g.l.forEach(x=>{ const e=ent(x.name); e.games++; e.losses++; });
+  });
+  sess.players=Object.values(m).sort((a,b)=> b.wins-a.wins || (b.games?b.wins/b.games:0)-(a.games?a.wins/a.games:0) || b.games-a.games || a.name.localeCompare(b.name));
+}
+/* How many players' saved records disagree with that session's own game log. */
+function sessionMismatch(sess){
+  const fromLog={};
+  const ent=n=>(fromLog[n]=fromLog[n]||[0,0]);
+  (sess.log||[]).forEach(g=>{ g.w.forEach(x=>ent(x.name)[0]++); g.l.forEach(x=>ent(x.name)[1]++); });
+  const saved={}; (sess.players||[]).forEach(p=>{ saved[p.name]=[p.wins,p.losses]; });
+  let n=0;
+  new Set([...Object.keys(fromLog),...Object.keys(saved)]).forEach(name=>{
+    const a=fromLog[name]||[0,0], b=saved[name]||[0,0];
+    if(a[0]!==b[0]||a[1]!==b[1]) n++;
+  });
+  return n;
+}
+async function fixSessionStandings(id){
+  if(!(await requireAdmin())) return;
+  const sess=(state.history||[]).find(h=>String(h.id)===String(id)); if(!sess) return;
+  const n=sessionMismatch(sess);
+  if(!n){ toast("Standings already match the game log"); return; }
+  if(!confirm("Rebuild this session's standings from its own game log?\n\n"+n+" player"+(n===1?"'s record":"s' records")+" will be recalculated."))return;
+  pushUndo(true);
+  rebuildSessionStandings(sess);
+  audit("fixStandings", (sess.name||String(sess.id))+": rebuilt from game log · "+n+" player(s) corrected");
+  save(); refreshHistoryViews(); toast("Standings rebuilt from the game log");
+}
+/* Re-render whichever history view is on screen, keeping any typed player filter. */
+async function refreshHistoryViews(){
+  const sp=$("sessionPage"), hp=$("historyPage");
+  if(sp&&!sp.classList.contains("hidden")&&viewingSessionId!=null){
+    const box=sp.querySelector("[data-logfilter]"), keep=box?box.value:"";
+    await renderSessionPage(viewingSessionId);
+    if(keep){ const b2=sp.querySelector("[data-logfilter]"); if(b2){ b2.value=keep; filterLogRows(b2); } }
+  } else if(hp&&!hp.classList.contains("hidden")) renderHistory();
+}
+function geTeam(key,label){
+  const t=geDraft[key], won=geDraft.win===key.toUpperCase();
+  return '<div class="ge-team '+(key==="b"?"b ":"")+(won?"won":"")+'">'
+    +'<div class="ge-hd"><span>'+label+'</span>'+(won?'<span>🏆 Winner</span>':'')+'</div>'
+    +t.map((x,n)=>'<select data-geslot="'+key+n+'" aria-label="'+label+' player '+(n+1)+'">'+geOpts(x)+'</select>').join("")
+    +'</div>';
+}
+function renderGameEdit(){
+  const g=geCtx&&geCtx.log[geIdx]; if(!g||!geDraft) return;
+  $("gameEditTitle").textContent="Game #"+(geIdx+1);
+  $("gameEditBody").innerHTML=
+    '<p class="hint" style="margin:0 0 14px">Recorded '+(g.t?fmtTime(g.t):"earlier")+'. Pick the team that actually won, or swap a player who ended up on the wrong side.</p>'
+    + geTeam("a","Team A") + '<div class="ge-vs">VS</div>' + geTeam("b","Team B")
+    + '<div class="ge-winrow"><button type="button" class="ge-winbtn '+(geDraft.win==="A"?"on":"")+'" data-gewin="A">🏆 Team A won</button>'
+    + '<button type="button" class="ge-winbtn '+(geDraft.win==="B"?"on":"")+'" data-gewin="B">🏆 Team B won</button></div>'
+    + '<p class="ge-err" id="geErr"></p>'
+    + '<p class="ge-note">'+(geCtx&&geCtx.saved
+        ? 'Saving rebuilds this session\'s standings from its game log, so the two always agree.'
+        : 'Everyone\'s wins and losses update to match.')+'</p>';
+}
+function geValidate(){
+  if(!geDraft) return false;
+  const ids=[...geDraft.a,...geDraft.b].map(x=>x.id);
+  const dupe=new Set(ids).size!==4;
+  const e=$("geErr"); if(e) e.textContent = dupe ? "Each player can only appear once in a game." : "";
+  const b=$("gameEditSave"); if(b){ b.disabled=dupe; b.style.opacity=dupe?".5":"1"; }
+  return !dupe;
+}
+function saveGameEdit(){
+  if(!isAdmin()){ toast("Admin only"); closeGameEdit(); return; }
+  const ctx=geCtx, g=ctx&&ctx.log[geIdx];
+  if(!g||!geDraft){ closeGameEdit(); return; }
+  if(!geValidate()) return;
+  const newW=(geDraft.win==="A"?geDraft.a:geDraft.b).slice();
+  const newL=(geDraft.win==="A"?geDraft.b:geDraft.a).slice();
+  const before=g.w.map(geLabel).join(" & ")+" def. "+g.l.map(geLabel).join(" & ");
+  pushUndo(ctx.saved);
+  if(!ctx.saved){
+    // take the old result back off everyone's record, then apply the corrected one
+    g.w.forEach(x=>{ const p=P(x.id); if(p){ p.games=Math.max(0,p.games-1); p.wins=Math.max(0,p.wins-1); } });
+    g.l.forEach(x=>{ const p=P(x.id); if(p){ p.games=Math.max(0,p.games-1); p.losses=Math.max(0,p.losses-1); } });
+    newW.forEach(x=>{ const p=P(x.id); if(p){ p.games++; p.wins++; } });
+    newL.forEach(x=>{ const p=P(x.id); if(p){ p.games++; p.losses++; } });
+  }
+  g.w=newW.map(x=>({id:x.id,name:geLabel(x)}));
+  g.l=newL.map(x=>({id:x.id,name:geLabel(x)}));
+  const lv=geLvl([...g.w,...g.l]); if(lv) g.lvl=lv;
+  const n=geIdx+1, saved=ctx.saved, sess=ctx.s;
+  if(saved) rebuildSessionStandings(sess);
+  audit("editGame",(saved?(sess.name||String(sess.id))+" ":"")+"#"+n+": "+before+"  ->  "+g.w.map(x=>x.name).join(" & ")+" def. "+g.l.map(x=>x.name).join(" & "));
+  closeGameEdit();
+  if(saved){ save(); refreshHistoryViews(); }
+  else commit();
+  toast("Game #"+n+" updated");
+}
+/* ---- game log rows + player filter (shared by the live panel, history cards and session page) ---- */
+function glName(x){ return '<span class="gp">'+esc(x.name)+'</span>'; }
+function glPair(side, players){ return '<span class="glpair '+side+'">'+players.map(glName).join('<span class="glamp">&amp;</span>')+'</span>'; }
+function glRow(g,i,editable){
+  const names=[...g.w,...g.l].map(x=>String(x.name).toLowerCase()).join("|");
+  const meta='<span class="glmeta">'
+    +(isAdmin()&&showCats()&&g.lvl?'<span class="gllv">'+esc(g.lvl)+'</span>':'')
+    +(g.t?'<span class="gltm">'+fmtTime(g.t)+'</span>':'')
+    +'</span>';
+  return '<div class="gl" data-names="'+esc(names)+'">'
+    +'<span class="gln">'+(i+1)+'</span>'
+    +'<div class="glmatch">'+glPair("win",g.w)+'<span class="gld">def.</span>'+glPair("lose",g.l)+'</div>'
+    +meta
+    +(editable&&isAdmin()?'<button class="gledit admin-only" data-editgame="'+i+'" data-editsess="'+esc(editable)+'" title="Fix this game — change the winner or swap a player">✎</button>':'')
+    +'</div>';
+}
+function glList(log,empty,editable){
+  const ed=editable&&isAdmin()?editable:"";
+  return log.length ? log.map((g,i)=>({g,i})).reverse().map(({g,i})=>glRow(g,i,ed)).join("") : empty;
+}
+/* Show only the games a player was in. The input sits right before the .logmatch line and the .glwrap it filters. */
+function filterLogRows(input){
+  const q=(input.value||"").trim().toLowerCase();
+  let el=input.nextElementSibling, match=null, wrap=null;
+  while(el){ if(!match&&el.classList.contains("logmatch")) match=el; if(el.classList.contains("glwrap")){ wrap=el; break; } el=el.nextElementSibling; }
+  if(!wrap) return;
+  const rows=[...wrap.querySelectorAll(".gl")];
+  let shown=0, wins=0, losses=0; const hitNames=new Set();
+  rows.forEach(r=>{
+    const spans=[...r.querySelectorAll(".gp")];
+    let hit=false;
+    spans.forEach(sp=>{ const ok=q&&sp.textContent.toLowerCase().includes(q); sp.classList.toggle("hit",!!ok); if(ok){ hit=true; hitNames.add(sp.textContent); if(sp.closest(".glpair.win")) wins++; else losses++; } });
+    const show=!q||hit; r.hidden=!show; if(show) shown++;
+  });
+  if(match){
+    if(!q) match.textContent="";
+    else if(!shown) match.textContent="No games with “"+input.value.trim()+"”";
+    else if(hitNames.size===1) match.textContent=[...hitNames][0]+": "+shown+" game"+(shown===1?"":"s")+" · "+wins+"-"+losses;
+    else match.textContent=shown+" of "+rows.length+" games";
+  }
+}
+function renderLiveLog(){
+  const log=state.log||[], el=$("liveLog"); if(!el) return;
+  const rc=$("rosterCount"); if(rc) rc.textContent=Object.keys(state.players).length+" players";
+  const lc=$("logCount"); if(lc) lc.textContent=log.length+" game"+(log.length===1?"":"s");
+  el.innerHTML = glList(log, '<div class="qempty">No games finished yet — finished games show up here as you play.</div>', canEditLog()?"live":"");
+  const ls=$("logSearch"); if(ls) filterLogRows(ls);          // keep the player filter applied across re-renders
+}
+function renderBoard(){
+  const total=Object.keys(state.players).length, played=Object.values(state.players).filter(p=>p.games>0).length;
+  $("boardTotal").textContent=state.games+" game"+(state.games===1?"":"s")+" · "+total+" players ("+played+" have played)";
+  let ids=Object.keys(state.players);                          // whole roster, un-played players fall to the bottom
+  ids.sort((a,b)=>{const A=P(a),B=P(b);
+    return B.wins-A.wins || winpct(B)-winpct(A) || B.games-A.games || A.name.localeCompare(B.name);});
+  const el=$("board");
+  if(!ids.length){ el.innerHTML='<div class="qempty">No players yet — add some to the roster.</div>'; return; }
+  const pst=id=>onCourt(id)?'<span class="pst court">On court</span>':(state.queue.includes(id)?'<span class="pst q">In queue</span>':'<span class="pst">Bench</span>');
+  el.innerHTML=`<table class="lb"><thead><tr><th>#</th><th>Player</th>${showCats()?'<th>Lvl</th>':''}<th>Status</th><th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th></tr></thead><tbody>`
+    + ids.map((id,i)=>{const p=P(id);const medal=(i<3&&p.games>0)?(i===0?'🥇':i===1?'🥈':'🥉'):(i+1);
+        return `<tr class="${(i<3&&p.games>0)?'top':''}"><td class="rank">${medal}</td><td class="lname"><span class="edit" data-rename="${id}" title="Click to rename">${esc(p.name)}</span> <button class="rx phist" data-phist="${id}" title="Game history">📊</button></td><td style="text-align:left">${chip(id)}</td><td style="text-align:left">${pst(id)}</td><td>${p.games}</td><td class="w edit" data-editw="${id}" title="Click to edit wins">${p.wins}</td><td class="l edit" data-editl="${id}" title="Click to edit losses">${p.losses}</td><td>${p.games?winpct(p)+'%':'—'}</td></tr>`;}).join("")
+    + `</tbody></table>`;
+}
+function ord(l){const i=lvlIdx(l);return i<0?9:i;}
+function render(){
+  const sb=$("challengeBtn"); if(sb){ sb.classList.toggle("on",!!state.challenge); sb.textContent=state.challenge?"🎯 Challenge: ON":"🎯 Challenge"; }
+  const ob=$("opBtn"); if(ob){ const on=state.session&&state.session.active; ob.textContent=on?"⏹ End open play":"▶ Start open play"; ob.className="btn-sm "+(on?"btn opactive":"btn-accent"); }
+  renderCourts(); renderQueue(); renderRoster(); renderBoard(); renderLiveLog();
+  const playing=state.courts.reduce((n,c)=>n+(c.seats.every(x=>x)?4:0),0);
+  $("stRoster").textContent=Object.keys(state.players).length;
+  $("stPlaying").textContent=playing;
+  $("stWaiting").textContent=state.queue.length;
+  $("stGames").textContent=state.games;
+}
+function toast(m){const t=$("toast");t.textContent=m;t.className="toast show";clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2400);}
+function applyTheme(){ document.body.classList.toggle("light", state.theme==="light"); const b=$("themeBtn"); if(b) b.textContent=state.theme==="light"?"☀️ Light":"🌙 Dark"; }
+function applyLayout(){
+  const wrap=document.querySelector(".wrap");
+  const low=document.querySelector(".lowgrid");
+  const L=state.layout||{};
+  if(wrap){
+    if(L.sideW) wrap.style.setProperty("--side-w", Math.round(L.sideW)+"px");
+    else wrap.style.removeProperty("--side-w");
+  }
+  if(low){
+    if(L.queueW) low.style.setProperty("--queue-w", Math.round(L.queueW)+"px");
+    else low.style.removeProperty("--queue-w");
+  }
+}
+function initResizers(){
+  const desktop=()=>window.matchMedia("(min-width:1080px)").matches;
+  function bind(el, kind){
+    if(!el) return;
+    let startX=0, startW=0;
+    const onMove=e=>{
+      const x=e.clientX; if(x==null) return;
+      const dx=x-startX;
+      state.layout=state.layout||{};
+      if(kind==="side"){
+        let w=Math.round(startW-dx);
+        w=Math.max(260, Math.min(Math.floor(window.innerWidth*0.5), Math.min(720,w)));
+        state.layout.sideW=w;
+      }else{
+        let w=Math.round(startW+dx);
+        w=Math.max(200, Math.min(Math.floor(window.innerWidth*0.45), Math.min(560,w)));
+        state.layout.queueW=w;
+      }
+      applyLayout();
+    };
+    const onUp=()=>{
+      document.body.classList.remove("resizing");
+      el.classList.remove("dragging");
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      save();
+    };
+    el.addEventListener("pointerdown", e=>{
+      if(!desktop()) return;
+      e.preventDefault();
+      startX=e.clientX;
+      if(kind==="side"){
+        const side=document.querySelector(".side");
+        startW=(state.layout&&state.layout.sideW)||(side?side.getBoundingClientRect().width:360);
+      }else{
+        const q=document.querySelector(".queue-pane");
+        startW=(state.layout&&state.layout.queueW)||(q?q.getBoundingClientRect().width:300);
+      }
+      document.body.classList.add("resizing");
+      el.classList.add("dragging");
+      try{ el.setPointerCapture(e.pointerId); }catch(_){}
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    });
+    el.addEventListener("dblclick", ()=>{
+      if(!desktop()) return;
+      state.layout=state.layout||{};
+      if(kind==="side") delete state.layout.sideW;
+      else delete state.layout.queueW;
+      applyLayout(); save();
+      toast("Panel size reset");
+    });
+  }
+  bind($("sideSplit"), "side");
+  bind($("queueSplit"), "queue");
+}
+setInterval(()=>{document.querySelectorAll("[data-timer]").forEach(el=>{const t=+el.dataset.timer;if(t)el.textContent=fmt(Date.now()-t);});
+  document.querySelectorAll("[data-wait]").forEach(el=>{const t=+el.dataset.wait;if(t){const ms=Date.now()-t;el.textContent=fmtWait(ms);el.classList.toggle("long",ms>=LONG_WAIT_MIN*60000);}});
+  const os=$("opStatus"); if(os) os.textContent = (state.session&&state.session.active) ? "● "+(state.session.name?state.session.name+" · ":"")+fmtDur(Date.now()-state.session.startedAt) : "";
+},1000);
+
+/* ---------- events ---------- */
+$("addBtn").addEventListener("click",()=>{ if(!isAdmin()) return; const i=$("nameInput");addPlayers(i.value);i.value="";i.focus();});
+$("nameInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){$("addBtn").click();}});
+$("addCourt").addEventListener("click",()=>{ if(!isAdmin()) return; addCourt(); });
+$("resetBtn").addEventListener("click",()=>{ if(!isAdmin()) return; resetScores(); });
+$("resetAllBtn").addEventListener("click",()=>{ if(!isAdmin()) return; resetSession(); });
+$("auditBtn").addEventListener("click",()=>{ if(!isAdmin()) return; exportAudit(); });
+$("undoBtn").addEventListener("click",()=>{ if(!isAdmin()) return; undo(); });
+const SIDE_SECS=["rosterSec","logSec"];
+state.secOpen=state.secOpen||{};
+SIDE_SECS.forEach(id=>{                                    // remember which panel you left open
+  const d=$(id); if(!d) return;
+  if(state.secOpen[id]!==undefined) d.open=!!state.secOpen[id];
+});
+(function(){                                               // a restored state could have both open
+  const open=SIDE_SECS.map(id=>$(id)).filter(d=>d&&d.open);
+  open.slice(1).forEach(d=>{ d.open=false; state.secOpen[d.id]=false; });
+  if(!open.length){ const first=$(SIDE_SECS[0]); if(first){ first.open=true; state.secOpen[first.id]=true; } }
+})();
+SIDE_SECS.forEach(id=>{
+  const d=$(id); if(!d) return;
+  d.addEventListener("toggle",()=>{
+    state.secOpen=state.secOpen||{};
+    if(d.open) SIDE_SECS.forEach(other=>{                   // opening one closes the other
+      if(other===id) return;
+      const o=$(other); if(o&&o.open){ o.open=false; state.secOpen[other]=false; }
+    });
+    state.secOpen[id]=d.open;
+    save();
+  });
+});
+$("setupBtn").addEventListener("click",()=>{ if(!isAdmin()) return; openSetup(); });
+$("setupClose").addEventListener("click",closeSetup);
+$("setupClear").addEventListener("click",()=>{ setupPick=[]; renderSetup(); });
+$("setupGo").addEventListener("click",confirmSetup);
+$("setupSearch").addEventListener("input",e=>{ setupSearch=e.target.value; renderSetup(); });
+$("setupModal").addEventListener("click",e=>{ if(e.target===$("setupModal")) closeSetup(); });
+$("opBtn").addEventListener("click",toggleOP);
+$("historyBtn").addEventListener("click",openHistory);
+$("playerClose").addEventListener("click",closePlayer);
+$("playerModal").addEventListener("click",e=>{ if(e.target===$("playerModal")) closePlayer(); });
+$("landingAdmin").addEventListener("click",()=>adminLogin());
+if($("landingGoCourts")) $("landingGoCourts").addEventListener("click",()=>enterAdminPlay());
+if($("landingLive")) $("landingLive").addEventListener("click",openLiveSession);
+$("landingHistory").addEventListener("click",openHistory);
+$("themeBtn").addEventListener("click",()=>{ state.theme=state.theme==="light"?"dark":"light"; save(); applyTheme(); const tb=$("homeThemeBtn"); if(tb) tb.textContent=state.theme==="light"?"☀️":"🌙"; });
+if($("homeThemeBtn")) $("homeThemeBtn").addEventListener("click",()=>$("themeBtn").click());
+if($("histHomeBtn")) $("histHomeBtn").addEventListener("click",()=>showLanding());
+if($("histAdminPlay")) $("histAdminPlay").addEventListener("click",()=>{ isAdmin() ? enterAdminPlay() : adminLogin(); });
+if($("sessBackBtn")) $("sessBackBtn").addEventListener("click",()=>openHistory());
+if($("sessContinue")) $("sessContinue").addEventListener("click",()=>enterAdminPlay());
+if($("sessAdminLogin")) $("sessAdminLogin").addEventListener("click",()=>adminLogin());
+if($("navHomeBtn")) $("navHomeBtn").addEventListener("click",()=>showLanding());
+if($("navHistoryBtn")) $("navHistoryBtn").addEventListener("click",()=>openHistory());
+if($("navAdminBtn")) $("navAdminBtn").addEventListener("click",()=>adminLogin());
+if($("adminLockBtn")) $("adminLockBtn").addEventListener("click",lockAdmin);
+if($("histLockBtn")) $("histLockBtn").addEventListener("click",lockAdmin);
+if($("sessLockBtn")) $("sessLockBtn").addEventListener("click",lockAdmin);
+if($("landLockBtn")) $("landLockBtn").addEventListener("click",lockAdmin);
+$("pinClose").addEventListener("click",()=>closePinModal(false));
+$("pinCancel").addEventListener("click",()=>closePinModal(false));
+$("pinSubmit").addEventListener("click",()=>submitPin());
+$("pinInput").addEventListener("keydown",e=>{ if(e.key==="Enter") submitPin(); });
+$("pinModal").addEventListener("click",e=>{ if(e.target===$("pinModal")) closePinModal(false); });
+$("askClose").addEventListener("click",()=>closeAsk(false));
+$("askCancel").addEventListener("click",()=>closeAsk(false));
+$("askOk").addEventListener("click",()=>closeAsk(true));
+$("askInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); closeAsk(true); } else if(e.key==="Escape"){ closeAsk(false); } });
+$("askModal").addEventListener("click",e=>{ if(e.target===$("askModal")) closeAsk(false); });
+$("gameEditClose").addEventListener("click",()=>closeGameEdit());
+$("gameEditCancel").addEventListener("click",()=>closeGameEdit());
+$("gameEditSave").addEventListener("click",()=>saveGameEdit());
+$("gameModal").addEventListener("click",e=>{ if(e.target===$("gameModal")) closeGameEdit(); });
+$("gameEditBody").addEventListener("click",e=>{ const w=e.target.closest("[data-gewin]"); if(w&&geDraft){ geDraft.win=w.dataset.gewin; renderGameEdit(); geValidate(); } });
+$("gameEditBody").addEventListener("change",e=>{
+  const sl=e.target.closest("[data-geslot]"); if(!sl||!geDraft) return;
+  const key=sl.dataset.geslot[0], n=+sl.dataset.geslot[1], id=sl.value;
+  geDraft[key][n]={ id, name:(state.players[id]?state.players[id].name:id) };
+  renderGameEdit(); geValidate();
+});
+document.body.addEventListener("click",e=>{
+  const b=e.target.closest("[data-editgame]");
+  if(b){ e.preventDefault(); e.stopPropagation(); if(!isAdmin()){ toast("Admin only — login from Club home"); return; } openGameEdit(b.dataset.editsess||"live", +b.dataset.editgame); return; }
+  const fx=e.target.closest("[data-fixstand]");
+  if(fx){ e.preventDefault(); e.stopPropagation(); if(!isAdmin()){ toast("Admin only"); return; } fixSessionStandings(fx.dataset.fixstand); }
+});
+$("lightbox").addEventListener("click",()=>$("lightbox").classList.add("hidden"));
+document.body.addEventListener("click",e=>{
+  const card=e.target.closest("[data-opensess]"); if(card){ openSessionPage(card.dataset.opensess); return; }
+  const lb=e.target.closest("[data-lightbox]"); if(lb && !e.target.closest("[data-delphoto]")){ const box=$("lightbox"); box.innerHTML='<img src="'+lb.dataset.lightbox+'" alt="">'; box.classList.remove("hidden"); return; }
+  const dp=e.target.closest("[data-delphoto]"); if(dp){ e.preventDefault(); e.stopPropagation(); removePhotoFromSession(dp.dataset.sid, dp.dataset.delphoto); return; }
+});
+document.body.addEventListener("change",e=>{
+  const inp=e.target.closest("[data-addphotos]");
+  if(inp&&inp.files){ addPhotosToSession(inp.dataset.addphotos, inp.files); inp.value=""; }
+});
+$("challengeBtn").addEventListener("click",()=>{ if(!isAdmin()) return; state.challenge=!state.challenge;audit("challenge",state.challenge?"ON":"off");commit();toast(state.challenge?"Challenge ON — everyone plays within their own level":"Challenge off — levels get mixed");});
+$("sortSel").addEventListener("change",e=>{state.sort=e.target.value;save();renderRoster();});
+if($("tierToggle")) $("tierToggle").addEventListener("click",()=>{
+  if(!isAdmin()) return;
+  state.hideTiers=!state.hideTiers; save(); render(); syncTierToggle();
+});
+function syncTierToggle(){ const b=$("tierToggle"); if(b) b.textContent=state.hideTiers?"Show categories":"Hide categories"; }
+syncTierToggle();
+$("rSearch").addEventListener("input",e=>{rosterSearch=e.target.value.trim().toLowerCase();renderRoster();});
+document.body.addEventListener("input",e=>{ const t=e.target.closest("[data-logfilter]"); if(t) filterLogRows(t); });
+document.body.addEventListener("keydown",e=>{
+  if(e.key!=="Escape") return;
+  if(geIdx!==null){ closeGameEdit(); return; }
+  const t=e.target.closest("[data-logfilter]"); if(t&&t.value){ t.value=""; filterLogRows(t); }
+});
+
+document.body.addEventListener("click",e=>{
+  const t=e.target.closest("[data-set],[data-rename],[data-cname],[data-editw],[data-editl],[data-phist],[data-pair],[data-del],[data-start],[data-startmix],[data-win],[data-clear],[data-rmcourt],[data-swap],[data-again],[data-csv],[data-delhist],[data-glock],[data-spick],[data-sdrop]");
+  if(!t)return;
+  if(t.dataset.csv){exportSession(t.dataset.csv);return;}
+  if(t.dataset.phist){openPlayerHistory(t.dataset.phist);return;}
+  // Everything below changes live open-play state — admin only
+  if(!isAdmin()){ toast("Admin only — use Admin login"); return; }
+  if(t.dataset.sdrop){setupToggle(t.dataset.sdrop);return;}
+  if(t.dataset.spick){setupToggle(t.dataset.spick);return;}
+  if(t.dataset.glock){toggleGroupLock(t.dataset.glock.split(','));return;}
+  if(t.dataset.delhist){e.preventDefault();e.stopPropagation();deleteHistory(t.dataset.delhist);return;}
+  if(t.dataset.editw){editStat(t.dataset.editw,"wins");return;}
+  if(t.dataset.editl){editStat(t.dataset.editl,"losses");return;}
+  if(t.dataset.set){const[id,lv]=t.dataset.set.split(":");setLevel(id,lv==="bench"?null:lv);}
+  else if(t.dataset.rename){renamePlayer(t.dataset.rename);}
+  else if(t.dataset.cname){renameCourt(t.dataset.cname);}
+  else if(t.dataset.pair){pairToggle(t.dataset.pair);}
+  else if(t.dataset.del){removePlayer(t.dataset.del);}
+  else if(t.dataset.start){startCourt(state.courts.find(c=>c.id===t.dataset.start));}
+  else if(t.dataset.startmix){startMixedGame(state.courts.find(c=>c.id===t.dataset.startmix));}
+  else if(t.dataset.win){const[id,team]=t.dataset.win.split(":");finishGame(state.courts.find(c=>c.id===id),team);}
+  else if(t.dataset.clear){clearCourt(state.courts.find(c=>c.id===t.dataset.clear));}
+  else if(t.dataset.rmcourt){removeCourt(t.dataset.rmcourt);}
+  else if(t.dataset.again){toggleAgain(state.courts.find(c=>c.id===t.dataset.again));}
+  else if(t.dataset.swap){handleSwap(parseSlot(t.dataset.swap));}
+});
+
+/* ---------- drag & drop to swap ---------- */
+let dragSrc=null;
+document.addEventListener("dragstart",e=>{ const el=e.target.closest("[data-swap]"); if(!el||!isAdmin())return; dragSrc=el.dataset.swap; selSwap=null; try{e.dataTransfer.setData("text/plain",dragSrc);e.dataTransfer.effectAllowed="move";}catch(_){} el.classList.add("dragging"); });
+document.addEventListener("dragend",e=>{ document.querySelectorAll(".dragging,.dragover").forEach(x=>x.classList.remove("dragging","dragover")); dragSrc=null; });
+document.addEventListener("dragover",e=>{ const el=e.target.closest("[data-swap]"); if(el&&dragSrc&&isAdmin()){ e.preventDefault(); e.dataTransfer.dropEffect="move"; } });
+document.addEventListener("dragenter",e=>{ const el=e.target.closest("[data-swap]"); if(el&&dragSrc&&isAdmin()&&el.dataset.swap!==dragSrc) el.classList.add("dragover"); });
+document.addEventListener("dragleave",e=>{ const el=e.target.closest("[data-swap]"); if(el) el.classList.remove("dragover"); });
+document.addEventListener("drop",e=>{ const el=e.target.closest("[data-swap]"); e.preventDefault();
+  if(!isAdmin()){ dragSrc=null; return; }
+  const src=dragSrc||(e.dataTransfer&&e.dataTransfer.getData("text/plain"));
+  if(el&&src&&el.dataset.swap!==src){ doSwap(parseSlot(src),parseSlot(el.dataset.swap)); selSwap=null; commit(); }
+  document.querySelectorAll(".dragging,.dragover").forEach(x=>x.classList.remove("dragging","dragover")); dragSrc=null; });
+
+ensureCourts();
+if(!["name","nolevel","bench"].includes(state.sort)) state.sort="name";
+$("sortSel").value=state.sort;
+if(!state.theme)state.theme="dark";
+if(!state.layout||typeof state.layout!=="object") state.layout={};
+try{
+  const bm=$("brandMark"); if(bm) bm.title="Build "+APP_BUILD;
+  console.log("Kimchi Jjigae Pickleball Club · build "+APP_BUILD);
+}catch(e){}
+applyTheme();
+applyLayout();
+initResizers();
+syncAdminUI();
+render();
+if(isAdmin() && state.session && state.session.active){ /* stay on queue */ }
+else showLanding();
+</script>
+</body>
+</html>
