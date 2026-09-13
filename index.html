@@ -497,6 +497,7 @@ window.addEventListener("error",function(e){
   .hist-card .ht{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-weight:700;font-size:1.2rem;margin:0}
   .hist-card .hm{color:var(--muted);font-size:.85rem;margin:4px 0 0}
   .hist-card .hmeta{display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}
+  .hist-list[hidden],.up-block[hidden]{display:none!important}   /* the tab that is not selected */
   .hist-tabs{display:flex;gap:4px;margin:0 0 18px;border-bottom:1px solid var(--line)}
   .htab{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:10px 14px;font:inherit;font-size:.92rem;font-weight:800;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
   .htab:hover{color:var(--txt)}
@@ -907,7 +908,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13v";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-13w";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
