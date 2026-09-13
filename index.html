@@ -804,7 +804,6 @@ window.addEventListener("error",function(e){
     <h1 id="sessTitle">Session</h1>
     <div class="spacer"></div>
     <button type="button" class="btn btn-sm" id="sessContinue" hidden>Continue open play</button>
-    <button type="button" class="btn btn-sm" id="sessAdminLogin">Admin login</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="sessDelete">Delete</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="sessLockBtn" title="Lock admin on this device">Log out</button>
   </div>
@@ -908,7 +907,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13x";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-13y";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
