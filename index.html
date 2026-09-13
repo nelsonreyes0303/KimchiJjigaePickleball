@@ -915,7 +915,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-14b";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-14c";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1649,6 +1649,7 @@ function standings(){
     .sort((a,b)=> b.wins-a.wins || (b.games?b.wins/b.games:0)-(a.games?a.wins/a.games:0) || b.games-a.games || a.name.localeCompare(b.name));
 }
 function showLanding(){
+  document.title="Kimchi Jjigae Pickleball Club";
   hideHistoryPages();
   const l=$("landing"); if(!l)return; l.classList.remove("hidden");
   const r=$("landingRoster");
@@ -1729,6 +1730,7 @@ function startMixedGame(c){                       // escape hatch: play stranded
   c.seats=[g[0],g[1],g[2],g[3]]; c.started=Date.now(); commit(); toast("Mixed-tier game started");
 }
 function openHistory(){
+  document.title="Kimchi Jjigae Pickleball Club";
   hideLanding();
   const sp=$("sessionPage"); if(sp) sp.classList.add("hidden");
   const hp=$("historyPage"); if(!hp){ toast("History page missing"); return; }
@@ -2102,7 +2104,7 @@ async function renderSessionPage(id){
     const c=$("sessContinue"); if(c) c.hidden=true;
     return;
   }
-  document.title="Kimchi Jjigae · "+s.name||fmtDate(s.endedAt);
+  document.title="Kimchi Jjigae · "+(s.name||fmtDate(s.endedAt));
   const del=$("sessDelete"); if(del){ del.dataset.delhist=live?"":String(s.id); del.hidden=!!live; del.style.display=live?"none":""; }
   const cont=$("sessContinue"); if(cont) cont.hidden=!live;
   const champ=s.players&&s.players[0];
