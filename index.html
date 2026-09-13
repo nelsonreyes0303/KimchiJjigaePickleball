@@ -851,7 +851,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13q";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-13r";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -872,7 +872,7 @@ function syncAdminUI(){
     landGo.textContent=live?"Continue open play":"Open courts";
   }
   const hap=$("histAdminPlay");
-  if(hap) hap.textContent=on?(live?"Continue open play":"Run open play"):"Admin login";
+  if(hap){ hap.textContent=on?(live?"Continue open play":"Run open play"):"Admin login"; hap.hidden=!on; }   // visitors log in from the club home instead
   const sc=$("sessContinue");
   const sa=$("sessAdminLogin");
   const viewingLive=String(viewingSessionId)==="live" && live;
