@@ -908,7 +908,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13w";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-13x";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1654,9 +1654,7 @@ function showLanding(){
     histBtn.textContent=live?"Past open plays":"Open play history";
     histBtn.className=live?"btn btn-sm":"btn-accent";
   }
-  if(r) r.innerHTML = live
-    ? ("● Live now — <b>"+esc(state.session.name||"Open play")+"</b>")
-    : (n ? ("<b>"+n+"</b> saved open play"+(n===1?"":"s")+" in history") : "No open plays saved yet — check back after the next session.");
+  if(r){ r.hidden=!live; r.innerHTML = live ? ("● Live now — <b>"+esc(state.session.name||"Open play")+"</b>") : ""; }   // only the live notice; the count was noise
   const tb=$("homeThemeBtn"); if(tb) tb.textContent=state.theme==="light"?"☀️":"🌙";
   renderUpcoming();
   syncAdminUI();
@@ -1876,8 +1874,7 @@ function renderUpcoming(){
   if(ln){
     ln.hidden=!next;
     if(next) ln.innerHTML='📅 Next open play: <b>'+esc(upWhen(next.d))+'</b>'+(next.venue?' · 📍 '+esc(next.venue):'')
-      +(next.rsvp?' · <a href="'+esc(next.rsvp)+'" target="_blank" rel="noopener">RSVP ↗</a>':'')
-      +(list.length>1?' · <a href="#" data-openupcoming>All '+list.length+' dates</a>':'');
+      +(next.rsvp?' · <a href="'+esc(next.rsvp)+'" target="_blank" rel="noopener">RSVP ↗</a>':'');
   }
   const cnt=$("upCount"); if(cnt){ cnt.hidden=!list.length; cnt.textContent=list.length; }
   const box=$("upcomingBody"); if(!box) return;
