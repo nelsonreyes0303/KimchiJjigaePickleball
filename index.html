@@ -633,6 +633,8 @@ window.addEventListener("error",function(e){
       <button class="btn-ghost btn-sm admin-only" id="resetBtn">Reset scores</button>
       <button class="btn-ghost btn-sm admin-only" id="resetAllBtn">Reset all</button>
       <button class="btn-ghost btn-sm admin-only" id="auditBtn" title="Download a log of every action — send it over if something looks wrong">🧾 Audit</button>
+      <button class="btn-ghost btn-sm admin-only" data-backup title="Download everything — roster, open play history, photos — as one file">💾 Backup</button>
+      <label class="btn-ghost btn-sm admin-only" title="Load a backup file made on another device" style="cursor:pointer">📥 Import<input type="file" accept="application/json,.json" data-restore style="display:none"></label>
     </div>
     <div class="courts" id="courts"></div>
   </div>
@@ -682,7 +684,7 @@ window.addEventListener("error",function(e){
   </div>
 </div>
 
-<div class="foot">Runs entirely on this device · session saves automatically · no internet needed</div>
+<div class="foot" id="footNote">Runs entirely on this device · session saves automatically · no internet needed</div>
 <div class="toast" id="toast"></div>
 
 <div id="landing" class="landing hidden">
@@ -755,6 +757,8 @@ window.addEventListener("error",function(e){
     <h1>Open play history</h1>
     <div class="spacer"></div>
     <button type="button" class="btn btn-sm" id="histAdminPlay">Admin login</button>
+    <button type="button" class="btn-ghost btn-sm admin-only" data-backup title="Download everything — roster, open play history, photos — as one file">💾 Backup</button>
+    <label class="btn-ghost btn-sm admin-only" title="Load a backup file made on another device" style="cursor:pointer">📥 Import<input type="file" accept="application/json,.json" data-restore style="display:none"></label>
     <button type="button" class="btn-ghost btn-sm admin-only" id="histLockBtn" title="Lock admin on this device">Log out</button>
   </div>
   <div class="page-body"><div id="histBody" class="hist-list"></div></div>
@@ -847,7 +851,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13n";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-13p";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -909,12 +913,86 @@ async function pinMatches(pin){
   }
   return false;
 }
-function hasAdminPin(){ return !!localStorage.getItem(PIN_KEY); }
+/* ---------- website sync (api.php + data/openplays.json) ----------
+   On the hosted site the official record of finished open plays is data/openplays.json, with photos in
+   data/photos/<session>/. Every visitor reads that file; admins write through api.php. The live queue,
+   roster and layout stay on the admin's device as before. Opened from file:// (or if api.php is missing)
+   the app behaves exactly as it always did: everything in this browser only. */
+const API="api.php", DATA_URL="data/openplays.json";
+const ADMIN_KEY="pb_admin_key";                              // SHA-256 of the PIN, kept for this tab only
+const PUBLISHED_KEY="pb_published_v1";                       // ids this browser knows are on the website
+const server={ on:false, pin:false, loaded:false };
+let lastPublished={};                                        // id -> JSON of what the website holds (minus photos)
+let publishTimers={};
+function publishedIds(){ try{ return new Set(JSON.parse(localStorage.getItem(PUBLISHED_KEY)||"[]")); }catch(_){ return new Set(); } }
+function savePublishedIds(set){ try{ localStorage.setItem(PUBLISHED_KEY, JSON.stringify([...set])); }catch(_){} }
+function adminKey(){ return sessionStorage.getItem(ADMIN_KEY)||""; }
+async function pinKey(pin){ return (await hashPin(pin)).replace(/^[sf]:/,""); }
+function forPublish(s){ const o=Object.assign({},s); delete o.photos; delete o.live; return JSON.stringify(o); }
+async function api(action, body, file){
+  const fd=new FormData();
+  Object.entries(body||{}).forEach(([k,v])=>fd.append(k,String(v)));
+  if(file) fd.append("file",file,"photo.jpg");
+  const r=await fetch(API+"?action="+action,{method:"POST",body:fd,headers:{"X-Admin-Key":adminKey()}});
+  let j=null; try{ j=await r.json(); }catch(_){}
+  if(!j) throw new Error("Server error "+r.status);
+  if(r.status===401 && isAdmin()){ setAdmin(false); toast("Admin session expired — log in again"); }
+  return j;
+}
+const serverReady=(async()=>{
+  if(!/^https?:$/.test(location.protocol)) return;
+  try{
+    const r=await fetch(API+"?action=status",{cache:"no-store"});
+    const j=await r.json();
+    if(j&&j.server){ server.on=true; server.pin=!!j.pin; }
+  }catch(e){ console.warn("api.php not reachable — running in this browser only", e); return; }
+  const fn=$("footNote"); if(fn) fn.textContent="Open play history and photos are saved on the website · live queue runs on this device";
+  await pullHistory();
+})();
+/* Merge the website's list into state.history. The website wins for anything it has; open plays that only
+   exist here and were never published are kept (and published when an admin is logged in); open plays this
+   browser had published but the website no longer lists were deleted elsewhere, so they drop out. */
+async function pullHistory(){
+  let list;
+  try{ const r=await fetch(DATA_URL+"?t="+Date.now(),{cache:"no-store"}); list=r.status===404?[]:await r.json(); if(!Array.isArray(list)) list=[]; }
+  catch(e){ console.warn("could not read "+DATA_URL, e); return false; }
+  const known=publishedIds();
+  const byId=new Map(list.map(s=>[String(s.id),s]));
+  const keep=(state.history||[]).filter(s=>!byId.has(String(s.id)) && !known.has(String(s.id)));
+  const merged=list.concat(keep).sort((a,b)=>(b.endedAt||0)-(a.endedAt||0));
+  merged.forEach(h=>{ if(!Array.isArray(h.photos)) h.photos=[]; });
+  lastPublished={}; list.forEach(s=>{ lastPublished[String(s.id)]=forPublish(s); known.add(String(s.id)); });
+  state.history=merged; savePublishedIds(known); server.loaded=true;
+  save(); refreshHistoryViews();
+  const land=$("landing"); if(land&&!land.classList.contains("hidden")) showLanding();   // the landing counts saved open plays
+  return true;
+}
+/* Called from save(): anything in state.history the website doesn't have yet (or has an older copy of) gets published. */
+function historySync(){
+  if(!server.on||!server.loaded||!isAdmin()||!adminKey()) return;
+  for(const s of (state.history||[])){
+    const id=String(s.id); const js=forPublish(s);
+    if(lastPublished[id]===js) continue;
+    clearTimeout(publishTimers[id]);
+    publishTimers[id]=setTimeout(()=>publishSession(id, js), 700);
+  }
+}
+async function publishSession(id, js){
+  try{
+    const j=await api("publish",{session:js});
+    if(!j.ok){ toast(j.error||"Could not save to the website"); return false; }
+    lastPublished[id]=js; const k=publishedIds(); k.add(id); savePublishedIds(k);
+    const s=(state.history||[]).find(h=>String(h.id)===id);
+    if(s && Array.isArray(j.photos)){ s.photos=j.photos; localStorage.setItem(KEY,JSON.stringify(state)); }
+    return true;
+  }catch(e){ console.warn(e); toast("Could not reach the website — will retry on the next change"); return false; }
+}
+function hasAdminPin(){ return server.on ? server.pin : !!localStorage.getItem(PIN_KEY); }
 function openPinModal(mode){
   pinMode=mode||(hasAdminPin()?"unlock":"create");
   $("pinTitle").textContent=pinMode==="create"?"Create admin PIN":"Admin login";
   $("pinHint").textContent=pinMode==="create"
-    ? "Choose a PIN (4+ characters). Only the admin can run open play and pick winners."
+    ? "Choose a PIN (4+ characters). Only the admin can run open play and pick winners."+(server.on?" It's saved on the website, so any admin device can use it.":"")
     : "Enter the admin PIN to manage open play.";
   $("pinErr").textContent=""; $("pinInput").value="";
   $("pinModal").classList.remove("hidden");
@@ -942,6 +1020,19 @@ async function submitPin(){
   const pin=($("pinInput").value||"").trim();
   if(pin.length<4){ $("pinErr").textContent="Use at least 4 characters."; return; }
   try{
+    if(server.on){
+      const key=await pinKey(pin);
+      let j=await api("login",{key}), created=false;
+      if(!j.ok && j.reason==="nopin"){ j=await api("claim",{key}); created=j.ok; }
+      if(!j.ok){ $("pinErr").textContent=j.reason==="wrong"?"Wrong PIN.":(j.error||"Login failed"); return; }
+      server.pin=true;
+      sessionStorage.setItem(ADMIN_KEY,key);
+      try{ localStorage.setItem(PIN_KEY, await hashPin(pin)); }catch(_){}
+      setAdmin(true); closePinModal(true); render(); refreshHistoryViews();
+      toast(created?"Admin PIN saved on the website — you're logged in":"Admin unlocked");
+      historySync();                                     // push anything that was waiting for an admin
+      return;
+    }
     if(pinMode==="create"){
       const hsh=await hashPin(pin);
       localStorage.setItem(PIN_KEY,hsh); setAdmin(true); closePinModal(true); render(); refreshHistoryViews(); toast("Admin PIN saved — you're logged in"); return;
@@ -953,7 +1044,7 @@ async function submitPin(){
     $("pinErr").textContent="Login failed on this browser. Try again, or reset the PIN from the console.";
   }
 }
-async function requireAdmin(){ if(isAdmin()) return true; return openPinModal(hasAdminPin()?"unlock":"create"); }
+async function requireAdmin(){ if(isAdmin()) return true; await serverReady; return openPinModal(hasAdminPin()?"unlock":"create"); }
 function lockAdmin(){
   setAdmin(false); closeGameEdit(); render();
   const hp=$("historyPage"), sp=$("sessionPage");
@@ -974,6 +1065,21 @@ async function addPhotosToSession(sessionId,fileList){
   if(!files.length){ toast("Pick image files"); return; }
   const s=state.history.find(h=>String(h.id)===String(sessionId)); if(!s){ toast("Session not found"); return; }
   if(!Array.isArray(s.photos)) s.photos=[];
+  if(server.on){
+    let added=0, err="";
+    toast("Uploading "+Math.min(files.length,12)+" photo"+(files.length===1?"":"s")+"…");
+    for(const f of files.slice(0,12)){
+      try{
+        const blob=await compressImage(f);
+        const j=await api("upload",{id:sessionId},blob);
+        if(j.ok){ if(Array.isArray(j.photos)) s.photos=j.photos; added++; } else err=j.error||"Upload failed";
+      }catch(e){ console.warn(e); err=e.message||"Upload failed"; }
+    }
+    save();
+    toast(added?added+" photo"+(added===1?"":"s")+" saved to the website"+(err?" · "+err:""):(err||"Upload failed"));
+    if(viewingSessionId&&String(viewingSessionId)===String(sessionId)) renderSessionPage(sessionId);
+    return;
+  }
   for(const f of files.slice(0,12)){
     try{ const blob=await compressImage(f); const id="ph_"+Date.now()+"_"+Math.random().toString(36).slice(2,8);
       await putPhoto({id,sessionId:String(sessionId),blob,name:f.name,addedAt:Date.now()}); s.photos.push(id); }
@@ -984,7 +1090,11 @@ async function addPhotosToSession(sessionId,fileList){
 async function removePhotoFromSession(sessionId,photoId){
   if(!isAdmin()) return;
   const s=state.history.find(h=>String(h.id)===String(sessionId)); if(!s) return;
-  s.photos=(s.photos||[]).filter(id=>id!==photoId); await delPhoto(photoId); save(); renderSessionPage(sessionId);
+  if(server.on){
+    try{ const j=await api("deletePhoto",{id:sessionId,photo:photoId}); if(j.ok){ s.photos=j.photos||[]; } else toast(j.error||"Could not remove photo"); }
+    catch(e){ console.warn(e); toast("Could not reach the website"); }
+  } else { s.photos=(s.photos||[]).filter(id=>id!==photoId); await delPhoto(photoId); }
+  save(); renderSessionPage(sessionId);
 }
 
 function fresh(){ return { players:{}, queue:[], courts:[], seq:1, courtSeq:1, games:0, sort:"name", challenge:false, mixDefaulted:true, theme:"dark", grpSeq:0, session:{active:false,startedAt:null}, history:[], log:[], locked:false, qlocked:[], audit:[], layout:{} }; }
@@ -1019,7 +1129,7 @@ function migrate(s){ if(!s)return null; if(!Array.isArray(s.queue))s.queue=[];
   return s; }
 function ensureCourts(){ if(!state.courts.length){ addCourt(); addCourt(); addCourt(); } }
 function load(){ try{return JSON.parse(localStorage.getItem(KEY))}catch(e){return null} }
-function save(){ localStorage.setItem(KEY,JSON.stringify(state)); }
+function save(){ localStorage.setItem(KEY,JSON.stringify(state)); try{ historySync(); }catch(e){ console.warn(e); } }
 function commit(){
   selSwap=null; selPair=null; try{ pinFront(); }catch(e){} save(); render();
   const sp=$("sessionPage");
@@ -1581,7 +1691,8 @@ async function deleteHistory(id){
       +(shots?" and "+shots+" photo"+(shots===1?"":"s"):"")+" will be removed. This can't be undone."))return;
     state.history=state.history.filter(h=>String(h.id)!==String(id));
     save();
-    (s.photos||[]).forEach(pid=>delPhoto(pid).catch(()=>{}));
+    if(server.on){ delete lastPublished[String(id)]; api("delete",{id}).then(j=>{ if(!j.ok) toast(j.error||"Could not delete on the website"); }).catch(()=>toast("Could not reach the website")); }
+    else (s.photos||[]).forEach(pid=>delPhoto(pid).catch(()=>{}));
     viewingSessionId=null;
     audit("deleteHistory", label+" · "+(s.games||0)+" games");
     openHistory(); toast("Deleted “"+label+"”");
@@ -1605,6 +1716,77 @@ function exportAudit(){
   document.body.appendChild(dl); dl.click(); dl.remove(); URL.revokeObjectURL(url);
   toast(a.length+" actions exported");
 }
+/* ---------- backup / import ----------
+   Backup writes one JSON file: the whole state plus every photo as a data URL. Import reads it back.
+   On the website an import publishes each open play and its photos through api.php, so the file made
+   from a local copy of the app becomes the official record; offline it restores into this browser. */
+const BACKUP_TAG="kimchi-jjigae-pickleball-backup";
+function blobToDataUrl(b){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsDataURL(b); }); }
+async function photoBlob(ph){
+  if(ph && typeof ph==="object"){ const r=await fetch(ph.url); if(!r.ok) throw new Error("photo missing"); return r.blob(); }
+  const rec=await getPhoto(ph); if(!rec||!rec.blob) throw new Error("photo missing"); return rec.blob;
+}
+async function exportBackup(){
+  if(!isAdmin()){ toast("Admin only"); return; }
+  toast("Preparing backup…");
+  const photos=[];
+  for(const s of (state.history||[])){
+    for(const ph of (s.photos||[])){
+      try{ photos.push({sessionId:String(s.id), id:(ph&&ph.id)||ph, dataUrl:await blobToDataUrl(await photoBlob(ph))}); }
+      catch(e){ console.warn("photo skipped", ph, e); }
+    }
+  }
+  const out={app:BACKUP_TAG,version:1,build:APP_BUILD,exportedAt:new Date().toISOString(),state,photos};
+  const blob=new Blob([JSON.stringify(out)],{type:"application/json"}), url=URL.createObjectURL(blob), dl=document.createElement("a");
+  dl.href=url; dl.download=BACKUP_TAG+"-"+new Date().toISOString().slice(0,10)+".json";
+  document.body.appendChild(dl); dl.click(); dl.remove(); URL.revokeObjectURL(url);
+  toast("Backup saved · "+((state.history||[]).length)+" open plays, "+photos.length+" photos");
+}
+async function importBackup(file){
+  if(!isAdmin()){ toast("Admin only"); return; }
+  if(!file) return;
+  let data=null;
+  try{ data=JSON.parse(await file.text()); }catch(e){ toast("That file isn't a valid backup"); return; }
+  if(!data||data.app!==BACKUP_TAG||!data.state||typeof data.state!=="object"){ toast("That file isn't a Kimchi Jjigae backup"); return; }
+  const hist=data.state.history||[], roster=Object.keys(data.state.players||{}).length, shots=(data.photos||[]).length;
+  const summary=hist.length+" open play"+(hist.length===1?"":"s")+", "+roster+" player"+(roster===1?"":"s")+", "+shots+" photo"+(shots===1?"":"s")
+    +"\nfrom "+(data.exportedAt?new Date(data.exportedAt).toLocaleString():"unknown date");
+  if(server.on){
+    if(!confirm("Import this backup to the website?\n\n"+summary+"\n\nOpen plays are added to the website's history (same ids are replaced). The roster on this device is replaced too. Your admin PIN is kept.")) return;
+    let pubOk=0, phOk=0, fails=0;
+    for(const s of hist){
+      const rec=Object.assign({},s); delete rec.photos;
+      toast("Publishing "+(rec.name||fmtDate(rec.endedAt))+"…");
+      let j=null; try{ j=await api("publish",{session:JSON.stringify(rec)}); }catch(e){ console.warn(e); }
+      if(!j||!j.ok){ fails++; continue; }
+      pubOk++;
+      const have=new Set((j.photos||[]).map(p=>p.id));
+      for(const ph of (data.photos||[]).filter(p=>String(p.sessionId)===String(s.id))){
+        if(have.has(ph.id)) continue;
+        try{ const blob=await (await fetch(ph.dataUrl)).blob(); const u=await api("upload",{id:s.id},blob); if(u.ok) phOk++; else fails++; }
+        catch(e){ console.warn(e); fails++; }
+      }
+    }
+    const st=Object.assign({},data.state); st.history=[]; st.session={active:false,startedAt:null}; st.log=[];
+    localStorage.setItem(KEY, JSON.stringify(st));
+    const k=publishedIds(); hist.forEach(s=>k.add(String(s.id))); savePublishedIds(k);
+    toast("Imported · "+pubOk+" open plays, "+phOk+" photos"+(fails?", "+fails+" failed":"")+" · reloading");
+    setTimeout(()=>location.reload(),900);
+    return;
+  }
+  if(!confirm("Restore this backup?\n\n"+summary+"\n\nThis REPLACES everything currently in this browser. Your admin PIN is kept.")) return;
+  toast("Restoring…");
+  for(const ph of (data.photos||[])){
+    try{ const blob=await (await fetch(ph.dataUrl)).blob(); await putPhoto({id:ph.id,sessionId:String(ph.sessionId),blob,name:"",addedAt:Date.now()}); }
+    catch(e){ console.warn("photo skipped",ph.id,e); }
+  }
+  const st=data.state; (st.history||[]).forEach(s=>{ s.photos=(s.photos||[]).map(ph=>(ph&&typeof ph==="object")?ph.id:ph); });
+  localStorage.setItem(KEY, JSON.stringify(st));
+  toast("Restored · reloading");
+  setTimeout(()=>location.reload(),600);
+}
+document.addEventListener("click",e=>{ if(e.target.closest("[data-backup]")) exportBackup(); });
+document.addEventListener("change",e=>{ const inp=e.target.closest("[data-restore]"); if(inp&&inp.files&&inp.files[0]){ importBackup(inp.files[0]); inp.value=""; } });
 function playerBreakdown(log){
   const m={}; const get=o=>{ if(!m[o.id])m[o.id]={name:o.name,games:0,wins:0,losses:0,partners:{},opp:{}}; return m[o.id]; };
   (log||[]).forEach(g=>{
@@ -1757,12 +1939,13 @@ async function renderSessionPage(id){
   const glEdit = live ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint">'+(live?"No games finished yet.":"No games recorded.")+'</div>', glEdit);
   let photoHtml="";
-  for(const pid of (s.photos||[])){
-    const rec=await getPhoto(pid); if(!rec||!rec.blob) continue;
-    const url=URL.createObjectURL(rec.blob);
-    photoHtml+='<button type="button" class="photo-cell" data-lightbox="'+url+'"><img src="'+url+'" alt="">'
+  const photoCell=(url,pid)=>'<button type="button" class="photo-cell" data-lightbox="'+url+'"><img src="'+url+'" alt="" loading="lazy">'
       +(isAdmin()?'<span class="phdel" data-delphoto="'+pid+'" data-sid="'+s.id+'" title="Remove">✕</span>':'')
       +'</button>';
+  for(const ph of (s.photos||[])){
+    if(ph && typeof ph==="object"){ if(ph.url) photoHtml+=photoCell(esc(ph.url),esc(ph.id)); continue; }   // on the website
+    const rec=await getPhoto(ph); if(!rec||!rec.blob) continue;                                          // this browser's IndexedDB
+    photoHtml+=photoCell(URL.createObjectURL(rec.blob),ph);
   }
   const addBtn=(!live&&isAdmin())?'<label class="photo-add">+ Add photos<input type="file" accept="image/*" multiple data-addphotos="'+s.id+'"></label>':"";
   if(!photoHtml&&!addBtn) photoHtml='<div class="hint">'+(live?"Photos can be added after open play ends.":(isAdmin()?"No photos yet — tap Add photos to upload.":"No photos yet."))+'</div>';

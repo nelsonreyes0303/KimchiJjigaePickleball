@@ -1,0 +1,13 @@
+# Kimchi Jjigae Pickleball Club — published data. Read-only for the web; api.php is the only writer.
+Options -Indexes
+<FilesMatch "\.(php|phtml|php[0-9]|phar|cgi|pl|py|sh)$">
+  Require all denied
+</FilesMatch>
+<FilesMatch "^\.(admin|lock|htaccess)$">
+  Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+  <FilesMatch "\.json$">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+  </FilesMatch>
+</IfModule>

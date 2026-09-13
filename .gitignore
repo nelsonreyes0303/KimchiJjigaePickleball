@@ -1,0 +1,6 @@
+# Live data written by api.php on the host. Never commit it: a git deploy would overwrite what the website has saved.
+data/openplays.json
+data/openplays.json.tmp
+data/photos/
+data/.admin
+data/.lock
