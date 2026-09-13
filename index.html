@@ -497,11 +497,20 @@ window.addEventListener("error",function(e){
   .hist-card .ht{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-weight:700;font-size:1.2rem;margin:0}
   .hist-card .hm{color:var(--muted);font-size:.85rem;margin:4px 0 0}
   .hist-card .hmeta{display:flex;flex-wrap:wrap;gap:8px;grid-column:1/-1}
-  .up-label{margin:0 0 10px;font-size:.72rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
-  .up-list{display:grid;gap:12px;margin-bottom:12px}
-  .up-block{margin-bottom:26px}
-  .up-card{cursor:default}
-  .up-card .ht{margin:0 0 4px}
+  .hist-tabs{display:flex;gap:4px;margin:0 0 18px;border-bottom:1px solid var(--line)}
+  .htab{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:10px 14px;font:inherit;font-size:.92rem;font-weight:800;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+  .htab:hover{color:var(--txt)}
+  .htab.active{color:var(--txt);border-bottom-color:var(--accent)}
+  .htab-count{font-size:.7rem;padding:2px 7px;border-radius:999px;background:var(--panel-2);border:1px solid var(--line);color:var(--muted)}
+  .up-group{margin-bottom:22px}
+  .up-group-title{margin:0 0 10px;font-size:.78rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+  .up-list{display:grid;gap:10px}
+  .up-card{cursor:default;grid-template-columns:auto 1fr auto;padding:14px 18px}
+  .up-date{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:58px;padding:6px 8px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line);line-height:1.05}
+  .up-dow{font-size:.66rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+  .up-day{font-size:1.45rem;font-weight:800;color:var(--txt);margin:2px 0}
+  .up-mon{font-size:.7rem;font-weight:800;text-transform:uppercase;color:var(--muted)}
+  .up-card .ht{margin:0 0 3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .up-card .hm{margin:0}
   .up-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
   .up-right .btn-accent{padding:10px 16px;font-size:.88rem;border-radius:12px;text-decoration:none;white-space:nowrap}
@@ -509,7 +518,7 @@ window.addEventListener("error",function(e){
   .up-form label{margin-top:14px}
   .up-form > label:first-child{margin-top:0}
   .up-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  @media (max-width:719px){ .up-card{grid-template-columns:1fr} .up-right{justify-content:flex-start} .up-right .btn-accent{flex:1;text-align:center} }
+  @media (max-width:719px){ .up-card{grid-template-columns:auto 1fr} .up-right{grid-column:1/-1;justify-content:flex-start} .up-right .btn-accent{flex:1;text-align:center} }
   .home-next{position:relative;z-index:2;margin:10px 0 0;font-size:.92rem;color:var(--muted)}
   .home-next a{color:var(--accent);font-weight:800;text-decoration:none}
   .home-next a:hover{text-decoration:underline}
@@ -778,7 +787,14 @@ window.addEventListener("error",function(e){
     <label class="btn-ghost btn-sm admin-only" title="Load a backup file made on another device" style="cursor:pointer">📥 Import<input type="file" accept="application/json,.json" data-restore style="display:none"></label>
     <button type="button" class="btn-ghost btn-sm admin-only" id="histLockBtn" title="Lock admin on this device">Log out</button>
   </div>
-  <div class="page-body"><div id="upcomingBody" class="up-block" hidden></div><div id="histBody" class="hist-list"></div></div>
+  <div class="page-body">
+    <div class="hist-tabs" role="tablist">
+      <button type="button" class="htab active" role="tab" data-htab="past">Past open plays</button>
+      <button type="button" class="htab" role="tab" data-htab="upcoming">Upcoming<span class="htab-count" id="upCount" hidden></span></button>
+    </div>
+    <div id="upcomingBody" class="up-block" hidden></div>
+    <div id="histBody" class="hist-list"></div>
+  </div>
 </div>
 
 <div id="sessionPage" class="hist-page hidden">
@@ -891,7 +907,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13u";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-13v";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1845,27 +1861,40 @@ async function loadUpcoming(){
   catch(e){ console.warn("could not read upcoming open plays", e); return; }
   renderUpcoming();
 }
+let histTab="past";                                   // which tab the history page shows: "past" | "upcoming"
+function setHistTab(t){
+  histTab=t==="upcoming"?"upcoming":"past";
+  document.querySelectorAll("[data-htab]").forEach(b=>{ const on=b.dataset.htab===histTab; b.classList.toggle("active",on); b.setAttribute("aria-selected",on?"true":"false"); });
+  const hb=$("histBody"); if(hb) hb.hidden=histTab!=="past";
+  renderUpcoming();
+}
+function upTime(d){ return d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); }
 function renderUpcoming(){
   const list=upcomingShown(), next=list[0], admin=server.on&&isAdmin();
   const ln=$("landingNext");
   if(ln){
     ln.hidden=!next;
-    if(next) ln.innerHTML='📅 Next open play: <b>'+esc(upWhen(next.d))+'</b>'+(next.venue?' · 📍 '+esc(next.venue):'')+(next.rsvp?' · <a href="'+esc(next.rsvp)+'" target="_blank" rel="noopener">RSVP ↗</a>':'');
+    if(next) ln.innerHTML='📅 Next open play: <b>'+esc(upWhen(next.d))+'</b>'+(next.venue?' · 📍 '+esc(next.venue):'')
+      +(next.rsvp?' · <a href="'+esc(next.rsvp)+'" target="_blank" rel="noopener">RSVP ↗</a>':'')
+      +(list.length>1?' · <a href="#" data-openupcoming>All '+list.length+' dates</a>':'');
   }
+  const cnt=$("upCount"); if(cnt){ cnt.hidden=!list.length; cnt.textContent=list.length; }
   const box=$("upcomingBody"); if(!box) return;
-  box.hidden=!(list.length||admin);
+  box.hidden=histTab!=="upcoming";
   if(box.hidden){ box.innerHTML=""; return; }
-  box.innerHTML='<p class="up-label">📅 Upcoming open plays</p>'
-    +(list.length
-      ? '<div class="up-list">'+list.map(ev=>'<div class="hist-card up-card">'
-          +'<div><p class="ht">'+esc(ev.title||"Open play")+'</p><p class="hm">⏰ '+esc(upWhen(ev.d))+(ev.venue?' · 📍 '+esc(ev.venue):'')+'</p></div>'
-          +'<div class="up-right">'
-            +(ev.rsvp?'<a class="btn-accent" href="'+esc(ev.rsvp)+'" target="_blank" rel="noopener">RSVP ↗</a>':'')
-            +(admin?'<button type="button" class="btn-ghost btn-sm" data-upedit="'+esc(ev.id)+'">Edit</button><button type="button" class="btn-ghost btn-sm" data-updel="'+esc(ev.id)+'" title="Remove">✕</button>':'')
-          +'</div></div>').join("")+'</div>'
-      : '<p class="up-empty">Nothing scheduled yet.</p>')
-    +(admin?'<button type="button" class="btn btn-sm" data-upadd>+ Add open play</button>':'')
-    +(list.length?'<p class="up-label" style="margin-top:22px">Past open plays</p>':'');
+  // Same title on consecutive dates is the norm, so group by title and let the date carry each row.
+  const groups=[]; for(const ev of list){ const t=ev.title||""; const g=groups[groups.length-1]; if(g&&g.title===t) g.items.push(ev); else groups.push({title:t,items:[ev]}); }
+  const row=ev=>'<div class="hist-card up-card">'
+    +'<div class="up-date"><span class="up-dow">'+esc(ev.d.toLocaleDateString([],{weekday:"short"}))+'</span><span class="up-day">'+ev.d.getDate()+'</span><span class="up-mon">'+esc(ev.d.toLocaleDateString([],{month:"short"}))+'</span></div>'
+    +'<div><p class="ht">'+esc(upTime(ev.d))+(ev===next?'<span class="htag live">Next</span>':'')+'</p><p class="hm">'+(ev.venue?'📍 '+esc(ev.venue):'')+'</p></div>'
+    +'<div class="up-right">'
+      +(ev.rsvp?'<a class="btn-accent" href="'+esc(ev.rsvp)+'" target="_blank" rel="noopener">RSVP ↗</a>':'')
+      +(admin?'<button type="button" class="btn-ghost btn-sm" data-upedit="'+esc(ev.id)+'">Edit</button><button type="button" class="btn-ghost btn-sm" data-updel="'+esc(ev.id)+'" title="Remove">✕</button>':'')
+    +'</div></div>';
+  box.innerHTML=(list.length
+      ? groups.map(g=>'<div class="up-group">'+(g.title?'<h3 class="up-group-title">'+esc(g.title)+'</h3>':'')+'<div class="up-list">'+g.items.map(row).join("")+'</div></div>').join("")
+      : '<p class="up-empty">Nothing scheduled yet'+(admin?'':' — check back soon')+'.</p>')
+    +(admin?'<button type="button" class="btn btn-sm" data-upadd>+ Add open play</button>':'');
 }
 async function saveUpcoming(){
   if(!server.on){ toast("Only available on the website"); return false; }
@@ -1917,6 +1946,8 @@ async function deleteUpcoming(id){
   if(await saveUpcoming()) toast("Open play removed"); else { upcomingAll=before; renderUpcoming(); }
 }
 document.addEventListener("click",e=>{
+  const tab=e.target.closest("[data-htab]"); if(tab){ setHistTab(tab.dataset.htab); return; }
+  const all=e.target.closest("[data-openupcoming]"); if(all){ e.preventDefault(); openHistory(); setHistTab("upcoming"); return; }
   if(e.target.closest("[data-upclose]")){ closeUpModal(); return; }
   if(e.target.closest("#upSave")){ submitUpModal(); return; }
   if(e.target===$("upModal")){ closeUpModal(); return; }
