@@ -851,7 +851,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-13r";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-13s";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1961,7 +1961,7 @@ async function renderSessionPage(id){
       photoBlock+
       '<details class="sess-block sess-fold" open><summary>🏆 Standings<span class="foldcount">'+((s.players||[]).length)+' player'+(((s.players||[]).length)===1?'':'s')+'</span><span class="foldarrow">▾</span></summary>'+
         '<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Player</th>'+(showLvl?'<th>Lvl</th>':'')+'<th>G</th><th>W</th><th>L</th><th>%</th></tr></thead><tbody>'+(rows||emptyStand)+'</tbody></table></div></details>'+
-      '<div class="sess-block" style="grid-column:1/-1"><h3>🎾 Game log</h3>'+(log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':'')+'<div class="glwrap">'+gl+'</div>'+(!live?'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-csv="'+s.id+'">⬇ Standings CSV</button></div>':'')+'</div>'+
+      '<div class="sess-block" style="grid-column:1/-1"><h3>🎾 Game log</h3>'+(log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':'')+'<div class="glwrap">'+gl+'</div>'+((!live&&isAdmin())?'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-csv="'+s.id+'">⬇ Standings CSV</button></div>':'')+'</div>'+
     '</div>';
 }
 async function loginAsAdmin(){
