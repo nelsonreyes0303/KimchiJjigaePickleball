@@ -28,6 +28,11 @@ const LOCK_FILE  = DATA_DIR . '/.lock';
 const UP_FILE    = DATA_DIR . '/upcoming.json';       // live list, edited by admins in the app
 const UP_SEED    = DATA_DIR . '/upcoming.seed.json';  // committed starting point, used once when the live file is missing
 const MAX_EVENTS = 60;
+/* Fixed admin PIN (optional). Leave empty to let the first PIN entered on the site claim admin (stored in
+ * data/.admin). To set or change the PIN by hand, put the SHA-256 hex of the PIN here — on any machine:
+ *   node -e "console.log(require('crypto').createHash('sha256').update('YOUR_PIN').digest('hex'))"
+ * A PIN set here overrides data/.admin. */
+const ADMIN_KEY_FIXED = 'e877153ecba1c2858b9f0a8168dbf6f4eeb13c21d1f9b8d8fd814bf7d0635969';
 const MAX_BYTES  = 12 * 1024 * 1024;
 const MAX_PHOTOS = 60;
 const MAX_SESSION_JSON = 4 * 1024 * 1024;
@@ -36,6 +41,12 @@ function out(array $o, int $code = 200): void { http_response_code($code); echo 
 function fail(string $msg, int $code = 400): void { out(['ok' => false, 'error' => $msg], $code); }
 function cleanId(?string $s): string { return preg_replace('/[^A-Za-z0-9_-]/', '', (string)$s); }
 function adminHash(): ?string { return is_file(ADMIN_FILE) ? trim((string)file_get_contents(ADMIN_FILE)) : null; }
+function pinIsSet(): bool { return ADMIN_KEY_FIXED !== '' || adminHash() !== null; }
+function keyMatches(string $k): bool {
+  if ($k === '') return false;
+  if (ADMIN_KEY_FIXED !== '') return hash_equals(strtolower(ADMIN_KEY_FIXED), strtolower($k));
+  $h = adminHash(); return $h !== null && password_verify($k, $h);
+}
 function keyFromRequest(): string {
   // Header first (logged-in admin), else the form field (login/claim). An empty header must fall through.
   $k = (string)($_SERVER['HTTP_X_ADMIN_KEY'] ?? '');
@@ -43,8 +54,7 @@ function keyFromRequest(): string {
   return preg_replace('/[^a-f0-9:]/i', '', $k);
 }
 function requireAdmin(): void {
-  $h = adminHash(); $k = keyFromRequest();
-  if ($h === null || $k === '' || !password_verify($k, $h)) { usleep(300000); fail('Admin PIN required', 401); }
+  if (!keyMatches(keyFromRequest())) { usleep(300000); fail('Admin PIN required', 401); }
 }
 function requirePost(): void { if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST only', 405); }
 
@@ -109,11 +119,11 @@ if (!is_dir(PHOTO_DIR) && !mkdir(PHOTO_DIR, 0755, true)) fail('data/photos folde
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 switch ($action) {
   case 'status':
-    out(['server' => true, 'pin' => adminHash() !== null]);
+    out(['server' => true, 'pin' => pinIsSet()]);
 
   case 'claim':
     requirePost();
-    if (adminHash() !== null) fail('An admin PIN already exists', 409);
+    if (pinIsSet()) fail('An admin PIN already exists', 409);
     $k = keyFromRequest(); if (strlen($k) < 8) fail('Bad key');
     if (file_put_contents(ADMIN_FILE, password_hash($k, PASSWORD_DEFAULT), LOCK_EX) === false) fail('Cannot save PIN', 500);
     @chmod(ADMIN_FILE, 0600);
@@ -121,10 +131,8 @@ switch ($action) {
 
   case 'login':
     requirePost();
-    $h = adminHash();
-    if ($h === null) out(['ok' => false, 'reason' => 'nopin']);
-    $k = keyFromRequest();
-    if ($k !== '' && password_verify($k, $h)) out(['ok' => true]);
+    if (!pinIsSet()) out(['ok' => false, 'reason' => 'nopin']);
+    if (keyMatches(keyFromRequest())) out(['ok' => true]);
     usleep(300000); out(['ok' => false, 'reason' => 'wrong']);
 
   case 'publish':
