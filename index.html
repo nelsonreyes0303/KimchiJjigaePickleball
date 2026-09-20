@@ -496,6 +496,7 @@ window.addEventListener("error",function(e){
   .home-status b{color:var(--txt)}
   body.light .landing{background:linear-gradient(165deg,rgba(251,250,241,.5) 0%,rgba(242,239,227,.92) 50%,var(--bg) 100%),radial-gradient(900px 520px at 70% 10%,#dcebcf 0%,transparent 60%),var(--bg)}
   body.light .home-court{opacity:.22}
+  .home-court-clip{position:absolute;inset:0;overflow:hidden;pointer-events:none}   /* the court is drawn wider than the screen; never let it widen the landing scroll area */
   .hist-page{position:fixed;inset:0;z-index:210;display:flex;flex-direction:column;background:radial-gradient(1000px 600px at 90% -10%,var(--bg2) 0%,var(--bg) 55%);overflow:auto}
   .hist-page.hidden{display:none}
   .page-bar{position:sticky;top:0;z-index:5;backdrop-filter:blur(12px);background:var(--headerbg);border-bottom:1px solid var(--line);padding:14px clamp(16px,3vw,32px);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -730,7 +731,7 @@ window.addEventListener("error",function(e){
 <div class="toast" id="toast"></div>
 
 <div id="landing" class="landing hidden">
-  <div class="home-court" aria-hidden="true"></div>
+  <div class="home-court-clip" aria-hidden="true"><div class="home-court"></div></div>
   <div class="home-top">
     <div class="home-brandmark"><img src="logo.png" alt="" class="marklogo">Kimchi Jjigae</div>
     <div style="display:flex;align-items:center;gap:8px">
@@ -925,7 +926,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-14e";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-14f";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
