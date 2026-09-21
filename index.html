@@ -570,6 +570,23 @@ window.addEventListener("error",function(e){
   @media(min-width:900px){.sess-grid{grid-template-columns:1.1fr .9fr}}
   .sess-block{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
   .sess-block h3{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-size:1.05rem;margin:0 0 12px;font-weight:700}
+  /* live page: courts now + who's next (read-only copy of the admin queue look) */
+  .lv-block{grid-column:1/-1}
+  .lv-count{margin-left:10px;font-family:"DM Sans",system-ui,sans-serif;font-size:.72rem;font-weight:600;color:var(--muted)}
+  .lv-courts{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+  .lv-court{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--panel-2);display:flex;flex-direction:column;gap:6px}
+  .lv-court.live{border-color:var(--int)}
+  .lv-ch{display:flex;align-items:center;gap:8px}
+  .lv-ch .timer{font-size:.85rem;padding:2px 8px}
+  .lv-team{display:flex;flex-wrap:wrap;gap:6px}
+  .lv-p{font-weight:600;font-size:.9rem;padding:3px 9px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
+  .lv-queue{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));margin-top:8px;align-items:start}
+  .lv-queue .qgroup.later{opacity:.8}
+  .lv-fixed{font-size:.58rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--accent);color:var(--ink)}
+  .qitem.ro{cursor:default}
+  .lv-block.finding [data-lvname]{opacity:.35}
+  .lv-block.finding [data-lvname].hit{opacity:1;outline:2px solid var(--accent);outline-offset:-1px}
+  .lv-note{margin:10px 0 0}
   .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
   .photo-cell{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--panel-2);cursor:zoom-in;padding:0}
   .photo-cell img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
@@ -926,7 +943,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-14f";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-21b";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -996,7 +1013,7 @@ async function pinMatches(pin){
 const API="api.php", DATA_URL="data/openplays.json";
 const ADMIN_KEY="pb_admin_key";                              // SHA-256 of the PIN, kept for this tab only
 const PUBLISHED_KEY="pb_published_v1";                       // ids this browser knows are on the website
-const server={ on:false, pin:false, loaded:false };
+const server={ on:false, pin:false, loaded:false, live:false };   // live: the website carries the running open play too
 let lastPublished={};                                        // id -> JSON of what the website holds (minus photos)
 let publishTimers={};
 function publishedIds(){ try{ return new Set(JSON.parse(localStorage.getItem(PUBLISHED_KEY)||"[]")); }catch(_){ return new Set(); } }
@@ -1023,6 +1040,7 @@ const serverReady=(async()=>{
   }catch(e){ console.warn("api.php not reachable — running in this browser only", e); return; }
   const fn=$("footNote"); if(fn) fn.textContent="Open play history and photos are saved on the website · live queue runs on this device";
   loadUpcoming();
+  await pullLive();
   await pullHistory();
 })();
 /* Merge the website's list into state.history. The website wins for anything it has; open plays that only
@@ -1062,6 +1080,105 @@ async function publishSession(id, js){
     if(s && Array.isArray(j.photos)){ s.photos=j.photos; localStorage.setItem(KEY,JSON.stringify(state)); }
     return true;
   }catch(e){ console.warn(e); toast("Could not reach the website — will retry on the next change"); return false; }
+}
+
+/* ---------- live open play sync (api.php?action=live / saveLive) ----------
+   The running open play — roster, queue, courts, games, log — is one shared record on the website
+   (data/live.json), so several admin devices can run the same session and everyone else can watch it.
+   Every save() pushes the shared part of the state (debounced); every device polls for a newer version and
+   redraws when one arrives. Each push says which version it was based on; if another device got there first
+   the website refuses it, this device takes the newer copy and asks the admin to redo that one action.
+   Only what belongs to this device stays local: theme, panel sizes, sort order, the audit trail, and the
+   history list (which has its own sync above). Without api.php everything stays in this browser as before. */
+const LIVE_LOCAL_KEYS=["theme","layout","secOpen","sort","history","audit"];
+const live={ version:0, json:"", pushing:false, dirty:false, timer:null, pollTimer:null };
+function liveShared(){ const o={}; for(const k of Object.keys(state)) if(!LIVE_LOCAL_KEYS.includes(k)) o[k]=state[k]; return o; }
+function liveJson(){ return JSON.stringify(liveShared()); }
+function canPushLive(){ return server.on && server.live && isAdmin() && !!adminKey(); }
+/* Called from save(): if the shared part of the state changed, push it shortly. */
+function liveSync(){
+  if(!canPushLive()) return;
+  if(liveJson()===live.json) return;
+  live.dirty=true;
+  clearTimeout(live.timer); live.timer=setTimeout(pushLive, 250);
+}
+async function pushLive(){
+  if(!canPushLive()) return;
+  if(live.pushing){ live.dirty=true; return; }
+  const js=liveJson(); if(js===live.json){ live.dirty=false; return; }
+  live.pushing=true; live.dirty=false;
+  try{
+    const j=await api("saveLive",{base:live.version,state:js});
+    if(j.ok){ live.version=j.version; live.json=js; }
+    else if(j.conflict){
+      const theirs=j.state?JSON.stringify(j.state):"";
+      if(theirs===js){ live.version=j.version; live.json=js; }       // our earlier push did land; the reply just got lost
+      else applyLive(j, "Another device changed the open play first — showing the latest. Please redo your last action.");
+    }
+    else toast(j.error||"Could not save the live open play to the website");
+  }catch(e){
+    console.warn(e); toast("Could not reach the website — will retry the live update");
+    clearTimeout(live.timer); live.timer=setTimeout(pushLive, 4000);
+  }finally{
+    live.pushing=false;
+    if(live.dirty) pushLive();                                          // a change came in while this one was in flight
+  }
+}
+/* Take the website's copy of the live open play and redraw whatever is on screen. */
+function applyLive(j, msg){
+  if(!j||typeof j.version!=="number"||!j.state||typeof j.state!=="object") return false;
+  const remote=j.state;
+  const wasActive=!!(state.session&&state.session.active), oldId=state.session?state.session.id:null;
+  const rs=remote.session||{};
+  if(wasActive && (!rs.active || rs.id!==oldId)){                      // a different session is replacing a running one: keep a copy, just in case
+    try{ localStorage.setItem(KEY+"_bak", JSON.stringify(state)); }catch(_){}
+  }
+  for(const k of Object.keys(state)) if(!LIVE_LOCAL_KEYS.includes(k) && !(k in remote)) delete state[k];
+  for(const k of Object.keys(remote)) if(!LIVE_LOCAL_KEYS.includes(k)) state[k]=remote[k];
+  state=migrate(state); ensureCourts();
+  live.version=j.version; live.json=liveJson();
+  try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(_){}
+  selSwap=null; selPair=null;
+  render(); syncAdminUI(); syncTierToggle();
+  const sel=$("sortSel"); if(sel) sel.value=state.sort;
+  const sm=$("setupModal"); if(sm&&!sm.classList.contains("hidden")) renderSetup();
+  const land=$("landing"); if(land&&!land.classList.contains("hidden")) showLanding();
+  refreshHistoryViews();                                               // the live session page, if someone is watching it
+  const nowActive=!!(state.session&&state.session.active);
+  if(msg) toast(msg);
+  else if(wasActive&&!nowActive){ toast("Open play was ended on another device"); pullHistory(); }
+  else if(!wasActive&&nowActive) toast("Open play started on another device");
+  return true;
+}
+async function pollLive(){
+  if(!server.on||!server.live) return;
+  if(live.pushing||live.dirty||document.visibilityState==="hidden") return;
+  try{
+    const r=await fetch(API+"?action=live&v="+live.version+"&t="+Date.now(),{cache:"no-store"});
+    const j=await r.json();
+    if(!j||j.same) return;
+    if(live.pushing||live.dirty) return;                               // we changed something meanwhile; the push will reconcile
+    if(typeof j.version==="number" && j.version>live.version && j.state) applyLive(j);
+  }catch(e){ /* offline for a moment — next tick tries again */ }
+}
+function schedulePoll(){
+  clearTimeout(live.pollTimer);
+  live.pollTimer=setTimeout(async()=>{ await pollLive(); schedulePoll(); }, isAdmin()?2500:5000);
+}
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") pollLive(); });
+/* First contact with the website: take its live open play, or seed it from this device if it has none yet. */
+async function pullLive(){
+  try{
+    const r=await fetch(API+"?action=live&t="+Date.now(),{cache:"no-store"});
+    const j=await r.json();
+    if(!j||typeof j.version!=="number"){ console.warn("live sync is not available on this server"); return false; }
+    server.live=true;
+    if(j.version>0 && j.state) applyLive(j);
+    else { live.version=j.version||0; live.json=""; liveSync(); }
+    const fn=$("footNote"); if(fn) fn.textContent="Open play history, photos and the live open play are shared on the website";
+    schedulePoll();
+    return true;
+  }catch(e){ console.warn("could not read the live open play", e); return false; }
 }
 function hasAdminPin(){ return server.on ? server.pin : !!localStorage.getItem(PIN_KEY); }
 function openPinModal(mode){
@@ -1107,6 +1224,7 @@ async function submitPin(){
       setAdmin(true); closePinModal(true); render(); refreshHistoryViews();
       toast(created?"Admin PIN saved on the website — you're logged in":"Admin unlocked");
       historySync();                                     // push anything that was waiting for an admin
+      liveSync();                                        // and seed the live open play if the website has none yet
       return;
     }
     if(pinMode==="create"){
@@ -1205,7 +1323,7 @@ function migrate(s){ if(!s)return null; if(!Array.isArray(s.queue))s.queue=[];
   return s; }
 function ensureCourts(){ if(!state.courts.length){ addCourt(); addCourt(); addCourt(); } }
 function load(){ try{return JSON.parse(localStorage.getItem(KEY))}catch(e){return null} }
-function save(){ localStorage.setItem(KEY,JSON.stringify(state)); try{ historySync(); }catch(e){ console.warn(e); } }
+function save(){ localStorage.setItem(KEY,JSON.stringify(state)); try{ historySync(); }catch(e){ console.warn(e); } try{ liveSync(); }catch(e){ console.warn(e); } }
 function commit(){
   selSwap=null; selPair=null; try{ pinFront(); }catch(e){} save(); render();
   const sp=$("sessionPage");
@@ -2097,6 +2215,42 @@ function openSessionPage(id){
   renderSessionPage(id);
   syncAdminUI();
 }
+/* ---------- live page: courts now + who's next ----------
+   Players watching on their phones want one answer: am I next? Next up is the fixed four who take the next
+   open court. The group after that is the likely matchup; further back the line-up can still re-level. */
+function lvRow(id,num){
+  const p=P(id); if(!p) return "";
+  return `<div class="qitem ro" data-lvname="${esc(p.name.toLowerCase())}"><span class="qnum">${num}</span><div class="qbody"><div class="qline"><span class="qname">${esc(p.name)}</span>${isAdmin()?chip(id):""}${p.partner?'<span class="grpm" title="Fixed pair">🔗</span>':''}</div><div class="qmeta"><span class="qgms" title="Games played">${p.games} gm</span>${waitSpan(id)}</div></div></div>`;
+}
+function liveQueueBlock(){
+  const courts=state.courts.map((c,idx)=>{
+    const active=c.seats.every(x=>x);
+    const name=esc(c.name||('Court '+(idx+1)));
+    if(!active) return `<div class="lv-court open"><div class="lv-ch"><b>${name}</b><span class="badge open">Open</span></div><p class="hint" style="margin:0">Next up starts here</p></div>`;
+    const team=(a,b)=>`<div class="lv-team">${[a,b].map(id=>`<span class="lv-p" data-lvname="${esc(nm(id).toLowerCase())}">${esc(nm(id))}</span>`).join("")}</div>`;
+    return `<div class="lv-court live"><div class="lv-ch"><b>${name}</b><span class="badge live">Live</span><span class="timer" data-timer="${c.started||''}">${c.started?fmt(Date.now()-c.started):'—:—'}</span></div>${team(c.seats[0],c.seats[1])}<div class="qvs">VS</div>${team(c.seats[2],c.seats[3])}</div>`;
+  }).join("");
+  const {groups,leftovers}=queueGroups();
+  let n=0, qhtml="";
+  groups.forEach((g,gi)=>{
+    const tag=gi===0?'▶ Next up':gi===1?'Then · possible matchup':'Group '+(gi+1)+' · may change';
+    qhtml+=`<div class="qgroup ${gi===0?'nextg':gi>1?'later':''}"><div class="qghead"><span class="qgtag">${tag}</span>${gi===0?'<span class="lv-fixed">Fixed</span>':''}</div>
+      <div class="qteam">${lvRow(g[0],++n)}${lvRow(g[1],++n)}</div><div class="qvs">VS</div><div class="qteam b">${lvRow(g[2],++n)}${lvRow(g[3],++n)}</div></div>`;
+  });
+  if(leftovers.length) qhtml+=`<div class="qgroup leftover"><div class="qghead"><span class="qgtag">Waiting for a match</span></div>${leftovers.map(id=>lvRow(id,'·')).join("")}</div>`;
+  if(!groups.length&&!leftovers.length) qhtml='<div class="hint">Nobody is waiting right now.</div>';
+  return `<div class="sess-block lv-block"><h3>🏟️ On the courts</h3><div class="lv-courts">${courts||'<div class="hint">No courts set up yet.</div>'}</div>
+    <h3 style="margin-top:18px">⏭ Who's next<span class="lv-count">${state.queue.length} waiting</span></h3>
+    <input class="rsearch" data-qfind placeholder="🔍 Find your name…" autocomplete="off">
+    <div class="lv-queue">${qhtml}</div>
+    <p class="hint lv-note">Next up is fixed — those four take the next open court. The groups after are the likely line-up and can still change as games end.</p></div>`;
+}
+function lvFind(inp){
+  const q=(inp.value||"").trim().toLowerCase();
+  const block=inp.closest(".lv-block"); if(!block) return;
+  block.classList.toggle("finding",!!q);
+  block.querySelectorAll("[data-lvname]").forEach(el=>el.classList.toggle("hit", !!q && el.dataset.lvname.includes(q)));
+}
 async function renderSessionPage(id){
   let s=null, live=false;
   if(String(id)==="live"){
@@ -2120,7 +2274,7 @@ async function renderSessionPage(id){
   }
   document.title="Kimchi Jjigae · "+(s.name||fmtDate(s.endedAt));
   const del=$("sessDelete"); if(del){ del.dataset.delhist=live?"":String(s.id); del.hidden=!!live; del.style.display=live?"none":""; }
-  const cont=$("sessContinue"); if(cont) cont.hidden=!live;
+  const cont=$("sessContinue"); if(cont) cont.hidden=!(live&&isAdmin());   // visitors watch; only admins continue
   const champ=s.players&&s.players[0];
   const log=s.log||[];
   const showLvl=isAdmin();
@@ -2144,8 +2298,9 @@ async function renderSessionPage(id){
     ? ""
     : '<div class="sess-block"><h3>📷 Photos</h3><div class="photo-grid">'+photoHtml+addBtn+'</div></div>';
   $("sessBody").innerHTML=
-    '<div class="sess-hero"><p>'+(live?'<span class="htag live">Live</span> In progress · ':"")+(!live?fmtDate(s.endedAt)+' · ':"")+(s.games||0)+' games'+(s.endedAt&&s.startedAt?" · "+fmtDur(s.endedAt-s.startedAt):"")+(champ?" · 🏆 "+esc(champ.name):"")+'</p></div>'+
+    '<div class="sess-hero"><p>'+(live?'<span class="htag live">Live</span> In progress · ':"")+(!live?fmtDate(s.endedAt)+' · ':"")+(s.games||0)+' games'+(s.endedAt&&s.startedAt?" · "+fmtDur(s.endedAt-s.startedAt):"")+(live?" · "+state.queue.length+" waiting":"")+(champ?" · 🏆 "+esc(champ.name):"")+'</p></div>'+
     '<div class="sess-grid">'+
+      (live?liveQueueBlock():'')+
       ((!live && isAdmin() && sessionMismatch(s))
         ? '<div class="sess-warn"><span><b>Standings and game log disagree.</b> '+sessionMismatch(s)+' player'+(sessionMismatch(s)===1?"'s record does":"s\' records do")+' not match the games recorded below.</span><button class="btn btn-sm" data-fixstand="'+esc(String(s.id))+'" style="margin-left:auto">Rebuild from game log</button></div>'
         : '')+
@@ -2443,8 +2598,10 @@ async function refreshHistoryViews(){
   const sp=$("sessionPage"), hp=$("historyPage");
   if(sp&&!sp.classList.contains("hidden")&&viewingSessionId!=null){
     const box=sp.querySelector("[data-logfilter]"), keep=box?box.value:"";
+    const fbox=sp.querySelector("[data-qfind]"), keepFind=fbox?fbox.value:"";
     await renderSessionPage(viewingSessionId);
     if(keep){ const b2=sp.querySelector("[data-logfilter]"); if(b2){ b2.value=keep; filterLogRows(b2); } }
+    if(keepFind){ const f2=sp.querySelector("[data-qfind]"); if(f2){ f2.value=keepFind; lvFind(f2); } }
   } else if(hp&&!hp.classList.contains("hidden")) renderHistory();
 }
 function geTeam(key,label){
@@ -2756,7 +2913,7 @@ if($("tierToggle")) $("tierToggle").addEventListener("click",()=>{
 function syncTierToggle(){ const b=$("tierToggle"); if(b) b.textContent=state.hideTiers?"Show categories":"Hide categories"; }
 syncTierToggle();
 $("rSearch").addEventListener("input",e=>{rosterSearch=e.target.value.trim().toLowerCase();renderRoster();});
-document.body.addEventListener("input",e=>{ const t=e.target.closest("[data-logfilter]"); if(t) filterLogRows(t); });
+document.body.addEventListener("input",e=>{ const t=e.target.closest("[data-logfilter]"); if(t) filterLogRows(t); const f=e.target.closest("[data-qfind]"); if(f) lvFind(f); });
 document.body.addEventListener("keydown",e=>{
   if(e.key!=="Escape") return;
   if(geIdx!==null){ closeGameEdit(); return; }

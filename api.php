@@ -15,6 +15,14 @@
  * POST ?action=deletePhoto  key, id, photo   -> remove one photo
  * GET  ?action=upcoming                      -> { events:[...] }  scheduled open plays (seeded from data/upcoming.seed.json)
  * POST ?action=saveUpcoming key, events      -> replace the scheduled list (JSON array)
+ * GET  ?action=live[&v=N]                    -> { version, updatedAt, state } the live open play (roster, queue, courts, games);
+ *                                               with v equal to the current version only { version, same:true } comes back
+ * POST ?action=saveLive     key, base, state -> replace the live open play if base is still the current version; otherwise
+ *                                               409 { conflict:true, version, state } so the device can catch up and redo
+ *
+ * The live open play is one shared record (data/live.json) so any number of admin devices can run the same
+ * session: every change is pushed here and every device polls for a newer version. The version number is the
+ * guard: a write based on a stale version is refused instead of silently overwriting the other admin's change.
  */
 declare(strict_types=1);
 header('Content-Type: application/json; charset=utf-8');
@@ -27,6 +35,8 @@ const ADMIN_FILE = DATA_DIR . '/.admin';
 const LOCK_FILE  = DATA_DIR . '/.lock';
 const UP_FILE    = DATA_DIR . '/upcoming.json';       // live list, edited by admins in the app
 const UP_SEED    = DATA_DIR . '/upcoming.seed.json';  // committed starting point, used once when the live file is missing
+const LIVE_FILE  = DATA_DIR . '/live.json';           // the one live open play every admin device works on
+const MAX_LIVE_JSON = 2 * 1024 * 1024;
 const MAX_EVENTS = 60;
 /* Fixed admin PIN (optional). Leave empty to let the first PIN entered on the site claim admin (stored in
  * data/.admin). To set or change the PIN by hand, put the SHA-256 hex of the PIN here — on any machine:
@@ -112,6 +122,21 @@ function cleanEvents(array $in): array {
   }
   usort($out, fn($a, $b) => strcmp($a['start'], $b['start']));
   return $out;
+}
+
+/* ---- the live open play: { version, updatedAt, state } ---- */
+/* Decoded as objects, not arrays, so an empty roster {} stays {} on the way back out. */
+function readLive(): array {
+  if (!is_file(LIVE_FILE)) return ['version' => 0, 'updatedAt' => 0, 'state' => null];
+  $j = json_decode((string)file_get_contents(LIVE_FILE));
+  if (!is_object($j)) return ['version' => 0, 'updatedAt' => 0, 'state' => null];
+  return ['version' => (int)($j->version ?? 0), 'updatedAt' => (int)($j->updatedAt ?? 0), 'state' => $j->state ?? null];
+}
+function writeLive(array $live): void {
+  $tmp = LIVE_FILE . '.tmp';
+  if (file_put_contents($tmp, json_encode($live, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) === false) fail('Cannot write live file', 500);
+  if (!rename($tmp, LIVE_FILE)) fail('Cannot replace live file', 500);
+  @chmod(LIVE_FILE, 0644);
 }
 
 if (!is_dir(PHOTO_DIR) && !mkdir(PHOTO_DIR, 0755, true)) fail('data/photos folder missing and cannot be created', 500);
@@ -226,6 +251,28 @@ switch ($action) {
       return $events;
     });
     out(['ok' => true, 'events' => $saved]);
+
+  case 'live':
+    $live = readLive();
+    $v = $_GET['v'] ?? null;
+    if ($v !== null && (int)$v === $live['version']) out(['version' => $live['version'], 'same' => true]);
+    out($live);
+
+  case 'saveLive':
+    requirePost(); requireAdmin();
+    $raw = (string)($_POST['state'] ?? '');
+    if ($raw === '' || strlen($raw) > MAX_LIVE_JSON) fail('Bad live payload');
+    $st = json_decode($raw);
+    if (!is_object($st) || !isset($st->players) || !isset($st->queue) || !isset($st->courts)) fail('Bad live payload');
+    $base = (int)($_POST['base'] ?? -1);
+    $res = withLock(function () use ($st, $base) {
+      $cur = readLive();
+      if ($base !== $cur['version']) return ['ok' => false, 'conflict' => true] + $cur;
+      $live = ['version' => $cur['version'] + 1, 'updatedAt' => (int)round(microtime(true) * 1000), 'state' => $st];
+      writeLive($live);
+      return ['ok' => true, 'version' => $live['version'], 'updatedAt' => $live['updatedAt']];
+    });
+    out($res, $res['ok'] ? 200 : 409);
 
   default:
     fail('Unknown action', 404);

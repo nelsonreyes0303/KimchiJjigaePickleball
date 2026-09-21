@@ -6,3 +6,5 @@ data/.admin
 data/.lock
 data/upcoming.json
 data/upcoming.json.tmp
+data/live.json
+data/live.json.tmp
