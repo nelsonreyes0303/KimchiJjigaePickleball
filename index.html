@@ -400,6 +400,9 @@ window.addEventListener("error",function(e){
     background:linear-gradient(165deg,rgba(20,26,18,.55) 0%,rgba(20,26,18,.88) 48%,var(--bg) 100%),radial-gradient(900px 520px at 70% 10%,#3a4a2e 0%,transparent 60%),var(--bg);overflow-x:hidden;overflow-y:auto}
   .landing.hidden{display:none}
   body.scroll-lock{overflow:hidden}
+  /* The admin app behind a full-screen page is wider than a phone; leaving it laid out gave the page a
+     sideways scroll. It is fully covered anyway, so take it out of the layout while a page is open. */
+  body.scroll-lock .wrap{display:none}
   .hist-page{overscroll-behavior:contain}
   .home-court{position:absolute;inset:0;pointer-events:none;opacity:.35;
     background-image:linear-gradient(90deg,transparent 0 12%,rgba(242,165,173,.18) 12% 12.4%,transparent 12.4% 87.6%,rgba(242,165,173,.18) 87.6% 88%,transparent 88%),linear-gradient(0deg,transparent 0 18%,rgba(238,244,234,.12) 18% 18.35%,transparent 18.35% 81.65%,rgba(238,244,234,.12) 81.65% 82%,transparent 82%),linear-gradient(0deg,transparent 48.5%,rgba(242,165,173,.22) 48.5% 51.5%,transparent 51.5%);
@@ -570,23 +573,52 @@ window.addEventListener("error",function(e){
   @media(min-width:900px){.sess-grid{grid-template-columns:1.1fr .9fr}}
   .sess-block{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
   .sess-block h3{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-size:1.05rem;margin:0 0 12px;font-weight:700}
-  /* live page: courts now + who's next (read-only copy of the admin queue look) */
+  /* live page: courts now + who's next — the player-facing, read-only view of the queue */
   .lv-block{grid-column:1/-1}
-  .lv-count{margin-left:10px;font-family:"DM Sans",system-ui,sans-serif;font-size:.72rem;font-weight:600;color:var(--muted)}
-  .lv-courts{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
-  .lv-court{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--panel-2);display:flex;flex-direction:column;gap:6px}
+  .lv-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+  .lv-h h3{margin:0}
+  .lv-count{font-family:"DM Sans",system-ui,sans-serif;font-size:.74rem;font-weight:600;color:var(--muted)}
+  .lv-courts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .lv-court{border:1px solid var(--line);border-radius:12px;padding:9px 11px;background:var(--panel-2);display:flex;flex-direction:column;gap:6px;min-width:0}
   .lv-court.live{border-color:var(--int)}
-  .lv-ch{display:flex;align-items:center;gap:8px}
-  .lv-ch .timer{font-size:.85rem;padding:2px 8px}
-  .lv-team{display:flex;flex-wrap:wrap;gap:6px}
-  .lv-p{font-weight:600;font-size:.9rem;padding:3px 9px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
-  .lv-queue{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));margin-top:8px;align-items:start}
-  .lv-queue .qgroup.later{opacity:.8}
-  .lv-fixed{font-size:.58rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--accent);color:var(--ink)}
-  .qitem.ro{cursor:default}
-  .lv-block.finding [data-lvname]{opacity:.35}
+  .lv-ch{display:flex;align-items:center;gap:7px;min-width:0}
+  .lv-ch b{font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lv-ch .timer{margin-left:auto;font-size:.78rem;padding:2px 7px}
+  .lv-team{display:flex;flex-wrap:wrap;gap:5px;padding-left:7px;border-left:3px solid var(--accent);border-radius:2px}
+  .lv-team.b{border-left-color:var(--int)}
+  .lv-p{font-weight:600;font-size:.86rem;padding:3px 9px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
+  .lv-soon{margin:0;font-size:.84rem;line-height:1.35;color:var(--muted)}
+  .lv-soon b{color:var(--txt)}
+  .lv-vs{font-size:.55rem;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);text-align:center;margin:-1px 0}
+  .lv-queue{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(198px,1fr));margin-top:10px;align-items:start}
+  .lvg{display:flex;flex-direction:column;gap:5px;border:1px solid var(--line);border-radius:12px;padding:8px;background:rgba(255,255,255,.02);min-width:0}
+  body.light .lvg{background:rgba(0,0,0,.025)}
+  .lvg.next{border-color:var(--accent);background:rgba(242,165,173,.10)}
+  .lvg.later{opacity:.72}
+  .lvg.leftover{border-style:dashed;opacity:.72}
+  .lvg-h{display:flex;align-items:center;gap:6px;padding:0 2px 1px}
+  .lvg-t{font-size:.6rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .lvg.next .lvg-t{color:var(--accent)}
+  .lvg-note{margin-left:auto;font-size:.58rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted)}
+  .lv-fixed{margin-left:auto;font-size:.55rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--accent);color:var(--ink)}
+  .lvt{display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:9px;border-left:3px solid var(--accent);background:rgba(255,255,255,.02)}
+  .lvt.b{border-left-color:var(--int)}
+  body.light .lvt{background:rgba(0,0,0,.025)}
+  .lvq{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:8px;background:var(--panel-2);border:1px solid var(--line);min-width:0}
+  .lvq .qnum{width:20px;height:20px;border-radius:6px;font-size:.66rem}
+  .lvq-n{flex:1;min-width:0;font-weight:600;font-size:.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lvq .qgms,.lvq .qwait{font-size:.63rem}
+  .lv-you{margin:0 0 10px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);font-size:.9rem;font-weight:600;line-height:1.4}
+  .lv-you.hot{border-color:var(--accent);background:rgba(242,165,173,.14)}
+  .lv-you.miss{color:var(--muted);font-weight:500}
+  .lv-block.finding [data-lvname]{opacity:.3}
   .lv-block.finding [data-lvname].hit{opacity:1;outline:2px solid var(--accent);outline-offset:-1px}
-  .lv-note{margin:10px 0 0}
+  .lv-note{margin:12px 0 0}
+  @media(max-width:560px){
+    .lv-courts{grid-template-columns:1fr}
+    .lv-queue{grid-template-columns:1fr}
+    .lvq-n{font-size:.92rem}
+  }
   .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
   .photo-cell{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--panel-2);cursor:zoom-in;padding:0}
   .photo-cell img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
@@ -943,7 +975,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-21b";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-21c";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -2218,38 +2250,79 @@ function openSessionPage(id){
 /* ---------- live page: courts now + who's next ----------
    Players watching on their phones want one answer: am I next? Next up is the fixed four who take the next
    open court. The group after that is the likely matchup; further back the line-up can still re-level. */
+let lvWhere={};   // lowercased name -> where that player stands right now, for the find-your-name answer
 function lvRow(id,num){
   const p=P(id); if(!p) return "";
-  return `<div class="qitem ro" data-lvname="${esc(p.name.toLowerCase())}"><span class="qnum">${num}</span><div class="qbody"><div class="qline"><span class="qname">${esc(p.name)}</span>${isAdmin()?chip(id):""}${p.partner?'<span class="grpm" title="Fixed pair">🔗</span>':''}</div><div class="qmeta"><span class="qgms" title="Games played">${p.games} gm</span>${waitSpan(id)}</div></div></div>`;
+  const games=p.games?`<span class="qgms" title="Games played">${p.games}g</span>`:"";
+  return `<div class="lvq" data-lvname="${esc(p.name.toLowerCase())}"><span class="qnum">${num}</span><span class="lvq-n">${esc(p.name)}</span>${p.partner?'<span class="grpm" title="Fixed pair">🔗</span>':''}${games}${waitSpan(id)}</div>`;
 }
 function liveQueueBlock(){
+  lvWhere={};
+  const {groups,leftovers}=queueGroups();
+  const preview=groups.slice();                       // each open court gets the next group, as the admin view does
   const courts=state.courts.map((c,idx)=>{
     const active=c.seats.every(x=>x);
     const name=esc(c.name||('Court '+(idx+1)));
-    if(!active) return `<div class="lv-court open"><div class="lv-ch"><b>${name}</b><span class="badge open">Open</span></div><p class="hint" style="margin:0">Next up starts here</p></div>`;
-    const team=(a,b)=>`<div class="lv-team">${[a,b].map(id=>`<span class="lv-p" data-lvname="${esc(nm(id).toLowerCase())}">${esc(nm(id))}</span>`).join("")}</div>`;
-    return `<div class="lv-court live"><div class="lv-ch"><b>${name}</b><span class="badge live">Live</span><span class="timer" data-timer="${c.started||''}">${c.started?fmt(Date.now()-c.started):'—:—'}</span></div>${team(c.seats[0],c.seats[1])}<div class="qvs">VS</div>${team(c.seats[2],c.seats[3])}</div>`;
+    if(!active){
+      const g=preview.shift();
+      const who=g?`<p class="lv-soon"><b>${preview.length===groups.length-1?"Next up":"Then"}:</b> ${esc(g.map(nm).join(", "))}</p>`
+                 :`<p class="hint" style="margin:0">Waiting for 4 players</p>`;
+      return `<div class="lv-court open"><div class="lv-ch"><b>${name}</b><span class="badge open">Open</span></div>${who}</div>`;
+    }
+    c.seats.forEach(id=>{ if(P(id)) lvWhere[P(id).name.toLowerCase()]={kind:"court",court:c.name||('Court '+(idx+1))}; });
+    const team=(a,b,cls)=>`<div class="lv-team${cls}">${[a,b].map(id=>`<span class="lv-p" data-lvname="${esc(nm(id).toLowerCase())}">${esc(nm(id))}</span>`).join("")}</div>`;
+    return `<div class="lv-court live"><div class="lv-ch"><b>${name}</b><span class="badge live">Live</span><span class="timer" data-timer="${c.started||''}">${c.started?fmt(Date.now()-c.started):'—:—'}</span></div>${team(c.seats[0],c.seats[1],"")}<div class="lv-vs">vs</div>${team(c.seats[2],c.seats[3]," b")}</div>`;
   }).join("");
-  const {groups,leftovers}=queueGroups();
+  const openCourts=state.courts.filter(c=>!c.seats.every(x=>x)).length;
   let n=0, qhtml="";
   groups.forEach((g,gi)=>{
-    const tag=gi===0?'▶ Next up':gi===1?'Then · possible matchup':'Group '+(gi+1)+' · may change';
-    qhtml+=`<div class="qgroup ${gi===0?'nextg':gi>1?'later':''}"><div class="qghead"><span class="qgtag">${tag}</span>${gi===0?'<span class="lv-fixed">Fixed</span>':''}</div>
-      <div class="qteam">${lvRow(g[0],++n)}${lvRow(g[1],++n)}</div><div class="qvs">VS</div><div class="qteam b">${lvRow(g[2],++n)}${lvRow(g[3],++n)}</div></div>`;
+    const tag=gi===0?'▶ Next up':gi===1?'Up after that':'Later · '+(gi+1);
+    g.forEach(id=>{ if(P(id)) lvWhere[P(id).name.toLowerCase()]={kind:"group",gi,pos:state.queue.indexOf(id)+1}; });
+    qhtml+=`<div class="lvg ${gi===0?'next':gi>1?'later':''}"><div class="lvg-h"><span class="lvg-t">${tag}</span>${gi===0?'<span class="lv-fixed">Fixed</span>':gi===1?'<span class="lvg-note">likely</span>':''}</div>
+      <div class="lvt">${lvRow(g[0],++n)}${lvRow(g[1],++n)}</div><div class="lv-vs">vs</div><div class="lvt b">${lvRow(g[2],++n)}${lvRow(g[3],++n)}</div></div>`;
   });
-  if(leftovers.length) qhtml+=`<div class="qgroup leftover"><div class="qghead"><span class="qgtag">Waiting for a match</span></div>${leftovers.map(id=>lvRow(id,'·')).join("")}</div>`;
+  if(leftovers.length){
+    leftovers.forEach(id=>{ if(P(id)) lvWhere[P(id).name.toLowerCase()]={kind:"leftover"}; });
+    qhtml+=`<div class="lvg leftover"><div class="lvg-h"><span class="lvg-t">Waiting for a match</span></div>${leftovers.map(id=>lvRow(id,'·')).join("")}</div>`;
+  }
   if(!groups.length&&!leftovers.length) qhtml='<div class="hint">Nobody is waiting right now.</div>';
-  return `<div class="sess-block lv-block"><h3>🏟️ On the courts</h3><div class="lv-courts">${courts||'<div class="hint">No courts set up yet.</div>'}</div>
-    <h3 style="margin-top:18px">⏭ Who's next<span class="lv-count">${state.queue.length} waiting</span></h3>
-    <input class="rsearch" data-qfind placeholder="🔍 Find your name…" autocomplete="off">
+  const note=groups.length>1 ? `Next up is fixed — those four take the next open court${openCourts?" now":""}. The groups after are the likely line-up and can still change as games end.` : "";
+  return `<div class="sess-block lv-block"><div class="lv-h"><h3>🏟️ On the courts</h3></div><div class="lv-courts">${courts||'<div class="hint">No courts set up yet.</div>'}</div>
+    <div class="lv-h" style="margin-top:20px"><h3>⏭ Who's next</h3><span class="lv-count">${state.queue.length} waiting</span></div>
+    <input class="rsearch" data-qfind placeholder="🔍 Find your name…" autocomplete="off" aria-label="Find your name in the queue">
+    <div class="lv-you" data-qanswer hidden></div>
     <div class="lv-queue">${qhtml}</div>
-    <p class="hint lv-note">Next up is fixed — those four take the next open court. The groups after are the likely line-up and can still change as games end.</p></div>`;
+    ${note?`<p class="hint lv-note">${note}</p>`:""}</div>`;
 }
+/* Typing a name dims everyone else and, for a single match, answers the only question that matters: am I next? */
 function lvFind(inp){
   const q=(inp.value||"").trim().toLowerCase();
   const block=inp.closest(".lv-block"); if(!block) return;
   block.classList.toggle("finding",!!q);
-  block.querySelectorAll("[data-lvname]").forEach(el=>el.classList.toggle("hit", !!q && el.dataset.lvname.includes(q)));
+  let first=null;
+  const hits=[];
+  block.querySelectorAll("[data-lvname]").forEach(el=>{
+    const hit=!!q && el.dataset.lvname.includes(q);
+    el.classList.toggle("hit",hit);
+    if(hit){ if(!first) first=el; if(!hits.includes(el.dataset.lvname)) hits.push(el.dataset.lvname); }
+  });
+  const box=block.querySelector("[data-qanswer]");
+  if(box){
+    if(!q||!hits.length){ box.hidden=true; box.textContent=q?"No one in this open play matches that name.":""; box.hidden=!q; box.className="lv-you"+(q?" miss":""); }
+    else if(hits.length>1){ box.hidden=false; box.className="lv-you"; box.textContent=hits.length+" players match — type a bit more of the name."; }
+    else{
+      const w=lvWhere[hits[0]]||{};
+      const who=(first&&first.closest(".lvq")?first.querySelector(".lvq-n").textContent:first?first.textContent:"You");
+      let msg;
+      if(w.kind==="court") msg=`🎾 ${who} is playing right now on ${w.court}.`;
+      else if(w.kind==="group"&&w.gi===0) msg=`▶ ${who} is in Next up — on the next open court.`;
+      else if(w.kind==="group") msg=`⏳ ${who} is #${w.pos} in line — ${w.gi} group${w.gi===1?"":"s"} ahead.`;
+      else if(w.kind==="leftover") msg=`⏳ ${who} is waiting for a matching group to form.`;
+      else msg=`${who} is not in the queue right now.`;
+      box.hidden=false; box.className="lv-you"+(w.kind==="group"&&w.gi===0?" hot":""); box.textContent=msg;
+    }
+  }
+  if(first) try{ first.scrollIntoView({block:"nearest",behavior:"smooth"}); }catch(_){}
 }
 async function renderSessionPage(id){
   let s=null, live=false;
@@ -2298,7 +2371,7 @@ async function renderSessionPage(id){
     ? ""
     : '<div class="sess-block"><h3>📷 Photos</h3><div class="photo-grid">'+photoHtml+addBtn+'</div></div>';
   $("sessBody").innerHTML=
-    '<div class="sess-hero"><p>'+(live?'<span class="htag live">Live</span> In progress · ':"")+(!live?fmtDate(s.endedAt)+' · ':"")+(s.games||0)+' games'+(s.endedAt&&s.startedAt?" · "+fmtDur(s.endedAt-s.startedAt):"")+(live?" · "+state.queue.length+" waiting":"")+(champ?" · 🏆 "+esc(champ.name):"")+'</p></div>'+
+    '<div class="sess-hero"><p>'+(live?'<span class="htag live">Live</span> In progress · ':"")+(!live?fmtDate(s.endedAt)+' · ':"")+(s.games||0)+' game'+((s.games||0)===1?'':'s')+(s.endedAt&&s.startedAt?" · "+fmtDur(s.endedAt-s.startedAt):"")+(live?" · "+state.queue.length+" waiting":"")+(champ?" · 🏆 "+esc(champ.name):"")+'</p></div>'+
     '<div class="sess-grid">'+
       (live?liveQueueBlock():'')+
       ((!live && isAdmin() && sessionMismatch(s))
