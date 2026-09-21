@@ -578,18 +578,23 @@ window.addEventListener("error",function(e){
   .lv-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 10px}
   .lv-h h3{margin:0}
   .lv-count{font-family:"DM Sans",system-ui,sans-serif;font-size:.74rem;font-weight:600;color:var(--muted)}
-  .lv-courts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
-  .lv-court{border:1px solid var(--line);border-radius:12px;padding:9px 11px;background:var(--panel-2);display:flex;flex-direction:column;gap:6px;min-width:0}
+  .lv-courts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(248px,1fr))}
+  .lv-court{border:1px solid var(--line);border-radius:14px;padding:10px 12px 11px;background:var(--panel-2);display:flex;flex-direction:column;gap:9px;min-width:0}
   .lv-court.live{border-color:var(--int)}
+  .lv-court.open{border-style:dashed}
   .lv-ch{display:flex;align-items:center;gap:7px;min-width:0}
-  .lv-ch b{font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .lv-ch .timer{margin-left:auto;font-size:.78rem;padding:2px 7px}
-  .lv-team{display:flex;flex-wrap:wrap;gap:5px;padding-left:7px;border-left:3px solid var(--accent);border-radius:2px}
-  .lv-team.b{border-left-color:var(--int)}
-  .lv-p{font-weight:600;font-size:.86rem;padding:3px 9px;border-radius:8px;background:var(--panel);border:1px solid var(--line)}
-  .lv-soon{margin:0;font-size:.84rem;line-height:1.35;color:var(--muted)}
-  .lv-soon b{color:var(--txt)}
-  .lv-vs{font-size:.55rem;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);text-align:center;margin:-1px 0}
+  .lv-ch b{font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lv-ch .timer{margin-left:auto;font-size:.8rem;padding:2px 8px}
+  .lv-when{margin-left:auto;font-size:.58rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+  /* the matchup: two teams facing each other, same team colours as the queue below */
+  .lv-match{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+  .lv-side{display:flex;flex-direction:column;gap:3px;min-width:0;padding:6px 9px;border-radius:9px;
+    background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent)}
+  .lv-side.b{border-left-color:var(--int)}
+  .lv-n{font-weight:600;font-size:.88rem;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lv-court.open .lv-side{background:transparent;opacity:.75}
+  .lv-wait{padding:10px 0;text-align:center;color:var(--muted);font-size:.85rem}
+  .lv-vs{font-size:.55rem;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);text-align:center}
   .lv-queue{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(198px,1fr));margin-top:10px;align-items:start}
   .lvg{display:flex;flex-direction:column;gap:5px;border:1px solid var(--line);border-radius:12px;padding:8px;background:rgba(255,255,255,.02);min-width:0}
   body.light .lvg{background:rgba(0,0,0,.025)}
@@ -975,7 +980,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-21c";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-21d";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -2263,15 +2268,17 @@ function liveQueueBlock(){
   const courts=state.courts.map((c,idx)=>{
     const active=c.seats.every(x=>x);
     const name=esc(c.name||('Court '+(idx+1)));
+    // One shape for every court: two teams facing each other. Team colours match the queue below.
+    const side=(a,b,cls)=>`<div class="lv-side${cls}">${[a,b].map(id=>`<span class="lv-n" data-lvname="${esc(nm(id).toLowerCase())}">${esc(nm(id))}</span>`).join("")}</div>`;
+    const match=ids=>`<div class="lv-match">${side(ids[0],ids[1],"")}<span class="lv-vs">vs</span>${side(ids[2],ids[3]," b")}</div>`;
     if(!active){
       const g=preview.shift();
-      const who=g?`<p class="lv-soon"><b>${preview.length===groups.length-1?"Next up":"Then"}:</b> ${esc(g.map(nm).join(", "))}</p>`
-                 :`<p class="hint" style="margin:0">Waiting for 4 players</p>`;
-      return `<div class="lv-court open"><div class="lv-ch"><b>${name}</b><span class="badge open">Open</span></div>${who}</div>`;
+      const first=preview.length===groups.length-1;
+      return `<div class="lv-court open"><div class="lv-ch"><b>${name}</b><span class="badge open">Open</span>${g?`<span class="lv-when">${first?"Starting next":"After that"}</span>`:""}</div>`
+        + (g?match(g):`<div class="lv-wait">Waiting for 4 players</div>`) + `</div>`;
     }
     c.seats.forEach(id=>{ if(P(id)) lvWhere[P(id).name.toLowerCase()]={kind:"court",court:c.name||('Court '+(idx+1))}; });
-    const team=(a,b,cls)=>`<div class="lv-team${cls}">${[a,b].map(id=>`<span class="lv-p" data-lvname="${esc(nm(id).toLowerCase())}">${esc(nm(id))}</span>`).join("")}</div>`;
-    return `<div class="lv-court live"><div class="lv-ch"><b>${name}</b><span class="badge live">Live</span><span class="timer" data-timer="${c.started||''}">${c.started?fmt(Date.now()-c.started):'—:—'}</span></div>${team(c.seats[0],c.seats[1],"")}<div class="lv-vs">vs</div>${team(c.seats[2],c.seats[3]," b")}</div>`;
+    return `<div class="lv-court live"><div class="lv-ch"><b>${name}</b><span class="badge live">Live</span><span class="timer" data-timer="${c.started||''}">${c.started?fmt(Date.now()-c.started):'—:—'}</span></div>${match(c.seats)}</div>`;
   }).join("");
   const openCourts=state.courts.filter(c=>!c.seats.every(x=>x)).length;
   let n=0, qhtml="";
