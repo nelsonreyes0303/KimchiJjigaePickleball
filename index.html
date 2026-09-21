@@ -497,6 +497,7 @@ window.addEventListener("error",function(e){
   .home-adminlink:hover{opacity:1;color:var(--accent);text-decoration:underline;text-underline-offset:3px}
   .home-adminlink[hidden]{display:none}
   .home-status b{color:var(--txt)}
+  .home-warn{display:block;margin-top:6px;font-size:.8rem;font-weight:700;color:var(--win)}
   body.light .landing{background:linear-gradient(165deg,rgba(251,250,241,.5) 0%,rgba(242,239,227,.92) 50%,var(--bg) 100%),radial-gradient(900px 520px at 70% 10%,#dcebcf 0%,transparent 60%),var(--bg)}
   body.light .home-court{opacity:.22}
   .home-court-clip{position:absolute;inset:0;overflow:hidden;pointer-events:none}   /* the court is drawn wider than the screen; never let it widen the landing scroll area */
@@ -980,7 +981,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-21d";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-21e";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1132,6 +1133,15 @@ const live={ version:0, json:"", pushing:false, dirty:false, timer:null, pollTim
 function liveShared(){ const o={}; for(const k of Object.keys(state)) if(!LIVE_LOCAL_KEYS.includes(k)) o[k]=state[k]; return o; }
 function liveJson(){ return JSON.stringify(liveShared()); }
 function canPushLive(){ return server.on && server.live && isAdmin() && !!adminKey(); }
+/* Is the running open play reaching the website, or only this device? "unshared" is the one that bites:
+   the open play runs here, the website could carry it, but nobody is logged in here to publish it, so
+   phones see nothing. */
+function liveShareState(){
+  if(!(state.session&&state.session.active)) return "none";
+  if(!server.live) return "local";
+  if(live.version>0) return "shared";
+  return canPushLive() ? "sharing" : "unshared";
+}
 /* Called from save(): if the shared part of the state changed, push it shortly. */
 function liveSync(){
   if(!canPushLive()) return;
@@ -1146,7 +1156,11 @@ async function pushLive(){
   live.pushing=true; live.dirty=false;
   try{
     const j=await api("saveLive",{base:live.version,state:js});
-    if(j.ok){ live.version=j.version; live.json=js; }
+    if(j.ok){
+      const seeded=live.version===0 && j.version===1;      // first push of the night: say so, it is easy to miss
+      live.version=j.version; live.json=js;
+      if(seeded && state.session && state.session.active) toast("Live open play is now shared — anyone can follow it on the website");
+    }
     else if(j.conflict){
       const theirs=j.state?JSON.stringify(j.state):"";
       if(theirs===js){ live.version=j.version; live.json=js; }       // our earlier push did land; the reply just got lost
@@ -1828,7 +1842,16 @@ function showLanding(){
     histBtn.textContent=live?"Past open plays":"Open play history";
     histBtn.className=live?"btn btn-sm":"btn-accent";
   }
-  if(r){ r.hidden=!live; r.innerHTML = live ? ("● Live now — <b>"+esc(state.session.name||"Open play")+"</b>") : ""; }   // only the live notice; the count was noise
+  if(r){
+    // Say what is happening. Silence here reads as "the feature is missing" on a phone that has no session of its own.
+    if(live){
+      const warn = liveShareState()==="unshared"
+        ? '<span class="home-warn">Only on this device — log in as admin to share it</span>' : "";
+      r.hidden=false; r.innerHTML="● Live now — <b>"+esc(state.session.name||"Open play")+"</b>"+warn;
+    } else if(server.live){
+      r.hidden=false; r.innerHTML="No open play running right now.";
+    } else { r.hidden=true; r.innerHTML=""; }
+  }
   const tb=$("homeThemeBtn"); if(tb) tb.textContent=state.theme==="light"?"☀️":"🌙";
   renderUpcoming();
   syncAdminUI();
@@ -2380,6 +2403,9 @@ async function renderSessionPage(id){
   $("sessBody").innerHTML=
     '<div class="sess-hero"><p>'+(live?'<span class="htag live">Live</span> In progress · ':"")+(!live?fmtDate(s.endedAt)+' · ':"")+(s.games||0)+' game'+((s.games||0)===1?'':'s')+(s.endedAt&&s.startedAt?" · "+fmtDur(s.endedAt-s.startedAt):"")+(live?" · "+state.queue.length+" waiting":"")+(champ?" · 🏆 "+esc(champ.name):"")+'</p></div>'+
     '<div class="sess-grid">'+
+      ((live && liveShareState()==="unshared")
+        ? '<div class="sess-warn"><span><b>This open play is only on this device.</b> Log in as admin here and it is published to the website, so anyone can follow the courts and the queue on their phone.</span></div>'
+        : '')+
       (live?liveQueueBlock():'')+
       ((!live && isAdmin() && sessionMismatch(s))
         ? '<div class="sess-warn"><span><b>Standings and game log disagree.</b> '+sessionMismatch(s)+' player'+(sessionMismatch(s)===1?"'s record does":"s\' records do")+' not match the games recorded below.</span><button class="btn btn-sm" data-fixstand="'+esc(String(s.id))+'" style="margin-left:auto">Rebuild from game log</button></div>'
