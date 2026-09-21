@@ -668,6 +668,8 @@ window.addEventListener("error",function(e){
   .admin-badge{font-size:.62rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--ink);background:var(--accent);padding:4px 8px;border-radius:8px;display:none;margin-left:8px}
   body.admin-on .admin-badge{display:inline-block}
   body:not(.admin-on) .admin-only{display:none!important}
+  /* Secondary buttons — kept out of the way while a game night is running; the ⚙ Tools button brings them back. */
+  body:not(.tools-on) .tool-extra{display:none!important}
   .app-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:6px}
   .app-nav .navlink{background:transparent;border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:10px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit}
   .app-nav .navlink:hover{color:var(--txt);border-color:var(--accent)}
@@ -704,8 +706,8 @@ window.addEventListener("error",function(e){
   <div class="brand" id="brandMark"><img src="logo.png" alt="" class="brandlogo"><div>Kimchi Jjigae Pickleball Club<small>Your queue · you control the order</small></div></div>
   <div class="spacer"></div>
   <div class="app-nav">
-    <button type="button" class="navlink" id="navHomeBtn">Club home</button>
-    <button type="button" class="navlink" id="navHistoryBtn">History</button>
+    <button type="button" class="navlink tool-extra" id="navHomeBtn">Club home</button>
+    <button type="button" class="navlink tool-extra" id="navHistoryBtn">History</button>
     <span class="admin-badge">Admin</span>
     <button type="button" class="btn-ghost btn-sm" id="navAdminBtn" title="Login as admin">Admin login</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="tierToggle" title="Show or hide player categories everywhere in open play">Hide categories</button>
@@ -724,15 +726,16 @@ window.addEventListener("error",function(e){
     <div class="toolbar">
       <button class="btn-accent btn-sm admin-only" id="opBtn">▶ Start open play</button>
       <span id="opStatus" class="hint" style="font-weight:700"></span>
-      <button class="btn btn-sm" id="historyBtn">🕘 History</button>
-      <button class="btn btn-sm admin-only" id="challengeBtn" title="Force everyone to play only within their own level — no mixing across tiers">🎯 Challenge</button>
+      <button class="btn btn-sm tool-extra" id="historyBtn">🕘 History</button>
+      <button class="btn btn-sm admin-only tool-extra" id="challengeBtn" title="Force everyone to play only within their own level — no mixing across tiers">🎯 Challenge</button>
       <button class="btn btn-sm admin-only" id="addCourt">+ Court</button>
       <button class="btn-ghost btn-sm admin-only" id="undoBtn" title="Undo the last action — shuffle, drag, start, or game">↶ Undo</button>
       <button class="btn-ghost btn-sm admin-only" id="resetBtn">Reset scores</button>
       <button class="btn-ghost btn-sm admin-only" id="resetAllBtn">Reset all</button>
-      <button class="btn-ghost btn-sm admin-only" id="auditBtn" title="Download a log of every action — send it over if something looks wrong">🧾 Audit</button>
-      <button class="btn-ghost btn-sm admin-only" data-backup title="Download everything — roster, open play history, photos — as one file">💾 Backup</button>
-      <label class="btn-ghost btn-sm admin-only" title="Load a backup file made on another device" style="cursor:pointer">📥 Import<input type="file" accept="application/json,.json" data-restore style="display:none"></label>
+      <button class="btn-ghost btn-sm admin-only tool-extra" id="auditBtn" title="Download a log of every action — send it over if something looks wrong">🧾 Audit</button>
+      <button class="btn-ghost btn-sm admin-only tool-extra" data-backup title="Download everything — roster, open play history, photos — as one file">💾 Backup</button>
+      <label class="btn-ghost btn-sm admin-only tool-extra" title="Load a backup file made on another device" style="cursor:pointer">📥 Import<input type="file" accept="application/json,.json" data-restore style="display:none"></label>
+      <button class="btn-ghost btn-sm" id="toolsToggle" title="Show or hide the extra buttons — Club home, History, Challenge, Audit, Backup and Import">⚙ Tools</button>
     </div>
     <div class="courts" id="courts"></div>
   </div>
@@ -981,7 +984,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-21e";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-21f";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -3018,6 +3021,25 @@ if($("tierToggle")) $("tierToggle").addEventListener("click",()=>{
 });
 function syncTierToggle(){ const b=$("tierToggle"); if(b) b.textContent=state.hideTiers?"Show categories":"Hide categories"; }
 syncTierToggle();
+/* ---------- the extra buttons ----------
+   History, Challenge, Audit, Backup, Import and the two header links matter between nights but crowd the
+   screen while one is running, so they stay tucked away until ⚙ Tools is switched on. It is a per-device
+   view preference kept outside state, so it never travels with the shared open play. */
+const TOOLS_KEY=KEY+"_tools";
+function toolsOn(){ try{ return localStorage.getItem(TOOLS_KEY)==="1"; }catch(_){ return false; } }
+function syncTools(){
+  const on=toolsOn();
+  document.body.classList.toggle("tools-on",on);
+  const b=$("toolsToggle");
+  if(b){ b.classList.toggle("on",on); b.textContent=on?"⚙ Hide tools":"⚙ Tools"; }
+}
+if($("toolsToggle")) $("toolsToggle").addEventListener("click",()=>{
+  const on=!toolsOn();
+  try{ localStorage.setItem(TOOLS_KEY, on?"1":"0"); }catch(_){}
+  syncTools();
+  toast(on?"Extra buttons shown on this device":"Extra buttons hidden — tap ⚙ Tools to bring them back");
+});
+syncTools();
 $("rSearch").addEventListener("input",e=>{rosterSearch=e.target.value.trim().toLowerCase();renderRoster();});
 document.body.addEventListener("input",e=>{ const t=e.target.closest("[data-logfilter]"); if(t) filterLogRows(t); const f=e.target.closest("[data-qfind]"); if(f) lvFind(f); });
 document.body.addEventListener("keydown",e=>{
