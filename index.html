@@ -247,7 +247,7 @@ window.addEventListener("error",function(e){
   .rtools select{background:var(--panel-2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:.8rem;font-family:inherit}
   /* Search and sort share one row; search takes the slack and sort keeps its natural width. */
   .rtools .rsearch{flex:1 1 60px;width:auto;min-width:0;margin:0;padding:8px 11px;font-size:.85rem}
-  .rtools label.hint{display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .rtools label.hint{display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none}
   .rsearch{width:calc(100% - 32px);margin:0 16px 8px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt);font-size:.9rem;outline:none}
   .rsearch:focus{border-color:var(--accent)}
   /* Never set display:flex on <details> — Chrome collapses its height and the next card overlaps */
@@ -755,8 +755,9 @@ window.addEventListener("error",function(e){
       <div class="rtools">
         <input id="rSearch" class="rsearch" placeholder="🔍 Search players…" autocomplete="off">
         <label class="hint">Sort
-          <select id="sortSel">
+          <select id="sortSel" title="Order the roster, or list only the benched players">
             <option value="name">Name</option>
+            <option value="level">Category</option>
             <option value="nolevel">No category</option>
             <option value="bench">Bench</option>
           </select>
@@ -987,7 +988,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-26a";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-26c";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1597,6 +1598,7 @@ function pairToggle(id){
 
 function take(list,idx){ const g=idx.map(i=>list[i]); for(let k=idx.length-1;k>=0;k--)list.splice(idx[k],1); return g; }
 const LVLS=['beginner','novice','lowint','highint'];               // ladder: only adjacent tiers may mix
+const ROSTER_SORTS=["name","level","nolevel","bench"];   // what the roster dropdown may hold
 function lvlIdx(l){ return LVLS.indexOf(l); }                       // Beg 0 · Nov 1 · Low Int 2 · High Int 3
 function levelOf(id){ return lvlIdx(P(id).level); }
 function lvlCls(l){ return {beginner:'beg',novice:'nov',lowint:'int',highint:'hi'}[l]||''; }
@@ -1799,7 +1801,7 @@ function resetSession(){
     ? {active:true,startedAt:Date.now(),name:state.session.name,id:state.session.id}
     : {active:false,startedAt:null};
   const keepTheme=state.theme||"dark";
-  const keepSort=["name","nolevel","bench"].includes(state.sort)?state.sort:"name";
+  const keepSort=ROSTER_SORTS.includes(state.sort)?state.sort:"name";
   const keepChallenge=!!state.challenge;
   const keepHideTiers=!!state.hideTiers;
   const keepSec=state.secOpen||{};
@@ -2572,10 +2574,18 @@ function renderRoster(){
   if(rosterSearch) ids=ids.filter(id=>P(id).name.toLowerCase().includes(rosterSearch));   // search filter
   const s=state.sort;
   if(s==="bench") ids=ids.filter(id=>!P(id).level);                                     // Bench: only benched / no tier
+  const rung=id=>{ const l=P(id).level; return l?lvlIdx(l):LVLS.length; };               // no category sits after the four tiers
   ids.sort((a,b)=>{const A=P(a),B=P(b);
+    if(s==="level") return rung(a)-rung(b) || A.name.localeCompare(B.name);              // Category: Beginner up to High Int, then benched
     if(s==="nolevel") return (!!A.level)- (!!B.level) || A.name.localeCompare(B.name);   // No category first, then rest
-    return A.name.localeCompare(B.name);                                                 // Name (and Bench list): A–Z only
+    return A.name.localeCompare(B.name);                                                 // Name (and the Bench list): A–Z only
   });
+  // The panel title carries the count, and says "of" whenever something is being filtered out.
+  const rc=$("rosterCount");
+  if(rc){
+    const total=Object.keys(state.players).length;
+    rc.textContent = ids.length===total ? total+" player"+(total===1?"":"s") : ids.length+" of "+total;
+  }
   if(!ids.length){
     const empty = rosterSearch ? 'No players match “'+esc(rosterSearch)+'”'
       : s==="bench" ? 'No benched players — everyone has a level'
@@ -2814,7 +2824,6 @@ function filterLogRows(input){
 }
 function renderLiveLog(){
   const log=state.log||[], el=$("liveLog"); if(!el) return;
-  const rc=$("rosterCount"); if(rc) rc.textContent=Object.keys(state.players).length+" players";
   const lc=$("logCount"); if(lc) lc.textContent=log.length+" game"+(log.length===1?"":"s");
   el.innerHTML = glList(log, '<div class="qempty">No games finished yet — finished games show up here as you play.</div>', canEditLog()?"live":"");
   const ls=$("logSearch"); if(ls) filterLogRows(ls);          // keep the player filter applied across re-renders
@@ -3092,7 +3101,7 @@ document.addEventListener("drop",e=>{ const el=e.target.closest("[data-swap]"); 
   document.querySelectorAll(".dragging,.dragover").forEach(x=>x.classList.remove("dragging","dragover")); dragSrc=null; });
 
 ensureCourts();
-if(!["name","nolevel","bench"].includes(state.sort)) state.sort="name";
+if(!ROSTER_SORTS.includes(state.sort)) state.sort="name";
 $("sortSel").value=state.sort;
 if(!state.theme)state.theme="light";   // new visitors start in light mode; the toggle remembers their choice
 if(!state.layout||typeof state.layout!=="object") state.layout={};
