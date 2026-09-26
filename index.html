@@ -243,8 +243,11 @@ window.addEventListener("error",function(e){
   .addbox textarea{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);
     color:var(--txt);font-size:.95rem;outline:none;resize:vertical;min-height:46px;font-family:inherit}
   .addbox textarea:focus{border-color:var(--accent)}
-  .rtools{display:flex;gap:8px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .rtools{display:flex;gap:8px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:nowrap}
   .rtools select{background:var(--panel-2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-size:.8rem;font-family:inherit}
+  /* Search and sort share one row; search takes the slack and sort keeps its natural width. */
+  .rtools .rsearch{flex:1 1 60px;width:auto;min-width:0;margin:0;padding:8px 11px;font-size:.85rem}
+  .rtools label.hint{display:flex;align-items:center;gap:6px;white-space:nowrap}
   .rsearch{width:calc(100% - 32px);margin:0 16px 8px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt);font-size:.9rem;outline:none}
   .rsearch:focus{border-color:var(--accent)}
   /* Never set display:flex on <details> — Chrome collapses its height and the next card overlaps */
@@ -750,7 +753,8 @@ window.addEventListener("error",function(e){
         <button class="btn-accent" id="addBtn" style="padding:12px">Add to roster</button>
       </div>
       <div class="rtools">
-        <label class="hint" style="margin-left:auto">Sort
+        <input id="rSearch" class="rsearch" placeholder="🔍 Search players…" autocomplete="off">
+        <label class="hint">Sort
           <select id="sortSel">
             <option value="name">Name</option>
             <option value="nolevel">No category</option>
@@ -758,7 +762,6 @@ window.addEventListener("error",function(e){
           </select>
         </label>
       </div>
-      <input id="rSearch" class="rsearch" placeholder="🔍 Search players…" autocomplete="off">
       <div class="roster" id="roster"></div>
     </details>
 
@@ -984,7 +987,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-21f";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-26a";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
