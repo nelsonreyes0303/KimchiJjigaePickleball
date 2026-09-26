@@ -988,7 +988,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-26c";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-26d";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1798,7 +1798,7 @@ function resetSession(){
   const keepHist=(state.history||[]).slice();
   const keepAudit=(state.audit||[]).slice();
   const keepSession=state.session&&state.session.active
-    ? {active:true,startedAt:Date.now(),name:state.session.name,id:state.session.id}
+    ? {active:true,startedAt:Date.now(),name:state.session.name,id:state.session.id,upId:state.session.upId}
     : {active:false,startedAt:null};
   const keepTheme=state.theme||"dark";
   const keepSort=ROSTER_SORTS.includes(state.sort)?state.sort:"name";
@@ -1877,10 +1877,12 @@ function resumeOpenPlay(){
   render();
   toast("Back to courts");
 }
-async function startOP(){
+/* opts.name pre-fills the prompt, opts.upId ties the session to the scheduled open play it was started from. */
+async function startOP(opts){
+  opts=opts&&typeof opts==="object"&&!opts.target ? opts : {};        // ignore a click event passed as the argument
   if(!(await requireAdmin())) return;
   if(state.session.active){ hideLanding(); hideHistoryPages(); render(); toast("Open play already running — back to courts"); return; }
-  const def="Open play — "+new Date().toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"});
+  const def=opts.name || ("Open play — "+new Date().toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"}));
   const roster=Object.keys(state.players).length;
   let name=await askText({ title:"Start open play", label:"Name this open play", value:def, ok:"▶ Start open play",
     hint:(roster?roster+" player"+(roster===1?"":"s")+" on the roster. ":"")+"Scores, wait times, pairs, courts and the queue all start fresh. Names and tiers stay." });
@@ -1895,6 +1897,7 @@ async function startOP(){
   try{ undoStack.length=0; }catch(e){}                              // Undo must not reach back into the previous session
   const sid=now;
   state.session={active:true,startedAt:Date.now(),name,id:sid};
+  if(opts.upId) state.session.upId=String(opts.upId);                 // so the scheduled card can show it is running
   audit("startOpenPlay", name+" · roster "+Object.keys(state.players).length);
   hideLanding(); hideHistoryPages(); commit(); toast("Started: "+name);
 }
@@ -2074,6 +2077,19 @@ function setHistTab(t){
   renderUpcoming();
 }
 function upTime(d){ return d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); }
+/* Starting an open play wipes scores, queue and courts, so the Start button only appears on the day itself. */
+function upIsToday(ev){ const t=new Date(); const d=new Date(ev.d); return d.getFullYear()===t.getFullYear()&&d.getMonth()===t.getMonth()&&d.getDate()===t.getDate(); }
+function upRunning(ev){ return !!(state.session&&state.session.active&&String(state.session.upId||"")===String(ev.id)); }
+/* Name it after the night, not the long event title: "Open play — Sep 26, 2026 · The Dink Ticket". */
+function upSessionName(ev){
+  return "Open play — "+ev.d.toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"})+(ev.venue?" · "+ev.venue:"");
+}
+async function startFromUpcoming(id){
+  const ev=upcomingAll.find(x=>String(x.id)===String(id));
+  if(!ev){ toast("That open play is no longer scheduled"); return; }
+  if(state.session&&state.session.active){ hideLanding(); hideHistoryPages(); render(); toast("Open play already running — back to courts"); return; }
+  await startOP({name:upSessionName(ev), upId:ev.id});
+}
 function renderUpcoming(){
   const list=upcomingShown(), next=list[0], admin=server.on&&isAdmin();
   const ln=$("landingNext");
@@ -2092,6 +2108,9 @@ function renderUpcoming(){
     +'<div class="up-date"><span class="up-dow">'+esc(ev.d.toLocaleDateString([],{weekday:"short"}))+'</span><span class="up-day">'+ev.d.getDate()+'</span><span class="up-mon">'+esc(ev.d.toLocaleDateString([],{month:"short"}))+'</span></div>'
     +'<div><p class="ht">'+esc(upTime(ev.d))+(ev===next?'<span class="htag live">Next</span>':'')+'</p><p class="hm">'+(ev.venue?'📍 '+esc(ev.venue):'')+'</p></div>'
     +'<div class="up-right">'
+      +(admin&&upIsToday(ev) ? (upRunning(ev)
+          ? '<button type="button" class="btn btn-sm opactive" data-upgo>● Running — open courts</button>'
+          : '<button type="button" class="btn-accent btn-sm" data-upstart="'+esc(ev.id)+'" title="Start this open play now">▶ Start</button>') : '')
       +(ev.rsvp?'<a class="btn-accent" href="'+esc(ev.rsvp)+'" target="_blank" rel="noopener">RSVP ↗</a>':'')
       +(admin?'<button type="button" class="btn-ghost btn-sm" data-upedit="'+esc(ev.id)+'">Edit</button><button type="button" class="btn-ghost btn-sm" data-updel="'+esc(ev.id)+'" title="Remove">✕</button>':'')
     +'</div></div>';
@@ -2157,7 +2176,9 @@ document.addEventListener("click",e=>{
   if(e.target===$("upModal")){ closeUpModal(); return; }
   const add=e.target.closest("[data-upadd]"); if(add){ if(!isAdmin()){ toast("Admin only"); return; } openUpModal(null); return; }
   const ed=e.target.closest("[data-upedit]"); if(ed){ if(!isAdmin()) return; openUpModal(upcomingAll.find(x=>x.id===ed.dataset.upedit)||null); return; }
-  const del=e.target.closest("[data-updel]"); if(del){ if(!isAdmin()) return; deleteUpcoming(del.dataset.updel); }
+  const del=e.target.closest("[data-updel]"); if(del){ if(!isAdmin()) return; deleteUpcoming(del.dataset.updel); return; }
+  const go=e.target.closest("[data-upgo]"); if(go){ if(!isAdmin()) return; hideLanding(); hideHistoryPages(); render(); return; }
+  const st=e.target.closest("[data-upstart]"); if(st){ if(!isAdmin()){ toast("Admin only"); return; } startFromUpcoming(st.dataset.upstart); }
 });
 document.addEventListener("keydown",e=>{ if($("upModal")&&!$("upModal").classList.contains("hidden")&&e.key==="Escape") closeUpModal(); });
 /* Top three with at least one game get a medal and a podium row tint. */
