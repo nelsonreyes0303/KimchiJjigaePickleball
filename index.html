@@ -988,7 +988,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-28a";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-09-28b";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -2188,18 +2188,26 @@ document.addEventListener("keydown",e=>{ if($("upModal")&&!$("upModal").classLis
    falls back to the name once wins and games match, and a name is no reason to hand someone the better medal.
    Players who have not played yet are never tied — they keep their own position at the bottom of the list. */
 function tiedRecord(a,b){ return !!(a&&b&&a.games>0&&b.games>0&&a.wins===b.wins&&a.games===b.games); }
-function rankList(list){
-  const out=[]; let rank=1;
-  (list||[]).forEach((p,i)=>{ if(i>0 && !tiedRecord(list[i-1],p)) rank=i+1; out.push(rank); });
+/* Two numbers per row. rank is the place, which skips the ones a tie used up: 1, 1, 3, 3, 5. tier counts
+   distinct records instead, so the three medals always land on the best three records however many players
+   share them — gold, gold, silver, silver, bronze. Players who have not played sit outside both. */
+function placeList(list){
+  const out=[]; let rank=1, tier=-1, prev=null;
+  (list||[]).forEach((p,i)=>{
+    if(i>0 && !tiedRecord(list[i-1],p)) rank=i+1;
+    let t=99;
+    if(p&&p.games>0){ if(!tiedRecord(prev,p)) tier++; prev=p; t=tier; }
+    out.push({rank,tier:t});
+  });
   return out;
 }
-function champsOf(list){ const r=rankList(list); return (list||[]).filter((p,i)=>r[i]===1&&p&&p.games>0); }
+function champsOf(list){ const pl=placeList(list); return (list||[]).filter((p,i)=>pl[i].tier===0); }
 function champLabel(list){                                  // "Neil & Tom Lui" when the night ends level
   const c=champsOf(list); if(!c.length) return "";
   return c.slice(0,3).map(p=>esc(p.name)).join(" & ")+(c.length>3?" +"+(c.length-3):"");
 }
-function podiumClass(rank,p){ return (rank<=3&&p&&p.games>0)?"top p"+rank:""; }
-function medalOf(rank,p){ return (rank<=3&&p&&p.games>0)?["🥇","🥈","🥉"][rank-1]:rank; }
+function podiumClass(pl,p){ return (pl&&pl.tier<3&&p&&p.games>0)?"top p"+(pl.tier+1):""; }
+function medalOf(pl,p){ return (pl&&pl.tier<3&&p&&p.games>0)?["🥇","🥈","🥉"][pl.tier]:(pl?pl.rank:""); }
 function playerBreakdown(log){
   const m={}; const get=o=>{ if(!m[o.id])m[o.id]={name:o.name,games:0,wins:0,losses:0,partners:{},opp:{}}; return m[o.id]; };
   (log||[]).forEach(g=>{
@@ -2211,8 +2219,8 @@ function playerBreakdown(log){
 function fmtCounts(obj){ return Object.entries(obj).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([n,c])=>esc(n)+(c>1?' ×'+c:'')).join(", "); }
 function renderSession(s,isLive){
   const champ=champLabel(s.players), log=s.log||[], showLvl=isAdmin();
-  const ranks=rankList(s.players);
-  const rows=s.players.map((p,i)=>`<tr class="${podiumClass(ranks[i],p)}"><td class="rank">${medalOf(ranks[i],p)}</td><td class="lname">${esc(p.name)}</td>${showLvl?`<td>${p.level?lvlAbbr(p.level):'-'}</td>`:''}<td>${p.games}</td><td class="w">${p.wins}</td><td class="l">${p.losses}</td><td>${p.games?Math.round(p.wins/p.games*100):0}%</td></tr>`).join("");
+  const places=placeList(s.players);
+  const rows=s.players.map((p,i)=>`<tr class="${podiumClass(places[i],p)}"><td class="rank">${medalOf(places[i],p)}</td><td class="lname">${esc(p.name)}</td>${showLvl?`<td>${p.level?lvlAbbr(p.level):'-'}</td>`:''}<td>${p.games}</td><td class="w">${p.wins}</td><td class="l">${p.losses}</td><td>${p.games?Math.round(p.wins/p.games*100):0}%</td></tr>`).join("");
   const glEdit = isLive ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint" style="padding:6px">No games recorded yet.</div>', glEdit);
   const bd=playerBreakdown(log);
@@ -2428,8 +2436,8 @@ async function renderSessionPage(id){
   const log=s.log||[];
   const showLvl=isAdmin();
   const abbr=typeof lvlAbbr==="function"?lvlAbbr:(x=>x||"-");
-  const ranks=rankList(s.players);
-  const rows=(s.players||[]).map((p,i)=>'<tr class="'+podiumClass(ranks[i],p)+'"><td class="rank">'+medalOf(ranks[i],p)+'</td><td class="lname">'+esc(p.name)+'</td>'+(showLvl?'<td>'+(p.level?abbr(p.level):'-')+'</td>':'')+'<td>'+p.games+'</td><td class="w">'+p.wins+'</td><td class="l">'+p.losses+'</td><td>'+(p.games?Math.round(p.wins/p.games*100):0)+'%</td></tr>').join("");
+  const places=placeList(s.players);
+  const rows=(s.players||[]).map((p,i)=>'<tr class="'+podiumClass(places[i],p)+'"><td class="rank">'+medalOf(places[i],p)+'</td><td class="lname">'+esc(p.name)+'</td>'+(showLvl?'<td>'+(p.level?abbr(p.level):'-')+'</td>':'')+'<td>'+p.games+'</td><td class="w">'+p.wins+'</td><td class="l">'+p.losses+'</td><td>'+(p.games?Math.round(p.wins/p.games*100):0)+'%</td></tr>').join("");
   const emptyStand='<tr><td colspan="'+(showLvl?7:6)+'" style="color:var(--muted)">'+(live?"No games finished yet — standings appear as games end.":"No players")+'</td></tr>';
   const glEdit = live ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint">'+(live?"No games finished yet.":"No games recorded.")+'</div>', glEdit);
@@ -2878,7 +2886,7 @@ function renderBoard(){
   const pst=id=>onCourt(id)?'<span class="pst court">On court</span>':(state.queue.includes(id)?'<span class="pst q">In queue</span>':'<span class="pst">Bench</span>');
   el.innerHTML=`<table class="lb"><thead><tr><th>#</th><th>Player</th>${showCats()?'<th>Lvl</th>':''}<th>Status</th><th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th></tr></thead><tbody>`
     + (rk=>ids.map((id,i)=>{const p=P(id);const medal=medalOf(rk[i],p);
-        return `<tr class="${podiumClass(rk[i],p)}"><td class="rank">${medal}</td><td class="lname"><span class="edit" data-rename="${id}" title="Click to rename">${esc(p.name)}</span> <button class="rx phist" data-phist="${id}" title="Game history">📊</button></td><td style="text-align:left">${chip(id)}</td><td style="text-align:left">${pst(id)}</td><td>${p.games}</td><td class="w edit" data-editw="${id}" title="Click to edit wins">${p.wins}</td><td class="l edit" data-editl="${id}" title="Click to edit losses">${p.losses}</td><td>${p.games?winpct(p)+'%':'—'}</td></tr>`;}).join(""))(rankList(ids.map(id=>P(id))))
+        return `<tr class="${podiumClass(rk[i],p)}"><td class="rank">${medal}</td><td class="lname"><span class="edit" data-rename="${id}" title="Click to rename">${esc(p.name)}</span> <button class="rx phist" data-phist="${id}" title="Game history">📊</button></td><td style="text-align:left">${chip(id)}</td><td style="text-align:left">${pst(id)}</td><td>${p.games}</td><td class="w edit" data-editw="${id}" title="Click to edit wins">${p.wins}</td><td class="l edit" data-editl="${id}" title="Click to edit losses">${p.losses}</td><td>${p.games?winpct(p)+'%':'—'}</td></tr>`;}).join(""))(placeList(ids.map(id=>P(id))))
     + `</tbody></table>`;
 }
 function ord(l){const i=lvlIdx(l);return i<0?9:i;}
