@@ -988,7 +988,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-02c";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-02d";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1422,37 +1422,33 @@ function keepFront(){ return pinnedGroups()*4; }
 function enqueue(id){ if(P(id)&&!state.queue.includes(id)) P(id).waitSince=Date.now(); state.queue=state.queue.filter(x=>x!==id); state.queue.push(id); }
 function dequeueId(id){ state.queue=state.queue.filter(x=>x!==id); }
 function orderedQueue(){ return state.queue.slice(); }  // the queue array IS the order — only manual actions / start / finish change it
-/* After a game (Play-again off), spread returnees through the unlocked tail (Group 3+)
-   so the same four aren't one contiguous rematch block. Next up + Group 2 stay untouched. */
+/* Put locked players back in the exact slots they held, so a 🔒 holds a spot and not just a foursome. */
+function weaveLocked(rest, locked){
+  const out=rest.slice();
+  locked.slice().sort((a,b)=>a.i-b.i).forEach(o=>{ out.splice(Math.min(o.i, out.length), 0, o.id); });
+  return out;
+}
+/* After a game (Play-again off), spread the four who just played back through the queue so they are not
+   one contiguous rematch block. Two things never move: the groups pinned at the head, and any group the
+   admin locked — a lock keeps those four together AND keeps their place, wherever in the queue they sit. */
 function scatterReturn(ids){
   const ret=ids.filter(id=>id&&P(id)&&P(id).level);
   ret.forEach(dequeueId);
   if(!ret.length) return;
-  const start=Math.min(keepFront(), state.queue.length);
-  if(ret.length===1 || state.queue.length<=start){ state.queue=state.queue.concat(ret); return; }
-  // Group the queue into blocks first: a run of locked players is one block, so a returning
-  // player can never be dropped inside a group the admin locked.
   const lset=new Set(state.qlocked||[]);
-  const all=state.queue, blocks=[];
-  for(let i=0;i<all.length;i++){
-    if(lset.has(all[i])){ const blk=[all[i]]; while(i+1<all.length && lset.has(all[i+1])) blk.push(all[++i]); blocks.push(blk); }
-    else blocks.push([all[i]]);
-  }
-  // Everything up to the Next up / Group 2 boundary stays put; a locked block straddling it
-  // counts as head so it is never split either.
-  let seen=0, hb=0;
-  while(hb<blocks.length && seen<start){ seen+=blocks[hb].length; hb++; }
-  const head=[].concat.apply([], blocks.slice(0,hb));
-  const tailBlocks=blocks.slice(hb);
-  if(!tailBlocks.length){ state.queue=head.concat(ret); return; }
+  const locked=[], free=[];
+  state.queue.forEach((id,i)=>{ if(lset.has(id)) locked.push({id,i}); else free.push(id); });
+  const start=Math.min(keepFront(), free.length);
+  if(ret.length===1 || free.length<=start){ state.queue=weaveLocked(free.concat(ret), locked); return; }
+  const head=free.slice(0,start), tail=free.slice(start);
   const merged=[]; const n=ret.length; let t=0;
   for(let i=0;i<n;i++){
-    const take=Math.floor((tailBlocks.length-t)/(n-i+1));
-    for(let k=0;k<take;k++) merged.push.apply(merged, tailBlocks[t++]);
+    const take=Math.floor((tail.length-t)/(n-i+1));
+    for(let k=0;k<take;k++) merged.push(tail[t++]);
     merged.push(ret[i]);
   }
-  while(t<tailBlocks.length) merged.push.apply(merged, tailBlocks[t++]);
-  state.queue=head.concat(merged);
+  while(t<tail.length) merged.push(tail[t++]);
+  state.queue=weaveLocked(head.concat(merged), locked);
 }
 /* how many times two players have already been in the same game (teammate OR opponent) */
 /* Warn when the queue is about to re-run a foursome that has already played together.
