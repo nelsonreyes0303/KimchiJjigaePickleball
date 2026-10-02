@@ -988,7 +988,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-02a";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-02b";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1411,7 +1411,13 @@ function chip(id){const p=P(id);if(!showCats())return"";const p2=P(id);if(!p2||!
 
 /* Queue order = fewest games first, then the exact order players were added/returned.
    No randomization — the queue array IS the order (stable sort), and only Shuffle randomizes. */
-const KEEP_FRONT=8;
+/* How many groups at the head of the queue are held exactly as they are.
+   A pinned group guarantees the next court to free up gets the four it was promised, so you need one per
+   court that could free up while another is still playing — that is one fewer than the number of courts.
+   With a single court nothing is pinned: there is no second court to protect against, and pinning would
+   freeze the whole queue and make the same four replay each other. */
+function pinnedGroups(){ return Math.max(0, (state.courts||[]).length - 1); }
+function keepFront(){ return pinnedGroups()*4; }
 function enqueue(id){ if(P(id)&&!state.queue.includes(id)) P(id).waitSince=Date.now(); state.queue=state.queue.filter(x=>x!==id); state.queue.push(id); }
 function dequeueId(id){ state.queue=state.queue.filter(x=>x!==id); }
 function orderedQueue(){ return state.queue.slice(); }  // the queue array IS the order — only manual actions / start / finish change it
@@ -1421,7 +1427,7 @@ function scatterReturn(ids){
   const ret=ids.filter(id=>id&&P(id)&&P(id).level);
   ret.forEach(dequeueId);
   if(!ret.length) return;
-  const start=Math.min(KEEP_FRONT, state.queue.length);
+  const start=Math.min(keepFront(), state.queue.length);
   if(ret.length===1 || state.queue.length<=start){ state.queue=state.queue.concat(ret); return; }
   // Group the queue into blocks first: a run of locked players is one block, so a returning
   // player can never be dropped inside a group the admin locked.
@@ -1517,10 +1523,10 @@ function queueGroups(){
 function rebalanceTail(){
   if(state.locked) return;                                   // whole queue locked = hands off
   const q=state.queue;
-  if(q.length<=KEEP_FRONT+1) return;
+  if(q.length<=keepFront()+1) return;
   const lset=new Set(state.qlocked||[]);
   const freeIdx=[], freeIds=[];
-  for(let i=KEEP_FRONT;i<q.length;i++){ if(!lset.has(q[i])){ freeIdx.push(i); freeIds.push(q[i]); } }
+  for(let i=keepFront();i<q.length;i++){ if(!lset.has(q[i])){ freeIdx.push(i); freeIds.push(q[i]); } }
   if(freeIds.length<2) return;
   const pos={}; freeIds.forEach((id,i)=>pos[id]=i);
   const cop=coplayCount();                                    // who has already played with whom
@@ -1564,14 +1570,14 @@ function lockGroupTogether(ids){
 function pinnedFront(work){
   const out=[];
   (state.frontPinned||[]).forEach(g=>{
-    if(out.length>=2) return;
+    if(out.length>=pinnedGroups()) return;
     if(Array.isArray(g) && g.length===4 && g.every(id=>work.includes(id))) out.push(g.slice());
   });
   return out;
 }
 function pinFront(){
   if(!Array.isArray(state.queue)) return;
-  state.frontPinned=queueGroups().groups.slice(0,2).filter(g=>g.length===4).map(g=>g.slice());
+  state.frontPinned=queueGroups().groups.slice(0,pinnedGroups()).filter(g=>g.length===4).map(g=>g.slice());
 }
 function clearFrontPin(){ state.frontPinned=[]; }
 function toggleGroupLock(ids){                     // pin/unpin a group so auto-levelling leaves it alone
@@ -2297,7 +2303,7 @@ function confirmSetup(){
   state.grpSeq=(state.grpSeq||0)+1; const gid="g"+state.grpSeq;
   four.forEach(id=>{ P(id).grp=gid; });                          // same group = they play as one foursome
   state.queue=state.queue.filter(id=>!four.includes(id));
-  const at=Math.min(KEEP_FRONT, state.queue.length);             // slot them right after Next up + Group 2
+  const at=Math.min(keepFront(), state.queue.length);            // slot them right after the pinned groups
   state.queue.splice(at,0,...four);
   state.qlocked=(state.qlocked||[]).filter(id=>!four.includes(id)).concat(four);  // hold the group together
   state.manualSig=null;
@@ -2390,7 +2396,8 @@ function liveQueueBlock(){
   groups.forEach((g,gi)=>{
     const tag=gi===0?'▶ Next up':gi===1?'Up after that':'Later · '+(gi+1);
     g.forEach(id=>{ if(P(id)) lvWhere[P(id).name.toLowerCase()]={kind:"group",gi,pos:state.queue.indexOf(id)+1}; });
-    qhtml+=`<div class="lvg ${gi===0?'next':gi>1?'later':''}"><div class="lvg-h"><span class="lvg-t">${tag}</span>${gi===0?'<span class="lv-fixed">Fixed</span>':gi===1?'<span class="lvg-note">likely</span>':''}</div>
+    const badge = gi<pinnedGroups() ? '<span class="lv-fixed">Fixed</span>' : (gi<=1?'<span class="lvg-note">likely</span>':'');
+    qhtml+=`<div class="lvg ${gi===0?'next':gi>1?'later':''}"><div class="lvg-h"><span class="lvg-t">${tag}</span>${badge}</div>
       <div class="lvt">${lvRow(g[0],++n)}${lvRow(g[1],++n)}</div><div class="lv-vs">vs</div><div class="lvt b">${lvRow(g[2],++n)}${lvRow(g[3],++n)}</div></div>`;
   });
   if(leftovers.length){
@@ -2398,7 +2405,10 @@ function liveQueueBlock(){
     qhtml+=`<div class="lvg leftover"><div class="lvg-h"><span class="lvg-t">Waiting for a match</span></div>${leftovers.map(id=>lvRow(id,'·')).join("")}</div>`;
   }
   if(!groups.length&&!leftovers.length) qhtml='<div class="hint">Nobody is waiting right now.</div>';
-  const note=groups.length>1 ? `Next up is fixed — those four take the next open court${openCourts?" now":""}. The groups after are the likely line-up and can still change as games end.` : "";
+  const note = !groups.length ? ""
+    : pinnedGroups()>0
+      ? `Next up is fixed — those four take the next open court${openCourts?" now":""}. The groups after are the likely line-up and can still change as games end.`
+      : `The line-up is the plan for now. It re-shuffles after every game so everyone gets mixed in, so check back when a court frees up.`;
   return `<div class="sess-block lv-block"><div class="lv-h"><h3>🏟️ On the courts</h3></div><div class="lv-courts">${courts||'<div class="hint">No courts set up yet.</div>'}</div>
     <div class="lv-h" style="margin-top:20px"><h3>⏭ Who's next</h3><span class="lv-count">${state.queue.length} waiting</span></div>
     <input class="rsearch" data-qfind placeholder="🔍 Find your name…" autocomplete="off" aria-label="Find your name in the queue">
@@ -2624,9 +2634,10 @@ function renderQueue(){
     const lc=set.length>1?'mix':lvlCls(set[0]);
     const lab=seatsLabel(grp);
     const userLocked=grp.every(id=>(state.qlocked||[]).includes(id));
-    const locked=gi<2||userLocked;
-    const lockBtn=!isAdmin() ? "" : (gi<2
-      ? `<span class="qglock static on" title="Next up and Group 2 are locked automatically — only you can change them, by dragging">🔒</span>`
+    const pinned=gi<pinnedGroups();
+    const locked=pinned||userLocked;
+    const lockBtn=!isAdmin() ? "" : (pinned
+      ? `<span class="qglock static on" title="Held for the next court to free up — only you can change it, by dragging. With one court nothing is held, so the queue keeps rotating.">🔒</span>`
       : `<button class="qglock ${userLocked?'on':''}" data-glock="${grp.join(',')}" title="${userLocked?'Locked — these 4 stay exactly as you set them. Click to unlock.':'Lock this group so nothing can change these 4 or their spot'}">${userLocked?'🔒':'🔓'}</button>`);
     html+=`<div class="qgroup ${gi===0?'nextg':''} ${locked?'lockedg':''}">
         <div class="qghead"><span class="qgtag">${gi===0?'▶ Next up':'Group '+(gi+1)}</span><span class="qghd-r">${showCats()?'<span class="badge '+lc+'" style="font-size:.58rem;padding:2px 7px">'+lab+'</span>':''}${lockBtn}</span></div>
