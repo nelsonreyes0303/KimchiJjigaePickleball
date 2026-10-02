@@ -988,7 +988,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-02b";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-02c";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1058,7 +1058,7 @@ async function pinMatches(pin){
 const API="api.php", DATA_URL="data/openplays.json";
 const ADMIN_KEY="pb_admin_key";                              // SHA-256 of the PIN, kept for this tab only
 const PUBLISHED_KEY="pb_published_v1";                       // ids this browser knows are on the website
-const server={ on:false, pin:false, loaded:false, live:false };   // live: the website carries the running open play too
+const server={ on:false, pin:false, loaded:false, live:false, probed:false };   // live: the website carries the running open play too
 let lastPublished={};                                        // id -> JSON of what the website holds (minus photos)
 let publishTimers={};
 function publishedIds(){ try{ return new Set(JSON.parse(localStorage.getItem(PUBLISHED_KEY)||"[]")); }catch(_){ return new Set(); } }
@@ -1077,12 +1077,13 @@ async function api(action, body, file){
   return j;
 }
 const serverReady=(async()=>{
-  if(!/^https?:$/.test(location.protocol)) return;
+  if(!/^https?:$/.test(location.protocol)){ server.probed=true; return; }
   try{
     const r=await fetch(API+"?action=status",{cache:"no-store"});
     const j=await r.json();
     if(j&&j.server){ server.on=true; server.pin=!!j.pin; }
-  }catch(e){ console.warn("api.php not reachable — running in this browser only", e); return; }
+  }catch(e){ console.warn("api.php not reachable — running in this browser only", e); server.probed=true; renderUpcoming(); return; }
+  server.probed=true;
   const fn=$("footNote"); if(fn) fn.textContent="Open play history and photos are saved on the website · live queue runs on this device";
   loadUpcoming();
   await pullLive();
@@ -2065,14 +2066,19 @@ document.addEventListener("change",e=>{ const inp=e.target.closest("[data-restor
    from the history page. Opened from file:// the section stays hidden. */
 let upcomingAll=[];
 let upEditing=null;
+let upcomingLoaded=false;    // false until the website has answered, so an empty list is not mistaken for "nothing scheduled"
+/* Opening this tab before the website has answered used to read "Nothing scheduled yet — check back soon",
+   which is the visitor's wording and hides the Add button, so an admin with a full schedule saw nothing. */
+function upLoading(){ return !server.probed || (server.on && !upcomingLoaded); }
 function upDate(ev){ const m=/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(ev.start||""); if(!m) return null; return new Date(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0)); }
 function upWhen(d){ return d.toLocaleDateString([],{weekday:"short",month:"short",day:"numeric"})+" · "+d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); }
 function setUpcoming(list){ upcomingAll=(Array.isArray(list)?list:[]).map(ev=>Object.assign({},ev,{d:upDate(ev)})).filter(ev=>ev.d).sort((a,b)=>a.d-b.d); }
 function upcomingShown(){ const today=new Date(); today.setHours(0,0,0,0); return upcomingAll.filter(ev=>ev.d>=today); }
 async function loadUpcoming(){
-  if(!server.on) return;
+  if(!server.on){ upcomingLoaded=true; return; }
   try{ const r=await fetch(API+"?action=upcoming&t="+Date.now(),{cache:"no-store"}); const j=await r.json(); setUpcoming(j.events); }
-  catch(e){ console.warn("could not read upcoming open plays", e); return; }
+  catch(e){ console.warn("could not read upcoming open plays", e); upcomingLoaded=true; renderUpcoming(); return; }
+  upcomingLoaded=true;
   renderUpcoming();
 }
 let histTab="past";                                   // which tab the history page shows: "past" | "upcoming"
@@ -2149,7 +2155,8 @@ function renderUpcoming(){
     +'</div></div>';
   box.innerHTML=(list.length
       ? groups.map(g=>'<div class="up-group">'+(g.title?'<h3 class="up-group-title">'+esc(g.title)+'</h3>':'')+'<div class="up-list">'+g.items.map(row).join("")+'</div></div>').join("")
-      : '<p class="up-empty">Nothing scheduled yet'+(admin?'':' — check back soon')+'.</p>')
+      : (upLoading() ? '<p class="up-empty">Loading the schedule…</p>'
+                     : '<p class="up-empty">Nothing scheduled yet'+(admin?'':' — check back soon')+'.</p>'))
     +(admin?'<button type="button" class="btn btn-sm" data-upadd>+ Add open play</button>':'');
 }
 async function saveUpcoming(){
