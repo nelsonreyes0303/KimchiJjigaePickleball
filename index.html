@@ -391,6 +391,8 @@ window.addEventListener("error",function(e){
   .glmeta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none;padding-top:.15em;min-width:3.2rem}
   .gllv{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
   .gltm{font-size:.62rem;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .gldur{font-size:.62rem;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;opacity:.85}
+  .gldur::before{content:"⏱ "}
   .pb{padding:7px 6px;border-bottom:1px solid var(--line)} .pb:last-child{border-bottom:none} .pb .hint{margin-top:2px}
   .pg{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--line);font-size:.85rem}
   .pg:last-child{border-bottom:none}
@@ -988,7 +990,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-02d";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-02e";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1761,7 +1763,10 @@ function finishGame(c,winTeam){
   winners.forEach(id=>{const p=P(id);p.games++;p.wins++;});
   losers .forEach(id=>{const p=P(id);p.games++;p.losses++;});
   state.games++;
+  // how long the game ran, from the court clock; games recorded before this was added simply have none
+  const ran = c.started ? Date.now()-c.started : 0;
   (state.log=state.log||[]).push({ t:Date.now(), lvl:seatsLabel(c.seats),   // game-by-game record for history
+    ms:(ran>0 && ran<24*3600e3) ? ran : 0,
     w:winners.map(id=>({id,name:nm(id)})), l:losers.map(id=>({id,name:nm(id)})) });
   const four=[...winners,...losers];
   four.forEach(id=>{ P(id).grp=null; });         // a finished game disbands any prior group
@@ -2878,6 +2883,7 @@ function glRow(g,i,editable){
   const meta='<span class="glmeta">'
     +(isAdmin()&&showCats()&&g.lvl?'<span class="gllv">'+esc(g.lvl)+'</span>':'')
     +(g.t?'<span class="gltm">'+fmtTime(g.t)+'</span>':'')
+    +(g.ms?'<span class="gldur" title="How long the game ran">'+fmtWait(g.ms)+'</span>':'')
     +'</span>';
   return '<div class="gl" data-names="'+esc(names)+'">'
     +'<span class="gln">'+(i+1)+'</span>'
