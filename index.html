@@ -988,7 +988,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-09-28b";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-02a";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -2084,6 +2084,32 @@ function upRunning(ev){ return !!(state.session&&state.session.active&&String(st
 function upSessionName(ev){
   return "Open play — "+ev.d.toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"})+(ev.venue?" · "+ev.venue:"");
 }
+/* Pull the confirmed players off the RSVP page into the roster box, for the admin to check and add.
+   It only ever fills that box — nothing is added to the roster and no category is guessed. If the RSVP
+   site changes its markup the list comes back empty and you type the names as before. */
+async function importRsvpNames(id){
+  const ev=upcomingAll.find(x=>String(x.id)===String(id));
+  if(!ev){ toast("That open play is no longer scheduled"); return; }
+  if(!server.on){ toast("Reading the RSVP page needs the website"); return; }
+  toast("Reading the RSVP page…");
+  let j;
+  try{ j=await api("rsvp",{id}); }
+  catch(e){ console.warn(e); toast("Could not reach the website"); return; }
+  if(!j.ok){ toast(j.error||"Could not read the RSVP page"); return; }
+  const names=Array.isArray(j.names)?j.names:[];
+  if(!names.length){ toast("No confirmed names found on that page — add them by hand"); return; }
+  hideLanding(); hideHistoryPages(); render();
+  const box=$("nameInput");
+  if(box){
+    box.value=names.join("\n");
+    try{ const sec=$("rosterSec"); if(sec&&!sec.open) sec.open=true; }catch(_){}
+    try{ box.scrollIntoView({block:"center"}); }catch(_){}
+    box.focus();
+  }
+  const guests=+j.guests||0;
+  toast(names.length+" name"+(names.length===1?"":"s")+" ready — check them, then Add to roster"
+    +(guests?" · "+guests+" guest"+(guests===1?"":"s")+" unnamed on the page":""));
+}
 async function startFromUpcoming(id){
   const ev=upcomingAll.find(x=>String(x.id)===String(id));
   if(!ev){ toast("That open play is no longer scheduled"); return; }
@@ -2111,6 +2137,7 @@ function renderUpcoming(){
       +(admin&&upIsToday(ev) ? (upRunning(ev)
           ? '<button type="button" class="btn btn-sm opactive" data-upgo>● Running — open courts</button>'
           : '<button type="button" class="btn-accent btn-sm" data-upstart="'+esc(ev.id)+'" title="Start this open play now">▶ Start</button>') : '')
+      +(admin&&ev.rsvp?'<button type="button" class="btn-ghost btn-sm" data-uprsvp="'+esc(ev.id)+'" title="Read the confirmed players off the RSVP page into the roster box">⤓ Names</button>':'')
       +(ev.rsvp?'<a class="btn-accent" href="'+esc(ev.rsvp)+'" target="_blank" rel="noopener">RSVP ↗</a>':'')
       +(admin?'<button type="button" class="btn-ghost btn-sm" data-upedit="'+esc(ev.id)+'">Edit</button><button type="button" class="btn-ghost btn-sm" data-updel="'+esc(ev.id)+'" title="Remove">✕</button>':'')
     +'</div></div>';
@@ -2178,6 +2205,7 @@ document.addEventListener("click",e=>{
   const ed=e.target.closest("[data-upedit]"); if(ed){ if(!isAdmin()) return; openUpModal(upcomingAll.find(x=>x.id===ed.dataset.upedit)||null); return; }
   const del=e.target.closest("[data-updel]"); if(del){ if(!isAdmin()) return; deleteUpcoming(del.dataset.updel); return; }
   const go=e.target.closest("[data-upgo]"); if(go){ if(!isAdmin()) return; hideLanding(); hideHistoryPages(); render(); return; }
+  const rs=e.target.closest("[data-uprsvp]"); if(rs){ if(!isAdmin()){ toast("Admin only"); return; } importRsvpNames(rs.dataset.uprsvp); return; }
   const st=e.target.closest("[data-upstart]"); if(st){ if(!isAdmin()){ toast("Admin only"); return; } startFromUpcoming(st.dataset.upstart); }
 });
 document.addEventListener("keydown",e=>{ if($("upModal")&&!$("upModal").classList.contains("hidden")&&e.key==="Escape") closeUpModal(); });

@@ -15,6 +15,8 @@
  * POST ?action=deletePhoto  key, id, photo   -> remove one photo
  * GET  ?action=upcoming                      -> { events:[...] }  scheduled open plays (seeded from data/upcoming.seed.json)
  * POST ?action=saveUpcoming key, events      -> replace the scheduled list (JSON array)
+ * POST ?action=rsvp        key, id          -> { ok, names:[...], guests:N } the confirmed players read off the RSVP
+ *                                               page of that scheduled open play, for the roster paste box
  * GET  ?action=live[&v=N]                    -> { version, updatedAt, state } the live open play (roster, queue, courts, games);
  *                                               with v equal to the current version only { version, same:true } comes back
  * POST ?action=saveLive     key, base, state -> replace the live open play if base is still the current version; otherwise
@@ -37,6 +39,7 @@ const UP_FILE    = DATA_DIR . '/upcoming.json';       // live list, edited by ad
 const UP_SEED    = DATA_DIR . '/upcoming.seed.json';  // committed starting point, used once when the live file is missing
 const LIVE_FILE  = DATA_DIR . '/live.json';           // the one live open play every admin device works on
 const MAX_LIVE_JSON = 2 * 1024 * 1024;
+const MAX_RSVP_BYTES = 1024 * 1024;                   // an RSVP page is ~30 KB; stop well before anything silly
 const MAX_EVENTS = 60;
 /* Fixed admin PIN (optional). Leave empty to let the first PIN entered on the site claim admin (stored in
  * data/.admin). To set or change the PIN by hand, put the SHA-256 hex of the PIN here — on any machine:
@@ -137,6 +140,56 @@ function writeLive(array $live): void {
   if (file_put_contents($tmp, json_encode($live, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) === false) fail('Cannot write live file', 500);
   if (!rename($tmp, LIVE_FILE)) fail('Cannot replace live file', 500);
   @chmod(LIVE_FILE, 0644);
+}
+
+/* ---- reading the confirmed list off an RSVP page ----
+ * The URL is never taken from the request: it comes from the scheduled open play's own saved rsvp field,
+ * so this cannot be pointed at anything an admin has not already stored. Public names on a public page.
+ */
+function fetchPage(string $url): ?string {
+  if (!preg_match('#^https?://#i', $url)) return null;
+  $host = parse_url($url, PHP_URL_HOST);
+  if (!$host) return null;
+  $ip = gethostbyname($host);                          // refuse anything that resolves inside the network
+  if ($ip !== $host && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) return null;
+  $ua = 'KimchiJjigaePickleballClub/1.0 (+roster import)';
+  if (function_exists('curl_init')) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+      CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3,
+      CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 10, CURLOPT_USERAGENT => $ua,
+    ]);
+    $body = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+    if ($body === false || $code >= 400) return null;
+    return substr((string)$body, 0, MAX_RSVP_BYTES);
+  }
+  $ctx = stream_context_create(['http' => ['timeout' => 10, 'user_agent' => $ua, 'follow_location' => 1, 'max_redirects' => 3]]);
+  $body = @file_get_contents($url, false, $ctx, 0, MAX_RSVP_BYTES);
+  return $body === false ? null : $body;
+}
+/* The confirmed players sit between the "Confirmed" and "Waitlisted" headings. There is no structured data
+ * on the page, so this matches markup and will need revisiting if the RSVP site is redesigned. It fails
+ * quietly — an empty list, never a wrong one. */
+function parseRsvpNames(string $html): array {
+  $start = stripos($html, 'Confirmed');
+  if ($start === false) return ['names' => [], 'guests' => 0];
+  $end = stripos($html, 'Waitlisted', $start);
+  $block = $end === false ? substr($html, $start) : substr($html, $start, $end - $start);
+  $names = [];
+  if (preg_match_all('/<p class="[^"]*truncate[^"]*"[^>]*>([^<]{1,60})<\/p>/i', $block, $m)) {
+    foreach ($m[1] as $raw) {
+      $d = html_entity_decode($raw, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+      $n = preg_replace('/\s+/u', ' ', $d);             // null here means the page was not valid UTF-8
+      $n = trim($n === null ? $d : $n);
+      if ($n === '' || preg_match('/^\+\d+$/', $n) || mb_strlen($n) > 40) continue;
+      $names[] = $n;
+    }
+  }
+  $guests = 0;
+  if (preg_match_all('/>\+(\d+)</', $block, $g)) foreach ($g[1] as $x) $guests += (int)$x;
+  return ['names' => $names, 'guests' => $guests];
 }
 
 if (!is_dir(PHOTO_DIR) && !mkdir(PHOTO_DIR, 0755, true)) fail('data/photos folder missing and cannot be created', 500);
@@ -251,6 +304,18 @@ switch ($action) {
       return $events;
     });
     out(['ok' => true, 'events' => $saved]);
+
+  case 'rsvp':
+    requirePost(); requireAdmin();
+    $id = cleanId($_POST['id'] ?? ''); if ($id === '') fail('Bad open play id');
+    $ev = null;
+    foreach (readUpcoming() as $e) if (cleanId((string)($e['id'] ?? '')) === $id) { $ev = $e; break; }
+    if ($ev === null) fail('That open play is not on the schedule', 404);
+    $url = trim((string)($ev['rsvp'] ?? ''));
+    if ($url === '') fail('That open play has no RSVP link');
+    $html = fetchPage($url);
+    if ($html === null) fail('Could not reach the RSVP page', 502);
+    out(['ok' => true] + parseRsvpNames($html));
 
   case 'live':
     $live = readLive();
