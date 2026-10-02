@@ -990,7 +990,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-02e";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-02f";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1774,8 +1774,10 @@ function finishGame(c,winTeam){
   if(c.again && four.every(id=>P(id).level)){ state.grpSeq=(state.grpSeq||0)+1; const gid="g"+state.grpSeq; four.forEach(id=>P(id).grp=gid); c.again=false; together=true; }
   else c.again=false;
   // Back to queue: Play-again keeps WWLL so the locked foursome stays a block.
-  // Otherwise enqueue, rebalance for fairness, then scatter the 4 through the unlocked
-  // tail so rebalance doesn't leave them as one contiguous rematch chunk.
+  // Otherwise enqueue, break up the foursome so they are not one contiguous rematch chunk, and only then
+  // sort for fairness. The sort has to come last: done the other way round, the four walking off the court
+  // were woven back in afterwards and could land ahead of people who had been waiting with fewer games,
+  // which undid the sort and left some players sitting out a dozen games in a row.
   const ret=[];
   for(let i=0;i<winners.length;i++){ ret.push(winners[i]); if(losers[i]) ret.push(losers[i]); }
   if(together){
@@ -1784,8 +1786,8 @@ function finishGame(c,winTeam){
     rebalanceTail();
   }else{
     ret.forEach(id=>{ if(P(id).level) enqueue(id); });
-    rebalanceTail();
     scatterReturn(ret);
+    rebalanceTail();
   }
   c.seats=[null,null,null,null]; c.started=null;
   commit(); toast(together?"They'll play again together on their next turn":"Game recorded — court cleared");
