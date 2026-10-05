@@ -99,11 +99,23 @@ function photoList(string $id): array {
   return $res;
 }
 
+/* The committed seed carries no ids, and the app matches a scheduled open play by id — without one, two
+ * events look identical and the wrong night gets started. Clean on the way out so every event has one. */
 function readUpcoming(): array {
   if (!is_file(UP_FILE) && is_file(UP_SEED)) @copy(UP_SEED, UP_FILE);
   if (!is_file(UP_FILE)) return [];
   $j = json_decode((string)file_get_contents(UP_FILE), true);
-  return is_array($j) ? array_values($j) : [];
+  if (!is_array($j)) return [];
+  $clean = cleanEvents($j);
+  $hadIds = true;
+  foreach ($j as $e) if (!is_array($e) || ($e['id'] ?? '') === '') { $hadIds = false; break; }
+  if (!$hadIds) {                                   // give the seeded events permanent ids, once
+    $tmp = UP_FILE . '.tmp';
+    if (file_put_contents($tmp, json_encode($clean, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT)) !== false) {
+      @rename($tmp, UP_FILE); @chmod(UP_FILE, 0644);
+    }
+  }
+  return $clean;
 }
 /* Keep only well-formed events; anything else is dropped rather than stored. */
 function cleanEvents(array $in): array {
@@ -177,19 +189,25 @@ function parseRsvpNames(string $html): array {
   if ($start === false) return ['names' => [], 'guests' => 0];
   $end = stripos($html, 'Waitlisted', $start);
   $block = $end === false ? substr($html, $start) : substr($html, $start, $end - $start);
-  $names = [];
+  $names = []; $extra = 0;
   if (preg_match_all('/<p class="[^"]*truncate[^"]*"[^>]*>([^<]{1,60})<\/p>/i', $block, $m)) {
     foreach ($m[1] as $raw) {
       $d = html_entity_decode($raw, ENT_QUOTES | ENT_HTML5, 'UTF-8');
       $n = preg_replace('/\s+/u', ' ', $d);             // null here means the page was not valid UTF-8
       $n = trim($n === null ? $d : $n);
       if ($n === '' || preg_match('/^\+\d+$/', $n) || mb_strlen($n) > 40) continue;
+      // Some entries read "Ken +1": that is one player who brought a guest, not a player called "Ken +1".
+      if (preg_match('/^(.*?)\s*\+(\d+)$/u', $n, $t) && trim($t[1]) !== '') { $n = trim($t[1]); $extra += (int)$t[2]; }
       $names[] = $n;
     }
   }
-  $guests = 0;
+  $guests = $extra;
   if (preg_match_all('/>\+(\d+)</', $block, $g)) foreach ($g[1] as $x) $guests += (int)$x;
-  return ['names' => $names, 'guests' => $guests];
+  // The heading says how many are confirmed. Not every one of them has a name on the page — some tiles are
+  // blank — so report the total and let the app say how many it could actually read.
+  $total = 0;
+  if (preg_match('/Confirmed[^0-9]{0,40}(\d+)/i', $block, $c)) $total = (int)$c[1];
+  return ['names' => $names, 'guests' => $guests, 'total' => $total];
 }
 
 if (!is_dir(PHOTO_DIR) && !mkdir(PHOTO_DIR, 0755, true)) fail('data/photos folder missing and cannot be created', 500);

@@ -991,7 +991,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-05a";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-05b";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -2119,12 +2119,16 @@ async function addRsvpToRoster(ev){
   const before=Object.keys(state.players).length;
   addPlayers(names.join("\n"));                       // skips anyone already on the roster, and toasts its own count
   const added=Object.keys(state.players).length-before;
-  const guests=+j.guests||0;
+  const guests=+j.guests||0, total=+j.total||0;
   render();
-  toast(added
-    ? added+" player"+(added===1?"":"s")+" added from the RSVP list — set their categories to queue them"
-      +(guests?" · "+guests+" guest"+(guests===1?"":"s")+" unnamed on the page":"")
-    : "Everyone on the RSVP list is already on the roster");
+  // The page does not show a name for every confirmed player, so say what was missed rather than let the
+  // admin assume the roster is complete.
+  const missing=total>names.length ? total-names.length : 0;
+  toast((added
+      ? added+" player"+(added===1?"":"s")+" added from the RSVP list — set their categories to queue them"
+      : "Everyone named on the RSVP list is already on the roster")
+    +(missing?" · "+missing+" of "+total+" confirmed had no name on the page, add them by hand":"")
+    +(guests?" · "+guests+" guest"+(guests===1?"":"s")+" noted":""));
 }
 async function startFromUpcoming(id){
   const ev=upcomingAll.find(x=>String(x.id)===String(id));
