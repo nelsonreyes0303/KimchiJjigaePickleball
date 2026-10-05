@@ -638,9 +638,10 @@ window.addEventListener("error",function(e){
   .photo-add{aspect-ratio:1;border-radius:12px;border:1px dashed var(--line);background:transparent;color:var(--muted);cursor:pointer;font-weight:700;font-size:.85rem;display:grid;place-items:center;padding:12px;text-align:center;font-family:inherit}
   .photo-add:hover{border-color:var(--accent);color:var(--accent)}
   .photo-add input{display:none}
-  .lightbox{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
+  .lightbox{position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.82);display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
   .lightbox.hidden{display:none}
-  .lightbox img{max-width:min(960px,100%);max-height:90vh;border-radius:12px;box-shadow:var(--shadow)}
+  .lightbox img{max-width:min(960px,100%);max-height:calc(90vh - 56px);border-radius:12px;box-shadow:var(--shadow)}
+  .lightbox .lb-dl{cursor:pointer;text-decoration:none}
   .pin-modal .modalcard{max-width:400px}
   .pin-modal input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:var(--txt);font-size:1.1rem;letter-spacing:.2em;text-align:center;outline:none;font-family:inherit;box-sizing:border-box}
   .pin-modal input:focus{border-color:var(--accent)}
@@ -2489,8 +2490,10 @@ async function renderSessionPage(id){
   const emptyStand='<tr><td colspan="'+(showLvl?7:6)+'" style="color:var(--muted)">'+(live?"No games finished yet — standings appear as games end.":"No players")+'</td></tr>';
   const glEdit = live ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint">'+(live?"No games finished yet.":"No games recorded.")+'</div>', glEdit);
-  let photoHtml="";
-  const photoCell=(url,pid)=>'<button type="button" class="photo-cell" data-lightbox="'+url+'"><img src="'+url+'" alt="" loading="lazy">'
+  let photoHtml="", photoN=0;
+  const sd=new Date(s.endedAt||s.startedAt||Date.now());
+  const dlBase="kimchi-jjigae-"+sd.getFullYear()+"-"+String(sd.getMonth()+1).padStart(2,"0")+"-"+String(sd.getDate()).padStart(2,"0")+"-";
+  const photoCell=(url,pid)=>'<button type="button" class="photo-cell" data-lightbox="'+url+'" data-dlname="'+dlBase+(++photoN)+'.jpg"><img src="'+url+'" alt="" loading="lazy">'
       +(isAdmin()?'<span class="phdel" data-delphoto="'+pid+'" data-sid="'+s.id+'" title="Remove">✕</span>':'')
       +'</button>';
   for(const ph of (s.photos||[])){
@@ -3112,10 +3115,10 @@ document.body.addEventListener("click",e=>{
   const fx=e.target.closest("[data-fixstand]");
   if(fx){ e.preventDefault(); e.stopPropagation(); if(!isAdmin()){ toast("Admin only"); return; } fixSessionStandings(fx.dataset.fixstand); }
 });
-$("lightbox").addEventListener("click",()=>$("lightbox").classList.add("hidden"));
+$("lightbox").addEventListener("click",e=>{ if(!e.target.closest(".lb-dl")) $("lightbox").classList.add("hidden"); });   // download keeps the photo open
 document.body.addEventListener("click",e=>{
   const card=e.target.closest("[data-opensess]"); if(card){ openSessionPage(card.dataset.opensess); return; }
-  const lb=e.target.closest("[data-lightbox]"); if(lb && !e.target.closest("[data-delphoto]")){ const box=$("lightbox"); box.innerHTML='<img src="'+lb.dataset.lightbox+'" alt="">'; box.classList.remove("hidden"); return; }
+  const lb=e.target.closest("[data-lightbox]"); if(lb && !e.target.closest("[data-delphoto]")){ const box=$("lightbox"); box.innerHTML='<img src="'+esc(lb.dataset.lightbox)+'" alt=""><a class="btn btn-sm lb-dl" href="'+esc(lb.dataset.lightbox)+'" download="'+esc(lb.dataset.dlname||"photo.jpg")+'">⬇ Download</a>'; box.classList.remove("hidden"); return; }
   const dp=e.target.closest("[data-delphoto]"); if(dp){ e.preventDefault(); e.stopPropagation(); removePhotoFromSession(dp.dataset.sid, dp.dataset.delphoto); return; }
 });
 document.body.addEventListener("change",e=>{
