@@ -991,7 +991,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-05b";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-06a";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -2113,21 +2113,41 @@ async function addRsvpToRoster(ev){
   let j;
   try{ j=await api("rsvp",{id:ev.id}); }
   catch(e){ console.warn(e); toast("Could not reach the website — add the players by hand"); return; }
-  if(!j.ok){ toast(j.error||"Could not read the RSVP page — add the players by hand"); return; }
+  if(!j.ok){ toast((j.error||"Could not read the RSVP page")+" — the roster is unchanged, add the players by hand"); return; }
   const names=Array.isArray(j.names)?j.names:[];
   if(!names.length){ toast("No confirmed names on the RSVP page — add the players by hand"); return; }
-  const before=Object.keys(state.players).length;
-  addPlayers(names.join("\n"));                       // skips anyone already on the roster, and toasts its own count
-  const added=Object.keys(state.players).length-before;
+  /* The RSVP list IS tonight's attendance, so it replaces the roster rather than piling on top of it.
+     Adding to it left last week's players in place: 27 from the previous night plus 14 confirmed showed
+     up as a roster of 41. Regulars who are on the list keep the category they already had, so only the
+     genuinely new names need a tier. */
+  const want=new Map();
+  names.forEach(n=>{ const k=n.toLowerCase(); if(!want.has(k)) want.set(k,n); });
+  const kept={}; const seen=new Set();
+  Object.values(state.players).forEach(p=>{
+    const k=String(p.name).toLowerCase();
+    if(want.has(k) && !seen.has(k)){ kept[p.id]=p; seen.add(k); }
+  });
+  const dropped=Object.keys(state.players).length-Object.keys(kept).length;
+  state.players=kept;
+  let added=0;
+  want.forEach((display,k)=>{
+    if(seen.has(k)) return;
+    const id="p"+(state.seq++);
+    state.players[id]={id,name:display,level:null,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
+    added++;
+  });
+  // nobody from the previous night may linger in the queue, on a court, or in a lock
+  state.queue=Object.keys(state.players).filter(id=>P(id).level);
+  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; });
+  state.qlocked=[]; state.frontPinned=[]; state.manualSig=null;
   const guests=+j.guests||0, total=+j.total||0;
-  render();
-  // The page does not show a name for every confirmed player, so say what was missed rather than let the
-  // admin assume the roster is complete.
-  const missing=total>names.length ? total-names.length : 0;
-  toast((added
-      ? added+" player"+(added===1?"":"s")+" added from the RSVP list — set their categories to queue them"
-      : "Everyone named on the RSVP list is already on the roster")
-    +(missing?" · "+missing+" of "+total+" confirmed had no name on the page, add them by hand":"")
+  const missing=total>names.length ? total-names.length : 0;   // not every confirmed player is named on the page
+  audit("rsvpRoster", want.size+" from RSVP · "+added+" new · "+seen.size+" kept · "+dropped+" removed");
+  commit();
+  toast("Roster set to the "+want.size+" confirmed player"+(want.size===1?"":"s")
+    +(seen.size?" · "+seen.size+" kept their categor"+(seen.size===1?"y":"ies"):"")
+    +(dropped?" · "+dropped+" from last time removed":"")
+    +(missing?" · "+missing+" of "+total+" had no name on the page":"")
     +(guests?" · "+guests+" guest"+(guests===1?"":"s")+" noted":""));
 }
 async function startFromUpcoming(id){
