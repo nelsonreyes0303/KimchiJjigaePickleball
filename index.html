@@ -327,6 +327,7 @@ window.addEventListener("error",function(e){
   .sitem{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);cursor:pointer;font-size:.86rem}
   .sitem:hover{border-color:var(--accent)}
   .sitem.on{border-color:var(--accent);background:rgba(242,165,173,.14);font-weight:700}
+  .sgon{color:var(--int);font-weight:800}
   .sitem.off{opacity:.45;cursor:not-allowed}
   .sitem .sg{margin-left:auto;font-size:.7rem;color:var(--muted);font-weight:600}
   .spicks{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;min-height:4px}
@@ -991,7 +992,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-06b";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-06c";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1660,6 +1661,10 @@ function nextGroupFrom(list, ignoreLevels){
     }
     const g=P(id).grp;
     if(readyGrp(g)){ const four=byGrp[g].slice(0,4); units.push({ids:four,four:true}); four.forEach(x=>used.add(x)); continue; }
+    // A set-up group whose last member is still on a court holds its place: the others sit this one out
+    // rather than being pulled into someone else's game. groupStillComing() releases them if that member
+    // can no longer turn up, so nobody waits forever.
+    if(g && groupStillComing(g, id)){ used.add(id); continue; }
     const pt=P(id).partner;
     if(pt){ if(list.includes(pt)&&!used.has(pt)&&!readyGrp(P(pt).grp)){ units.push({ids:[id,pt]}); used.add(id); used.add(pt); } continue; }  // else wait for partner
     units.push({ids:[id]}); used.add(id);
@@ -1786,7 +1791,13 @@ function finishGame(c,winTeam){
     ms:(ran>0 && ran<24*3600e3) ? ran : 0,
     w:winners.map(id=>({id,name:nm(id)})), l:losers.map(id=>({id,name:nm(id)})) });
   const four=[...winners,...losers];
-  four.forEach(id=>{ P(id).grp=null; });         // a finished game disbands any prior group
+  // A finished game disbands the group it played as, but not a set-up group that is still waiting for
+  // someone: the player who just came off is the one it was waiting for.
+  four.forEach(id=>{
+    const g=P(id).grp; if(!g) return;
+    const members=Object.values(state.players).filter(p=>p.grp===g);
+    if(members.every(p=>four.includes(p.id))) members.forEach(p=>{ p.grp=null; });
+  });
   let together=false;
   if(c.again && four.every(id=>P(id).level)){ state.grpSeq=(state.grpSeq||0)+1; const gid="g"+state.grpSeq; four.forEach(id=>P(id).grp=gid); c.again=false; together=true; }
   else c.again=false;
@@ -2327,18 +2338,32 @@ function renderSession(s,isLive){
 let setupPick=[], setupSearch="";
 function openSetup(){ setupPick=[]; setupSearch=""; const s=$("setupSearch"); if(s)s.value=""; $("setupModal").classList.remove("hidden"); renderSetup(); if(s)s.focus(); }
 function closeSetup(){ $("setupModal").classList.add("hidden"); }
+/* Anyone with a tier can be set up, including players mid-game: the group simply waits for them to finish.
+   Those still waiting sort first, so the people you can start with right away are at the top. */
+/* True while a set-up group is still worth waiting for: it has four members and the ones who are not in
+   the queue are on a court, so they will be back. If a member has been benched or removed the group can
+   never complete, so it is disbanded here and the rest are freed to play. */
+function groupStillComing(gid, exceptId){
+  const members=Object.values(state.players).filter(p=>p.grp===gid);
+  if(members.length>=4 && members.some(p=>onCourt(p.id))
+     && members.every(p=>onCourt(p.id)||state.queue.includes(p.id))) return true;
+  if(members.length<4 || !members.every(p=>onCourt(p.id)||state.queue.includes(p.id)))
+    members.forEach(p=>{ p.grp=null; });                 // it can never complete — let them play
+  return false;
+}
 function setupEligible(){
   return Object.values(state.players)
-    .filter(p=>p.level && !onCourt(p.id))                       // must have a tier and not be mid-game
-    .sort((a,b)=> effGames(a.id)-effGames(b.id) || a.name.localeCompare(b.name));
+    .filter(p=>p.level)
+    .sort((a,b)=> (onCourt(a.id)?1:0)-(onCourt(b.id)?1:0) || effGames(a.id)-effGames(b.id) || a.name.localeCompare(b.name));
 }
 function renderSetup(){
   const q=setupSearch.trim().toLowerCase();
   const list=setupEligible().filter(p=>!q||p.name.toLowerCase().includes(q));
   $("setupList").innerHTML = list.length ? list.map(p=>{
     const on=setupPick.includes(p.id), full=setupPick.length>=4&&!on;
-    return `<div class="sitem ${on?'on':''} ${full?'off':''}" data-spick="${p.id}">${on?'✓':'＋'} ${esc(p.name)}<span class="sg">${showCats()?lvlShort(p.level)+' · ':''}${P(p.id).games}g</span></div>`;
-  }).join("") : '<div class="qempty">No players match — they need a tier set and must not be on court.</div>';
+    const playing=onCourt(p.id);
+    return `<div class="sitem ${on?'on':''} ${full?'off':''}" data-spick="${p.id}" title="${playing?'Still playing — the group will wait for them':''}">${on?'✓':'＋'} ${esc(p.name)}<span class="sg">${playing?'<b class="sgon">on court</b> · ':''}${showCats()?lvlShort(p.level)+' · ':''}${P(p.id).games}g</span></div>`;
+  }).join("") : '<div class="qempty">No players match — they need a category set.</div>';
   $("setupPicks").innerHTML = setupPick.map(id=>`<span class="spick">${esc(nm(id))}<button data-sdrop="${id}" title="Remove">✕</button></span>`).join("");
   $("setupCount").textContent = setupPick.length+" of 4 selected";
   $("setupGo").disabled = setupPick.length!==4;
@@ -2357,14 +2382,20 @@ function confirmSetup(){
   four.forEach(id=>freeGroupOf(id));                            // drop any old grouping first
   state.grpSeq=(state.grpSeq||0)+1; const gid="g"+state.grpSeq;
   four.forEach(id=>{ P(id).grp=gid; });                          // same group = they play as one foursome
-  state.queue=state.queue.filter(id=>!four.includes(id));
+  // Anyone still on a court stays there; they join the group when their game ends. Only the players who
+  // are free get a queue slot now, and that slot is held until the whole four is together.
+  const waiting=four.filter(id=>!onCourt(id)), playing=four.filter(id=>onCourt(id));
+  state.queue=state.queue.filter(id=>!waiting.includes(id));
   const at=Math.min(keepFront(), state.queue.length);            // slot them right after the pinned groups
-  state.queue.splice(at,0,...four);
-  state.qlocked=(state.qlocked||[]).filter(id=>!four.includes(id)).concat(four);  // hold the group together
+  state.queue.splice(at,0,...waiting);
+  state.qlocked=(state.qlocked||[]).filter(id=>!four.includes(id)).concat(waiting);
   state.manualSig=null;
-  audit("setUpGame", four.map(nmsafe).join(", ")+" -> slot "+at);
+  clearFrontPin();            // the held groups were worked out before this one existed; re-derive them
+  audit("setUpGame", four.map(nmsafe).join(", ")+" -> slot "+at+(playing.length?" · waiting for "+playing.map(nmsafe).join(", "):""));
   closeSetup(); commit();
-  toast("Game set: "+four.map(nm).join(", "));
+  toast(playing.length
+    ? "Game set — waiting for "+playing.map(nm).join(" & ")+" to finish: "+four.map(nm).join(", ")
+    : "Game set: "+four.map(nm).join(", "));
 }
 function openPlayerHistory(id){ const p=P(id); if(!p)return; $("playerTitle").textContent="📊 "+p.name+" — this open play"; $("playerBody").innerHTML=renderPlayerGames(id,p.name); $("playerModal").classList.remove("hidden"); }
 function closePlayer(){ $("playerModal").classList.add("hidden"); }
