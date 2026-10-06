@@ -991,7 +991,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-06a";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-06b";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1692,21 +1692,37 @@ function parseNames(text){
     .map(s=>s.replace(/\s+/g," ").trim())
     .filter(Boolean);
 }
+/* The category a player last carried, from the most recent open play they appear in. The roster is rebuilt
+   from the RSVP list every night, so without this a regular would have to be re-tagged every week. */
+function lastKnownLevel(name){
+  const k=String(name||"").trim().toLowerCase();
+  if(!k) return null;
+  for(const s of (state.history||[])){                 // history is newest first
+    const hit=(s.players||[]).find(p=>p&&p.level&&String(p.name).trim().toLowerCase()===k);
+    if(hit) return hit.level;
+  }
+  return null;
+}
 function addPlayers(text){
   const names=parseNames(text);
   if(!names.length){ toast("No names found in that text"); return; }
   const have=new Set(Object.values(state.players).map(p=>p.name.toLowerCase()));
-  let added=0, skipped=0;
+  let added=0, skipped=0, recalled=0;
   names.forEach(n=>{
     const k=n.toLowerCase();
     if(have.has(k)){ skipped++; return; }                      // don't duplicate someone already on the roster
     have.add(k); added++;
     const id="p"+(state.seq++);
-    state.players[id]={id,name:n,level:null,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
+    const lvl=lastKnownLevel(n);                               // a returning player keeps the tier they had
+    if(lvl) recalled++;
+    state.players[id]={id,name:n,level:lvl,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
+    if(lvl && state.session&&state.session.active) enqueue(id);
   });
-  audit("addPlayers", added+" added, "+skipped+" dup: "+names.join(", "));
+  audit("addPlayers", added+" added, "+skipped+" dup, "+recalled+" tier recalled: "+names.join(", "));
   commit();
-  toast(added ? added+(added>1?" players added":" player added")+(skipped?" · "+skipped+" already on the roster":"")
+  toast(added ? added+(added>1?" players added":" player added")
+                +(recalled?" · "+recalled+" kept the categor"+(recalled===1?"y":"ies")+" from last time":"")
+                +(skipped?" · "+skipped+" already on the roster":"")
               : "Everyone on that list is already on the roster");
 }
 function setLevel(id,level){
@@ -2129,11 +2145,13 @@ async function addRsvpToRoster(ev){
   });
   const dropped=Object.keys(state.players).length-Object.keys(kept).length;
   state.players=kept;
-  let added=0;
+  let added=0, recalled=0;
   want.forEach((display,k)=>{
     if(seen.has(k)) return;
     const id="p"+(state.seq++);
-    state.players[id]={id,name:display,level:null,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
+    const lvl=lastKnownLevel(display);                 // a regular comes back with the tier they last played at
+    if(lvl) recalled++;
+    state.players[id]={id,name:display,level:lvl,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
     added++;
   });
   // nobody from the previous night may linger in the queue, on a court, or in a lock
@@ -2144,8 +2162,10 @@ async function addRsvpToRoster(ev){
   const missing=total>names.length ? total-names.length : 0;   // not every confirmed player is named on the page
   audit("rsvpRoster", want.size+" from RSVP · "+added+" new · "+seen.size+" kept · "+dropped+" removed");
   commit();
+  const tagged=seen.size+recalled, untagged=want.size-tagged;
   toast("Roster set to the "+want.size+" confirmed player"+(want.size===1?"":"s")
-    +(seen.size?" · "+seen.size+" kept their categor"+(seen.size===1?"y":"ies"):"")
+    +(tagged?" · "+tagged+" already categorised":"")
+    +(untagged?" · "+untagged+" still need a category":"")
     +(dropped?" · "+dropped+" from last time removed":"")
     +(missing?" · "+missing+" of "+total+" had no name on the page":"")
     +(guests?" · "+guests+" guest"+(guests===1?"":"s")+" noted":""));
