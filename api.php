@@ -181,6 +181,49 @@ function fetchPage(string $url): ?string {
   $body = @file_get_contents($url, false, $ctx, 0, MAX_RSVP_BYTES);
   return $body === false ? null : $body;
 }
+/* Reading an event's own details off its RSVP page, so adding a scheduled open play is just pasting the
+ * link. The page shows "Friday, Oct 9 @ 4:00 PM" with no year, so the year is the nearest one on which
+ * that date really is that weekday, preferring the upcoming one. */
+const RSVP_HOSTS = ['reclub.co'];                     // only these may be fetched by URL
+function rsvpHostAllowed(string $url): bool {
+  $host = strtolower((string)parse_url($url, PHP_URL_HOST));
+  foreach (RSVP_HOSTS as $ok) if ($host === $ok || str_ends_with($host, '.' . $ok)) return true;
+  return false;
+}
+function rsvpYearFor(int $mon, int $day, string $weekday): int {
+  $today = new DateTimeImmutable('today');
+  $best = null;
+  foreach ([-1, 0, 1] as $off) {
+    $y = (int)$today->format('Y') + $off;
+    if (!checkdate($mon, $day, $y)) continue;
+    $d = DateTimeImmutable::createFromFormat('!Y-n-j', $y . '-' . $mon . '-' . $day);
+    if (!$d || strcasecmp(substr($d->format('l'), 0, 3), substr($weekday, 0, 3)) !== 0) continue;
+    if ($d < $today->modify('-14 days')) continue;    // clearly last year's date
+    if ($best === null || $d < $best) $best = $d;
+  }
+  return $best ? (int)$best->format('Y') : (int)$today->format('Y');
+}
+function parseRsvpEvent(string $html): array {
+  $out = ['title' => '', 'start' => '', 'venue' => ''];
+  if (preg_match('/<title>([^<]*)<\/title>/i', $html, $t)) {
+    $title = trim(html_entity_decode($t[1], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $out['title'] = trim(preg_replace('/^\s*Reclub\s+/i', '', $title));
+  }
+  // the detail rows: date/time first, then the venue
+  preg_match_all('/<p class="text-sm font-semibold"[^>]*>([^<]{1,120})<\/p>/i', $html, $m);
+  $rows = array_map(fn($s) => trim(html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8')), $m[1] ?? []);
+  foreach ($rows as $i => $row) {
+    if (!preg_match('/^(\w{3,9}),\s*(\w{3,9})\s+(\d{1,2})\s*@\s*(\d{1,2}):(\d{2})\s*(AM|PM)$/i', $row, $d)) continue;
+    $mon = (int)date('n', strtotime($d[2] . ' 1 2000'));
+    if ($mon < 1) continue;
+    $hour = (int)$d[4] % 12; if (strcasecmp($d[6], 'PM') === 0) $hour += 12;
+    $year = rsvpYearFor($mon, (int)$d[3], $d[1]);
+    $out['start'] = sprintf('%04d-%02d-%02dT%02d:%02d', $year, $mon, (int)$d[3], $hour, (int)$d[5]);
+    if (isset($rows[$i + 1]) && $rows[$i + 1] !== '') $out['venue'] = mb_substr($rows[$i + 1], 0, 120);
+    break;
+  }
+  return $out;
+}
 /* The confirmed players sit between the "Confirmed" and "Waitlisted" headings. There is no structured data
  * on the page, so this matches markup and will need revisiting if the RSVP site is redesigned. It fails
  * quietly — an empty list, never a wrong one. */
@@ -322,6 +365,15 @@ switch ($action) {
       return $events;
     });
     out(['ok' => true, 'events' => $saved]);
+
+  case 'rsvpLookup':
+    requirePost(); requireAdmin();
+    $url = trim((string)($_POST['url'] ?? ''));
+    if ($url === '' || !preg_match('#^https://#i', $url)) fail('Paste the full https link');
+    if (!rsvpHostAllowed($url)) fail('Only ' . implode(', ', RSVP_HOSTS) . ' links can be read');
+    $html = fetchPage($url);
+    if ($html === null) fail('Could not reach that page', 502);
+    out(['ok' => true] + parseRsvpEvent($html) + parseRsvpNames($html));
 
   case 'rsvp':
     requirePost(); requireAdmin();

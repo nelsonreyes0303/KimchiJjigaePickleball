@@ -929,6 +929,9 @@ window.addEventListener("error",function(e){
   <div class="modalcard">
     <div class="modalhead"><b id="upModalTitle">Add open play</b><button class="btn-ghost btn-sm" data-upclose>Close</button></div>
     <div class="modalbody up-form">
+      <label for="upRsvp">RSVP link</label>
+      <input id="upRsvp" type="url" placeholder="Paste the Reclub link — the rest fills itself" autocomplete="off" spellcheck="false">
+      <p class="hint" id="upLookup"></p>
       <label for="upName">Title</label>
       <input id="upName" type="text" autocomplete="off" spellcheck="false">
       <div class="up-row">
@@ -937,8 +940,6 @@ window.addEventListener("error",function(e){
       </div>
       <label for="upVenue">Venue</label>
       <input id="upVenue" type="text" autocomplete="off">
-      <label for="upRsvp">RSVP link</label>
-      <input id="upRsvp" type="url" placeholder="https://" autocomplete="off" spellcheck="false">
       <p class="hint" id="upErr" style="color:#e05252"></p>
     </div>
     <div class="modalfoot">
@@ -992,7 +993,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-06c";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-06d";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -2238,11 +2239,39 @@ function openUpModal(ev){
   $("upTime").value=ev?(ev.start||"").slice(11,16):(last?(last.start||"").slice(11,16):"14:00");
   $("upVenue").value=ev?(ev.venue||""):(last&&last.venue||"The Dink Ticket");
   $("upRsvp").value=ev?(ev.rsvp||""):"";
-  $("upErr").textContent="";
+  $("upErr").textContent=""; $("upLookup").textContent=""; upLookupFor="";
   $("upModal").classList.remove("hidden");
-  setTimeout(()=>$(ev?"upName":"upDate").focus(),40);
+  setTimeout(()=>$(ev?"upName":"upRsvp").focus(),40);
 }
 function closeUpModal(){ $("upModal").classList.add("hidden"); upEditing=null; }
+/* Paste the RSVP link and the rest of the form fills itself: the title, when it starts and where. On a new
+   open play every field is filled; when editing an existing one only the blanks are, so a title you
+   changed on purpose is left alone. The page is someone else's, so a failure here just leaves you typing. */
+let upLookupFor="";
+async function lookupRsvp(url){
+  const note=$("upLookup"); if(!note) return;
+  url=String(url||"").trim();
+  if(!/^https:\/\//i.test(url)){ note.textContent=""; upLookupFor=""; return; }
+  if(url===upLookupFor) return;                       // already done for this link
+  upLookupFor=url;
+  if(!server.on){ note.textContent="Reading the link needs the website."; return; }
+  note.textContent="Reading the link…";
+  let j;
+  try{ j=await api("rsvpLookup",{url}); }
+  catch(e){ console.warn(e); note.textContent="Could not reach the website — fill the rest in by hand."; return; }
+  if(!j.ok){ note.textContent=(j.error||"Could not read that page")+" — fill the rest in by hand."; return; }
+  if($("upRsvp").value.trim()!==url) return;          // the admin moved on while it loaded
+  const fresh=!upEditing, set=[];
+  const put=(id,val)=>{ if(!val) return; const el=$(id); if(!el) return;
+    if(fresh || !el.value){ el.value=val; set.push(id); } };
+  put("upName", j.title);
+  if(j.start && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(j.start)){ put("upDate", j.start.slice(0,10)); put("upTime", j.start.slice(11,16)); }
+  put("upVenue", j.venue);
+  const n=+j.total||(Array.isArray(j.names)?j.names.length:0);
+  note.textContent = set.length
+    ? "Filled from the link"+(n?" · "+n+" confirmed so far":"")+". Check it before saving."
+    : "Nothing new to fill — the fields already have values.";
+}
 async function submitUpModal(){
   const title=$("upName").value.trim(), date=$("upDate").value, time=$("upTime").value, venue=$("upVenue").value.trim(), rsvp=$("upRsvp").value.trim();
   const err=$("upErr");
@@ -3229,6 +3258,15 @@ if($("toolsToggle")) $("toolsToggle").addEventListener("click",()=>{
 syncTools();
 $("rSearch").addEventListener("input",e=>{rosterSearch=e.target.value.trim().toLowerCase();renderRoster();});
 document.body.addEventListener("input",e=>{ const t=e.target.closest("[data-logfilter]"); if(t) filterLogRows(t); const f=e.target.closest("[data-qfind]"); if(f) lvFind(f); });
+// a pasted or typed RSVP link fills the rest of the form
+(function(){
+  const box=$("upRsvp"); if(!box) return;
+  let t=null;
+  const go=()=>{ clearTimeout(t); t=setTimeout(()=>lookupRsvp(box.value), 350); };
+  box.addEventListener("paste", ()=>setTimeout(go,0));
+  box.addEventListener("change", go);
+  box.addEventListener("blur", ()=>lookupRsvp(box.value));
+})();
 document.body.addEventListener("keydown",e=>{
   if(e.key!=="Escape") return;
   if(geIdx!==null){ closeGameEdit(); return; }

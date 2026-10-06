@@ -108,6 +108,53 @@ function parseForm(buf, contentType) {
   return out;
 }
 
+/* ---- an event's own details, the same way api.php reads them ---- */
+const RSVP_HOSTS = ['reclub.co'];
+function rsvpHostAllowed(url) {
+  let host = '';
+  try { host = new URL(url).hostname.toLowerCase(); } catch (_) { return false; }
+  return RSVP_HOSTS.some(ok => host === ok || host.endsWith('.' + ok));
+}
+const decodeEntities = s => String(s)
+  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+  .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&nbsp;/g, ' ')
+  .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+const MONTHS = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+const DAYS = ['sun','mon','tue','wed','thu','fri','sat'];
+function rsvpYearFor(mon, day, weekday) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const want = DAYS.indexOf(weekday.slice(0, 3).toLowerCase());
+  let best = null;
+  for (const off of [-1, 0, 1]) {
+    const y = today.getFullYear() + off;
+    const d = new Date(y, mon - 1, day);
+    if (d.getMonth() !== mon - 1 || d.getDate() !== day) continue;
+    if (want >= 0 && d.getDay() !== want) continue;
+    if (d < new Date(today.getTime() - 14 * 864e5)) continue;
+    if (!best || d < best) best = d;
+  }
+  return (best || today).getFullYear();
+}
+function parseRsvpEvent(html) {
+  const out = { title: '', start: '', venue: '' };
+  const t = /<title>([^<]*)<\/title>/i.exec(html);
+  if (t) out.title = decodeEntities(t[1]).trim().replace(/^\s*Reclub\s+/i, '').trim();
+  const rows = [...html.matchAll(/<p class="text-sm font-semibold"[^>]*>([^<]{1,120})<\/p>/gi)].map(m => decodeEntities(m[1]).trim());
+  for (let i = 0; i < rows.length; i++) {
+    const d = /^(\w{3,9}),\s*(\w{3,9})\s+(\d{1,2})\s*@\s*(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(rows[i]);
+    if (!d) continue;
+    const mon = MONTHS.indexOf(d[2].slice(0, 3).toLowerCase()) + 1;
+    if (!mon) continue;
+    let hour = Number(d[4]) % 12; if (/pm/i.test(d[6])) hour += 12;
+    const year = rsvpYearFor(mon, Number(d[3]), d[1]);
+    const p2 = n => String(n).padStart(2, '0');
+    out.start = year + '-' + p2(mon) + '-' + p2(Number(d[3])) + 'T' + p2(hour) + ':' + p2(Number(d[5]));
+    if (rows[i + 1]) out.venue = rows[i + 1].slice(0, 120);
+    break;
+  }
+  return out;
+}
 /* ---- the confirmed players on an RSVP page, the same way api.php reads them ---- */
 function parseRsvpNames(html) {
   const lower = html.toLowerCase();
@@ -203,6 +250,19 @@ async function handleApi(req, res, url, body) {
     case 'upload': case 'deletePhoto':
       // Photos are stored on the host; locally we just report an empty album so the page still works.
       return json(res, 200, { ok: true, photos: [] });
+
+    case 'rsvpLookup': {
+      if (!isAdmin) return needAdmin();
+      const url = String(body.url || '').trim();
+      if (!/^https:\/\//i.test(url)) return json(res, 400, { ok: false, error: 'Paste the full https link' });
+      if (!rsvpHostAllowed(url)) return json(res, 400, { ok: false, error: 'Only ' + RSVP_HOSTS.join(', ') + ' links can be read' });
+      try {
+        const r = await fetch(url, { headers: { 'User-Agent': 'KimchiJjigaePickleballClub/1.0 (+roster import, local dev)' } });
+        if (!r.ok) return json(res, 502, { ok: false, error: 'Could not reach that page' });
+        const html = await r.text();
+        return json(res, 200, { ok: true, ...parseRsvpEvent(html), ...parseRsvpNames(html) });
+      } catch (e) { return json(res, 502, { ok: false, error: 'Could not reach that page' }); }
+    }
 
     case 'rsvp': {
       if (!isAdmin) return needAdmin();
