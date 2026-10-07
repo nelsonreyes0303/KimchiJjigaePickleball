@@ -668,6 +668,23 @@ window.addEventListener("error",function(e){
   body.light .ge-winbtn.on{background:#fbeed0;color:#8a5a10}
   .ge-err{color:var(--danger);font-size:.78rem;min-height:1.2em;margin:12px 0 0}
   .ge-note{font-size:.76rem;color:var(--muted);margin:12px 0 0;line-height:1.45}
+  .ge-score{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
+  .ge-score .ge-lab{font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .ge-score input,.score-modal input{width:5.2rem;padding:11px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--txt);font-size:1.15rem;font-weight:800;font-family:inherit;outline:none;box-sizing:border-box;text-align:center;font-variant-numeric:tabular-nums}
+  .ge-score input:focus,.score-modal input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(242,165,173,.25)}
+  .ge-score .ge-dash{color:var(--muted);font-weight:800}
+  .ge-score .hint{margin:0;flex-basis:100%}
+  .score-modal .modalcard{max-width:440px}
+  .sc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .sc-team{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2)}
+  .sc-team.won{border-color:var(--win)}
+  .sc-hd{font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .sc-team.won .sc-hd{color:var(--win)}
+  .sc-names{font-size:.88rem;font-weight:700;line-height:1.35;min-height:2.7em}
+  .score-modal input{width:100%;font-size:1.5rem;padding:12px}
+  .glsc{font-size:.78rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--txt);padding:.1em .5em;border-radius:999px;background:var(--panel-2);border:1px solid var(--line)}
+  .glsc.none{font-weight:600;color:var(--muted);font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;opacity:.8}
+  body:not(.admin-on) .glsc.none{display:none}
   .sess-warn{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 15px;border-radius:12px;border:1px solid var(--win);background:rgba(244,197,66,.10);font-size:.85rem;line-height:1.45}
   .sess-warn b{color:var(--win)}
   body.light .sess-warn{background:#fbeed0}
@@ -945,6 +962,25 @@ window.addEventListener("error",function(e){
     <div class="modalfoot">
       <button class="btn-ghost btn-sm" data-upclose>Cancel</button>
       <button class="btn-accent btn-sm" id="upSave" style="margin-left:auto">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="scoreModal" class="modal score-modal hidden" role="dialog" aria-modal="true" aria-labelledby="scoreTitle">
+  <div class="modalcard">
+    <div class="modalhead"><b id="scoreTitle">Final score</b><button class="btn-ghost btn-sm" id="scoreClose">Close</button></div>
+    <div class="modalbody">
+      <div class="sc-grid">
+        <div class="sc-team won"><div class="sc-hd">🏆 Winners</div><div class="sc-names" id="scoreWinNames"></div><input id="scoreWin" type="number" inputmode="numeric" min="0" max="99" aria-label="Winners' points"></div>
+        <div class="sc-team"><div class="sc-hd">Losers</div><div class="sc-names" id="scoreLoseNames"></div><input id="scoreLose" type="number" inputmode="numeric" min="0" max="99" aria-label="Losers' points"></div>
+      </div>
+      <p class="ge-err" id="scoreErr"></p>
+      <p class="hint">Points as played, e.g. 11 – 7. Reclub and DUPR need them. If nobody kept score, save without one and add it later from the game log.</p>
+    </div>
+    <div class="modalfoot">
+      <button class="btn-ghost btn-sm" id="scoreCancel">Cancel</button>
+      <button class="btn-ghost btn-sm" id="scoreSkip">Save without score</button>
+      <button class="btn-accent btn-sm" id="scoreOk" style="margin-left:auto">Save score</button>
     </div>
   </div>
 </div>
@@ -1778,11 +1814,59 @@ function startCourt(c){
   state.manualSig=null;                          // arrangement consumed; remaining groups go back to level-legal
   c.seats=[g[0],g[1],g[2],g[3]]; c.started=Date.now(); commit();
 }
-function finishGame(c,winTeam){
+/* ---------- final score ----------
+   Reclub (and through it DUPR) wants both teams' points, not just who won. Tapping the winning team opens a
+   small score prompt: the winners' points default to the last total used tonight, the cursor sits on the losers'
+   box, Enter saves. "Save without score" keeps the old one-tap flow for nights nobody keeps score; the game log
+   then flags the game so the admin can fill the score in later from the fix-a-game dialog. */
+let scoreResolve=null, lastWinPts=11;
+function scoreText(g){ return (g && Number.isInteger(g.ws) && Number.isInteger(g.ls)) ? g.ws+"–"+g.ls : ""; }
+function parsePts(v){ const s=String(v==null?"":v).trim(); if(s==="") return null; return /^\d{1,2}$/.test(s) ? +s : NaN; }
+/* Both blank = no score. Returns {ws,ls}, null for no score, or a string saying what is wrong. */
+function checkScore(winV,loseV){
+  const ws=parsePts(winV), ls=parsePts(loseV);
+  if(ws===null && ls===null) return null;
+  if(ws===null || ls===null) return "Enter the points for both teams, or leave both blank.";
+  if(Number.isNaN(ws) || Number.isNaN(ls)) return "Points are whole numbers from 0 to 99.";
+  if(ws<=ls) return "The winning team needs more points than the losers.";
+  return {ws,ls};
+}
+function askScore(c,winTeam){
+  const s=c.seats, win=winTeam==="A"?[s[0],s[1]]:[s[2],s[3]], lose=winTeam==="A"?[s[2],s[3]]:[s[0],s[1]];
+  $("scoreWinNames").innerHTML=win.map(id=>esc(nm(id))).join("<br>");
+  $("scoreLoseNames").innerHTML=lose.map(id=>esc(nm(id))).join("<br>");
+  $("scoreWin").value=String(lastWinPts); $("scoreLose").value=""; $("scoreErr").textContent="";
+  $("scoreModal").classList.remove("hidden");
+  setTimeout(()=>{ $("scoreLose").focus(); },40);
+  return new Promise(res=>{ scoreResolve=res; });
+}
+/* how: "save" checks the boxes and resolves {ws,ls}; "skip" resolves "skip"; anything else resolves null (cancelled). */
+function closeScore(how){
+  if(how==="save"){
+    const r=checkScore($("scoreWin").value,$("scoreLose").value);
+    if(r===null){ $("scoreErr").textContent="Type the final score, or use “Save without score”."; return; }
+    if(typeof r==="string"){ $("scoreErr").textContent=r; return; }
+    lastWinPts=r.ws;
+    $("scoreModal").classList.add("hidden"); const f=scoreResolve; scoreResolve=null; if(f) f(r); return;
+  }
+  $("scoreModal").classList.add("hidden"); const f=scoreResolve; scoreResolve=null; if(f) f(how==="skip"?"skip":null);
+}
+async function pickWinner(courtId,winTeam){
+  const c=state.courts.find(x=>x.id===courtId);
+  if(!c || !c.seats.every(x=>x)) return;
+  if(!isAdmin()){ toast("Admin only — login to pick the winner"); return; }
+  const before=c.seats.join("|");
+  const r=await askScore(c,winTeam);
+  if(r===null) return;                                                  // cancelled: the game keeps running
+  const c2=state.courts.find(x=>x.id===courtId);                        // the live poll may have moved things meanwhile
+  if(!c2 || c2.seats.join("|")!==before){ toast("That court changed while the score was open — pick the winner again"); return; }
+  finishGame(c2, winTeam, r==="skip"?null:r);
+}
+function finishGame(c,winTeam,score){
   if(!isAdmin()){ toast("Admin only — login to pick the winner"); return; }
   if(!c) return;
   pushUndo();
-  audit("finishGame", cname(c)+" · won: "+[c.seats[winTeam==="A"?0:2],c.seats[winTeam==="A"?1:3]].map(nmsafe).join(" & ")+" · lost: "+[c.seats[winTeam==="A"?2:0],c.seats[winTeam==="A"?3:1]].map(nmsafe).join(" & "));
+  audit("finishGame", cname(c)+" · won: "+[c.seats[winTeam==="A"?0:2],c.seats[winTeam==="A"?1:3]].map(nmsafe).join(" & ")+" · lost: "+[c.seats[winTeam==="A"?2:0],c.seats[winTeam==="A"?3:1]].map(nmsafe).join(" & ")+(score?" · "+score.ws+"-"+score.ls:" · no score"));
   const s=c.seats;
   const winners = winTeam==='A' ? [s[0],s[1]] : [s[2],s[3]];
   const losers  = winTeam==='A' ? [s[2],s[3]] : [s[0],s[1]];
@@ -1793,7 +1877,8 @@ function finishGame(c,winTeam){
   const ran = c.started ? Date.now()-c.started : 0;
   (state.log=state.log||[]).push({ t:Date.now(), lvl:seatsLabel(c.seats),   // game-by-game record for history
     ms:(ran>0 && ran<24*3600e3) ? ran : 0,
-    w:winners.map(id=>({id,name:nm(id)})), l:losers.map(id=>({id,name:nm(id)})) });
+    w:winners.map(id=>({id,name:nm(id)})), l:losers.map(id=>({id,name:nm(id)})),
+    ...(score?{ws:score.ws,ls:score.ls}:{}) });                            // points as played; absent when nobody kept score
   const four=[...winners,...losers];
   const endedAt=Date.now();
   four.forEach(id=>{ const p=P(id); if(p) p.waitSince=endedAt; });   // playing is the only thing that restarts the wait clock
@@ -2357,12 +2442,13 @@ function renderSession(s,isLive){
   const rows=s.players.map((p,i)=>`<tr class="${podiumClass(places[i],p)}"><td class="rank">${medalOf(places[i],p)}</td><td class="lname">${esc(p.name)}</td>${showLvl?`<td>${p.level?lvlAbbr(p.level):'-'}</td>`:''}<td>${p.games}</td><td class="w">${p.wins}</td><td class="l">${p.losses}</td><td>${p.games?Math.round(p.wins/p.games*100):0}%</td></tr>`).join("");
   const glEdit = isLive ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint" style="padding:6px">No games recorded yet.</div>', glEdit);
+  const noScore=isAdmin()?log.filter(g=>!scoreText(g)).length:0;
   const bd=playerBreakdown(log);
   const pb=Object.values(bd).length? Object.values(bd).sort((a,b)=>b.games-a.games||a.name.localeCompare(b.name)).map(e=>`<div class="pb"><b>${esc(e.name)}</b> · ${e.games}g · ${e.wins}-${e.losses}<div class="hint">🤝 with: ${fmtCounts(e.partners)||'—'}</div><div class="hint">⚔️ vs: ${fmtCounts(e.opp)||'—'}</div></div>`).join("") : '<div class="hint" style="padding:6px">No games yet.</div>';
   const cols=showLvl?7:6;
   return `<details class="histitem"><summary>${isLive?'🟢':'🏓'} ${esc(s.name||fmtDate(s.endedAt))}<span class="meta">· ${isLive?'in progress':fmtDate(s.endedAt)} · ${s.games} games${s.endedAt&&s.startedAt?' · '+fmtDur(s.endedAt-s.startedAt):''}${champ?' · 🏆 '+champ:''}</span>${(!isLive&&isAdmin())?`<button class="histdel" data-delhist="${s.id}" title="Delete this saved session">✕</button>`:''}</summary>
     <div class="histinner">
-      <details class="sub" open><summary>🎾 Game log (${log.length}) — latest first</summary>${log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':''}<div class="glwrap">${gl}</div></details>
+      <details class="sub" open><summary>🎾 Game log (${log.length}) — latest first${noScore?' · '+noScore+' without a score':''}</summary>${log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':''}<div class="glwrap">${gl}</div></details>
       <details class="sub"><summary>🏆 Standings</summary><table class="lb"><thead><tr><th>#</th><th>Player</th>${showLvl?'<th>Lvl</th>':''}<th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th></tr></thead><tbody>${rows||'<tr><td colspan="'+cols+'" style="color:var(--muted)">No players</td></tr>'}</tbody></table></details>
       <details class="sub"><summary>👥 Per-player — partners &amp; opponents</summary><div class="pbwrap">${pb}</div></details>
       ${isLive?'':`<div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-sm" data-csv="${s.id}">⬇ Standings CSV</button>${isAdmin()?`<button class="btn-ghost btn-sm" data-delhist="${s.id}">Delete</button>`:''}</div>`}
@@ -2437,7 +2523,7 @@ function renderPlayerGames(pid,pname){
   const match=x=>x.id===pid||x.name===pname;
   const games=[];
   const scan=(log,label)=>{(log||[]).forEach(g=>{ const w=g.w.some(match), l=g.l.some(match); if(w||l){ const side=w?g.w:g.l, opp=w?g.l:g.w; const mate=side.find(x=>!match(x));
-    games.push({label,win:w,t:g.t,mate:mate?mate.name:'—',opp:opp.map(x=>x.name).join(" & "),oppArr:opp.map(x=>x.name),lvl:g.lvl}); } });};
+    games.push({label,win:w,t:g.t,mate:mate?mate.name:'—',opp:opp.map(x=>x.name).join(" & "),oppArr:opp.map(x=>x.name),lvl:g.lvl,sc:scoreText(g)}); } });};
   scan(state.log,"");                       // this open play only — past sessions live in 🕘 History
   if(!games.length) return '<div class="qempty">No games yet for this player in this open play.</div>';
   const wins=games.filter(x=>x.win).length;
@@ -2448,7 +2534,7 @@ function renderPlayerGames(pid,pname){
   const wr=(list)=>{const n=list.length,w=list.filter(x=>x.win).length;return n?Math.round(w/n*100)+'%':'—';};
   return `<div class="hint" style="margin-bottom:8px;font-size:.85rem">${games.length} games · <b style="color:var(--int)">${wins}W</b> - <b style="color:var(--danger)">${games.length-wins}L</b> · ${Math.round(wins/games.length*100)}% win</div>`
     + `<div class="pgsum"><div><b>🤝 Most played with</b><div class="hint">${mates}</div></div><div><b>⚔️ Most played against</b><div class="hint">${foes}</div></div></div>`
-    + games.slice().reverse().map(x=>`<div class="pg"><span class="pgres ${x.win?'w':'l'}">${x.win?'W':'L'}</span><span class="pgm">🤝 <b>${esc(x.mate)}</b> &nbsp;⚔️ ${esc(x.opp)}</span><span class="pgmeta">${esc(x.lvl)}${x.t?'<br>'+fmtTime(x.t):''}</span></div>`).join("");
+    + games.slice().reverse().map(x=>`<div class="pg"><span class="pgres ${x.win?'w':'l'}">${x.win?'W':'L'}</span><span class="pgm">🤝 <b>${esc(x.mate)}</b> &nbsp;⚔️ ${esc(x.opp)}</span><span class="pgmeta">${x.sc?'<b>'+x.sc+'</b>'+(x.lvl?' · ':''):''}${esc(x.lvl)}${x.t?'<br>'+fmtTime(x.t):''}</span></div>`).join("");
 }
 function renderHistory(){
   const el=$("histBody"); if(!el) return;
@@ -2599,6 +2685,7 @@ async function renderSessionPage(id){
   const emptyStand='<tr><td colspan="'+(showLvl?7:6)+'" style="color:var(--muted)">'+(live?"No games finished yet — standings appear as games end.":"No players")+'</td></tr>';
   const glEdit = live ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint">'+(live?"No games finished yet.":"No games recorded.")+'</div>', glEdit);
+  const noScore=isAdmin()?log.filter(g=>!scoreText(g)).length:0;          // games Reclub cannot take yet
   let photoHtml="", photoN=0;
   const sd=new Date(s.endedAt||s.startedAt||Date.now());
   const dlBase="kimchi-jjigae-"+sd.getFullYear()+"-"+String(sd.getMonth()+1).padStart(2,"0")+"-"+String(sd.getDate()).padStart(2,"0")+"-";
@@ -2628,7 +2715,7 @@ async function renderSessionPage(id){
       photoBlock+
       '<details class="sess-block sess-fold" open><summary>🏆 Standings<span class="foldcount">'+((s.players||[]).length)+' player'+(((s.players||[]).length)===1?'':'s')+'</span><span class="foldarrow">▾</span></summary>'+
         '<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Player</th>'+(showLvl?'<th>Lvl</th>':'')+'<th>G</th><th>W</th><th>L</th><th>%</th></tr></thead><tbody>'+(rows||emptyStand)+'</tbody></table></div></details>'+
-      '<div class="sess-block" style="grid-column:1/-1"><h3>🎾 Game log</h3>'+(log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':'')+'<div class="glwrap">'+gl+'</div>'+((!live&&isAdmin())?'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-csv="'+s.id+'">⬇ Standings CSV</button></div>':'')+'</div>'+
+      '<div class="sess-block" style="grid-column:1/-1"><h3>🎾 Game log'+(noScore?' <span class="foldcount">'+noScore+' without a score</span>':'')+'</h3>'+(log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':'')+'<div class="glwrap">'+gl+'</div>'+((!live&&isAdmin())?'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-csv="'+s.id+'">⬇ Standings CSV</button></div>':'')+'</div>'+
     '</div>';
 }
 async function loginAsAdmin(){
@@ -2873,7 +2960,8 @@ async function openGameEdit(sid,i){
   if(!ctx){ toast("That open play is gone"); return; }
   const g=ctx.log[i]; if(!g){ toast("That game is no longer in the log"); return; }
   geCtx=ctx; geIdx=i;
-  geDraft={ a:g.w.map(x=>({id:x.id,name:geLabel(x)})), b:g.l.map(x=>({id:x.id,name:geLabel(x)})), win:"A" };
+  geDraft={ a:g.w.map(x=>({id:x.id,name:geLabel(x)})), b:g.l.map(x=>({id:x.id,name:geLabel(x)})), win:"A",
+            sa:scoreText(g)?String(g.ws):"", sb:scoreText(g)?String(g.ls):"" };       // score boxes are Team A – Team B
   renderGameEdit(); geValidate();
   $("gameModal").classList.remove("hidden");
 }
@@ -2945,10 +3033,14 @@ function renderGameEdit(){
   const g=geCtx&&geCtx.log[geIdx]; if(!g||!geDraft) return;
   $("gameEditTitle").textContent="Game #"+(geIdx+1);
   $("gameEditBody").innerHTML=
-    '<p class="hint" style="margin:0 0 14px">Recorded '+(g.t?fmtTime(g.t):"earlier")+'. Pick the team that actually won, or swap a player who ended up on the wrong side.</p>'
+    '<p class="hint" style="margin:0 0 14px">Recorded '+(g.t?fmtTime(g.t):"earlier")+'. Pick the team that actually won, swap a player who ended up on the wrong side, or fix the score.</p>'
     + geTeam("a","Team A") + '<div class="ge-vs">VS</div>' + geTeam("b","Team B")
     + '<div class="ge-winrow"><button type="button" class="ge-winbtn '+(geDraft.win==="A"?"on":"")+'" data-gewin="A">🏆 Team A won</button>'
     + '<button type="button" class="ge-winbtn '+(geDraft.win==="B"?"on":"")+'" data-gewin="B">🏆 Team B won</button></div>'
+    + '<div class="ge-score"><span class="ge-lab">Score</span>'
+    + '<input data-gescore="a" type="number" inputmode="numeric" min="0" max="99" value="'+esc(geDraft.sa)+'" aria-label="Team A points"><span class="ge-dash">–</span>'
+    + '<input data-gescore="b" type="number" inputmode="numeric" min="0" max="99" value="'+esc(geDraft.sb)+'" aria-label="Team B points">'
+    + '<span class="hint">Team A – Team B, points as played. Leave both blank if nobody kept score.</span></div>'
     + '<p class="ge-err" id="geErr"></p>'
     + '<p class="ge-note">'+(geCtx&&geCtx.saved
         ? 'Saving rebuilds this session\'s standings from its game log, so the two always agree.'
@@ -2958,9 +3050,16 @@ function geValidate(){
   if(!geDraft) return false;
   const ids=[...geDraft.a,...geDraft.b].map(x=>x.id);
   const dupe=new Set(ids).size!==4;
-  const e=$("geErr"); if(e) e.textContent = dupe ? "Each player can only appear once in a game." : "";
-  const b=$("gameEditSave"); if(b){ b.disabled=dupe; b.style.opacity=dupe?".5":"1"; }
-  return !dupe;
+  const sc=geScore();
+  const msg = dupe ? "Each player can only appear once in a game." : (typeof sc==="string" ? sc : "");
+  const e=$("geErr"); if(e) e.textContent=msg;
+  const b=$("gameEditSave"); if(b){ b.disabled=!!msg; b.style.opacity=msg?".5":"1"; }
+  return !msg;
+}
+/* The score boxes are Team A – Team B; the chosen winner decides which one is the winners' total. */
+function geScore(){
+  const win=geDraft.win==="A";
+  return checkScore(win?geDraft.sa:geDraft.sb, win?geDraft.sb:geDraft.sa);
 }
 function saveGameEdit(){
   if(!isAdmin()){ toast("Admin only"); closeGameEdit(); return; }
@@ -2969,7 +3068,8 @@ function saveGameEdit(){
   if(!geValidate()) return;
   const newW=(geDraft.win==="A"?geDraft.a:geDraft.b).slice();
   const newL=(geDraft.win==="A"?geDraft.b:geDraft.a).slice();
-  const before=g.w.map(geLabel).join(" & ")+" def. "+g.l.map(geLabel).join(" & ");
+  const sc=geScore(); if(typeof sc==="string") return;
+  const before=g.w.map(geLabel).join(" & ")+" def. "+g.l.map(geLabel).join(" & ")+(scoreText(g)?" "+scoreText(g):"");
   pushUndo(ctx.saved);
   if(!ctx.saved){
     // take the old result back off everyone's record, then apply the corrected one
@@ -2980,10 +3080,11 @@ function saveGameEdit(){
   }
   g.w=newW.map(x=>({id:x.id,name:geLabel(x)}));
   g.l=newL.map(x=>({id:x.id,name:geLabel(x)}));
+  if(sc){ g.ws=sc.ws; g.ls=sc.ls; } else { delete g.ws; delete g.ls; }
   const lv=geLvl([...g.w,...g.l]); if(lv) g.lvl=lv;
   const n=geIdx+1, saved=ctx.saved, sess=ctx.s;
   if(saved) rebuildSessionStandings(sess);
-  audit("editGame",(saved?(sess.name||String(sess.id))+" ":"")+"#"+n+": "+before+"  ->  "+g.w.map(x=>x.name).join(" & ")+" def. "+g.l.map(x=>x.name).join(" & "));
+  audit("editGame",(saved?(sess.name||String(sess.id))+" ":"")+"#"+n+": "+before+"  ->  "+g.w.map(x=>x.name).join(" & ")+" def. "+g.l.map(x=>x.name).join(" & ")+(scoreText(g)?" "+scoreText(g):""));
   closeGameEdit();
   if(saved){ save(); refreshHistoryViews(); }
   else commit();
@@ -3001,7 +3102,9 @@ function glRow(g,i,editable){
     +'</span>';
   return '<div class="gl" data-names="'+esc(names)+'">'
     +'<span class="gln">'+(i+1)+'</span>'
-    +'<div class="glmatch">'+glPair("win",g.w)+'<span class="gld">def.</span>'+glPair("lose",g.l)+'</div>'
+    +'<div class="glmatch">'+glPair("win",g.w)+'<span class="gld">def.</span>'+glPair("lose",g.l)
+    +(scoreText(g)?'<span class="glsc" title="Final score">'+scoreText(g)+'</span>'
+                  :(editable?'<span class="glsc none" title="No score recorded — use ✎ to add it">no score</span>':''))+'</div>'
     +meta
     +(editable&&isAdmin()?'<button class="gledit admin-only" data-editgame="'+i+'" data-editsess="'+esc(editable)+'" title="Fix this game — change the winner or swap a player">✎</button>':'')
     +'</div>';
@@ -3033,7 +3136,8 @@ function filterLogRows(input){
 }
 function renderLiveLog(){
   const log=state.log||[], el=$("liveLog"); if(!el) return;
-  const lc=$("logCount"); if(lc) lc.textContent=log.length+" game"+(log.length===1?"":"s");
+  const lc=$("logCount"); if(lc){ const ns=log.filter(g=>!scoreText(g)).length;
+    lc.textContent=log.length+" game"+(log.length===1?"":"s")+(ns&&isAdmin()?" · "+ns+" without a score":""); }
   el.innerHTML = glList(log, '<div class="qempty">No games finished yet — finished games show up here as you play.</div>', canEditLog()?"live":"");
   const ls=$("logSearch"); if(ls) filterLogRows(ls);          // keep the player filter applied across re-renders
 }
@@ -3207,11 +3311,21 @@ $("askCancel").addEventListener("click",()=>closeAsk(false));
 $("askOk").addEventListener("click",()=>closeAsk(true));
 $("askInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); closeAsk(true); } else if(e.key==="Escape"){ closeAsk(false); } });
 $("askModal").addEventListener("click",e=>{ if(e.target===$("askModal")) closeAsk(false); });
+$("scoreClose").addEventListener("click",()=>closeScore(null));
+$("scoreCancel").addEventListener("click",()=>closeScore(null));
+$("scoreSkip").addEventListener("click",()=>closeScore("skip"));
+$("scoreOk").addEventListener("click",()=>closeScore("save"));
+["scoreWin","scoreLose"].forEach(id=>{
+  $(id).addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); closeScore("save"); } else if(e.key==="Escape"){ closeScore(null); } });
+  $(id).addEventListener("input",()=>{ $("scoreErr").textContent=""; });
+});
+$("scoreModal").addEventListener("click",e=>{ if(e.target===$("scoreModal")) closeScore(null); });
 $("gameEditClose").addEventListener("click",()=>closeGameEdit());
 $("gameEditCancel").addEventListener("click",()=>closeGameEdit());
 $("gameEditSave").addEventListener("click",()=>saveGameEdit());
 $("gameModal").addEventListener("click",e=>{ if(e.target===$("gameModal")) closeGameEdit(); });
 $("gameEditBody").addEventListener("click",e=>{ const w=e.target.closest("[data-gewin]"); if(w&&geDraft){ geDraft.win=w.dataset.gewin; renderGameEdit(); geValidate(); } });
+$("gameEditBody").addEventListener("input",e=>{ const s=e.target.closest("[data-gescore]"); if(!s||!geDraft) return; geDraft["s"+s.dataset.gescore]=s.value; geValidate(); });
 $("gameEditBody").addEventListener("change",e=>{
   const sl=e.target.closest("[data-geslot]"); if(!sl||!geDraft) return;
   const key=sl.dataset.geslot[0], n=+sl.dataset.geslot[1], id=sl.value;
@@ -3298,7 +3412,7 @@ document.body.addEventListener("click",e=>{
   else if(t.dataset.del){removePlayer(t.dataset.del);}
   else if(t.dataset.start){startCourt(state.courts.find(c=>c.id===t.dataset.start));}
   else if(t.dataset.startmix){startMixedGame(state.courts.find(c=>c.id===t.dataset.startmix));}
-  else if(t.dataset.win){const[id,team]=t.dataset.win.split(":");finishGame(state.courts.find(c=>c.id===id),team);}
+  else if(t.dataset.win){const[id,team]=t.dataset.win.split(":");pickWinner(id,team);}
   else if(t.dataset.clear){clearCourt(state.courts.find(c=>c.id===t.dataset.clear));}
   else if(t.dataset.rmcourt){removeCourt(t.dataset.rmcourt);}
   else if(t.dataset.again){toggleAgain(state.courts.find(c=>c.id===t.dataset.again));}
