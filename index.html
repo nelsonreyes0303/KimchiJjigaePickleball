@@ -993,7 +993,7 @@ window.addEventListener("error",function(e){
 const KEY="pb_queue_v4";
 let state=migrate(load())||fresh();
 /* ---------- admin PIN + photos ---------- */
-const APP_BUILD="2026-10-06d";                              // hover the header logo to check which copy the browser loaded
+const APP_BUILD="2026-10-07a";                              // hover the header logo to check which copy the browser loaded
 const PIN_KEY="pb_admin_pin_v1";
 const ADMIN_OK="pb_admin_ok";
 let pinMode="unlock";
@@ -1424,7 +1424,10 @@ function chip(id){const p=P(id);if(!showCats())return"";const p2=P(id);if(!p2||!
    freeze the whole queue and make the same four replay each other. */
 function pinnedGroups(){ return Math.max(0, (state.courts||[]).length - 1); }
 function keepFront(){ return pinnedGroups()*4; }
-function enqueue(id){ if(P(id)&&!state.queue.includes(id)) P(id).waitSince=Date.now(); state.queue=state.queue.filter(x=>x!==id); state.queue.push(id); }
+/* The wait clock measures time since a player's last game, so only finishing one restarts it. Joining the
+   queue just starts it the first time; being benched and brought back, or having a game cancelled, leaves
+   it running, because none of that gave them a game. */
+function enqueue(id){ const p=P(id); if(p&&!p.waitSince) p.waitSince=Date.now(); state.queue=state.queue.filter(x=>x!==id); state.queue.push(id); }
 function dequeueId(id){ state.queue=state.queue.filter(x=>x!==id); }
 function orderedQueue(){ return state.queue.slice(); }  // the queue array IS the order — only manual actions / start / finish change it
 /* Put locked players back in the exact slots they held, so a 🔒 holds a spot and not just a foursome. */
@@ -1792,6 +1795,8 @@ function finishGame(c,winTeam){
     ms:(ran>0 && ran<24*3600e3) ? ran : 0,
     w:winners.map(id=>({id,name:nm(id)})), l:losers.map(id=>({id,name:nm(id)})) });
   const four=[...winners,...losers];
+  const endedAt=Date.now();
+  four.forEach(id=>{ const p=P(id); if(p) p.waitSince=endedAt; });   // playing is the only thing that restarts the wait clock
   // A finished game disbands the group it played as, but not a set-up group that is still waiting for
   // someone: the player who just came off is the one it was waiting for.
   four.forEach(id=>{
