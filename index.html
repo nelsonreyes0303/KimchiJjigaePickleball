@@ -1010,7 +1010,7 @@ window.addEventListener("error",function(e){
   <div class="modalcard">
     <div class="modalhead"><b>🎯 Set up a game</b><button class="btn-ghost btn-sm" id="setupClose">Close</button></div>
     <div class="modalbody">
-      <div class="hint" style="margin-bottom:10px">Pick any 4 players — they'll be queued together as one game. Tier rules are ignored for a game you set up yourself.</div>
+      <div class="hint" style="margin-bottom:10px">Pick any 4 players — they'll be queued together as one game. Tier rules are ignored for a game you set up yourself. The group waits its turn: it goes in line where its most-played member would, not to the front.</div>
       <input id="setupSearch" class="rsearch" placeholder="🔍 Search players…" autocomplete="off">
       <div id="setupPicks" class="spicks"></div>
       <div id="setupList" class="slist"></div>
@@ -2523,6 +2523,20 @@ function setupToggle(id){
   else { if(setupPick.length>=4){ toast("Already have 4 — remove one first"); return; } setupPick.push(id); }
   renderSetup();
 }
+/* Where a set-up foursome goes in the line. Setting a game up is a favour to the four, not a ticket to the
+   front: the group waits where its most-played member would wait, behind everyone with that many games or
+   fewer (people already in line on the same count have been waiting longer) and in front of the first
+   player with more. It never lands inside the held groups at the front or splits a locked run of four. */
+function fairSlotFor(ids){
+  const q=state.queue, lset=new Set(state.qlocked||[]);
+  const most=Math.max.apply(null, ids.map(id=>effGames(id)+(onCourt(id)?1:0)));   // a member still playing is about to have one more
+  let at=q.length;
+  for(let i=Math.min(keepFront(),q.length); i<q.length; i++){
+    if(i>0 && lset.has(q[i-1]) && lset.has(q[i])) continue;      // inside a locked run — never split it
+    if(effGames(q[i])>most){ at=i; break; }
+  }
+  return at;
+}
 function confirmSetup(){
   if(setupPick.length!==4){ toast("Pick exactly 4 players"); return; }
   pushUndo();
@@ -2534,16 +2548,17 @@ function confirmSetup(){
   // are free get a queue slot now, and that slot is held until the whole four is together.
   const waiting=four.filter(id=>!onCourt(id)), playing=four.filter(id=>onCourt(id));
   state.queue=state.queue.filter(id=>!waiting.includes(id));
-  const at=Math.min(keepFront(), state.queue.length);            // slot them right after the pinned groups
+  const at=fairSlotFor(four);                                    // their fair place in line, not the front
   state.queue.splice(at,0,...waiting);
   state.qlocked=(state.qlocked||[]).filter(id=>!four.includes(id)).concat(waiting);
   state.manualSig=null;
   clearFrontPin();            // the held groups were worked out before this one existed; re-derive them
   audit("setUpGame", four.map(nmsafe).join(", ")+" -> slot "+at+(playing.length?" · waiting for "+playing.map(nmsafe).join(", "):""));
   closeSetup(); commit();
+  const gi=playing.length ? -1 : queueGroups().groups.findIndex(g=>g.includes(waiting[0]));
   toast(playing.length
     ? "Game set — waiting for "+playing.map(nm).join(" & ")+" to finish: "+four.map(nm).join(", ")
-    : "Game set: "+four.map(nm).join(", "));
+    : "Game set: "+four.map(nm).join(", ")+(gi===0?" · up next":gi>0?" · up as Group "+(gi+1):""));
 }
 function openPlayerHistory(id){ const p=P(id); if(!p)return; $("playerTitle").textContent="📊 "+p.name+" — this open play"; $("playerBody").innerHTML=renderPlayerGames(id,p.name); $("playerModal").classList.remove("hidden"); }
 function closePlayer(){ $("playerModal").classList.add("hidden"); }
