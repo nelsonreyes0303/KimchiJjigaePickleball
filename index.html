@@ -293,6 +293,7 @@ window.addEventListener("error",function(e){
   .lb td.rank{text-align:left;font-weight:800;width:52px;font-size:1rem}
   .lb td.lname{text-align:left;font-weight:700}
   .lb td.w{color:var(--int);font-weight:800} .lb td.l{color:var(--danger)}
+  .lb td.pd{font-variant-numeric:tabular-nums;font-weight:700;color:var(--muted)} .lb td.pd.up{color:var(--int)} .lb td.pd.dn{color:var(--danger)}
   .lb tr.top td{background:linear-gradient(90deg,rgba(251,191,36,.08),transparent)}
   /* podium: gold, silver, bronze */
   .lb tr.p1 td{background:linear-gradient(90deg,rgba(245,179,1,.20),rgba(245,179,1,.04))}
@@ -1960,10 +1961,35 @@ function resetSession(){
 function fmtDur(ms){ const m=Math.max(0,Math.round(ms/60000)); return m<60 ? m+" min" : Math.floor(m/60)+"h "+(m%60)+"m"; }
 function fmtDate(t){ return new Date(t).toLocaleString([], {month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}); }
 function fmtTime(t){ return new Date(t).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}); }
+/* ---------- points ----------
+   Points for and against come from the scored games in a log; a game without a score adds nothing. The
+   differential breaks ties between players with the same record, so two 5-2 players no longer share a medal
+   when one won by 11-3s and the other by 11-9s. The live board keys by player id; a saved night keys by name,
+   which is all its log reliably carries. */
+function pointsBy(log, byName){
+  const m={}; const get=k=>(m[k]=m[k]||{pf:0,pa:0,scored:0});
+  (log||[]).forEach(g=>{ if(!scoreText(g)) return;
+    g.w.forEach(x=>{ const e=get(byName?x.name:x.id); e.pf+=g.ws; e.pa+=g.ls; e.scored++; });
+    g.l.forEach(x=>{ const e=get(byName?x.name:x.id); e.pf+=g.ls; e.pa+=g.ws; e.scored++; }); });
+  return m;
+}
+const NOPTS={pf:0,pa:0,scored:0};
+function addPoints(p,e){ e=e||NOPTS; return Object.assign({},p,{pf:e.pf,pa:e.pa,diff:e.pf-e.pa,scored:e.scored}); }
+/* Copies of the players with points filled in from the log. No log (the live card) keeps whatever they already carry. */
+function withPoints(players, log, byName){
+  if(!Array.isArray(log)) return (players||[]).map(p=>Object.assign({pf:0,pa:0,diff:0,scored:0},p));
+  const m=pointsBy(log, byName);
+  return (players||[]).map(p=>addPoints(p, m[byName?p.name:p.id]));
+}
+function diffText(p){ if(!p||!p.scored) return "—"; const d=p.diff||0; return d>0?"+"+d:(d<0?"−"+(-d):"0"); }
+function diffCell(p){ const d=p&&p.scored?(p.diff||0):0; return '<td class="pd '+(d>0?"up":(d<0?"dn":""))+'" title="Points for minus points against">'+diffText(p)+'</td>'; }
+/* Standings order: wins, win rate, points differential, games played, name. */
+function cmpStand(a,b){ return b.wins-a.wins || (b.games?b.wins/b.games:0)-(a.games?a.wins/a.games:0) || (b.diff||0)-(a.diff||0) || b.games-a.games || a.name.localeCompare(b.name); }
 function standings(){
+  const pts=pointsBy(state.log,false);
   return Object.values(state.players).filter(p=>p.games>0)
-    .map(p=>({name:p.name,level:p.level,games:p.games,wins:p.wins,losses:p.losses}))
-    .sort((a,b)=> b.wins-a.wins || (b.games?b.wins/b.games:0)-(a.games?a.wins/a.games:0) || b.games-a.games || a.name.localeCompare(b.name));
+    .map(p=>addPoints({name:p.name,level:p.level,games:p.games,wins:p.wins,losses:p.losses}, pts[p.id]))
+    .sort(cmpStand);
 }
 function showLanding(){
   document.title="Kimchi Jjigae Pickleball Club";
@@ -2096,8 +2122,8 @@ async function deleteHistory(id){
 function csvq(s){ s=String(s); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
 function exportSession(id){
   const s=state.history.find(h=>String(h.id)===String(id)); if(!s)return;
-  let csv="Rank,Player,Level,Games,Wins,Losses,Win %\n";
-  s.players.forEach((p,i)=>{ csv+=[i+1,csvq(p.name),p.level||"",p.games,p.wins,p.losses,(p.games?Math.round(p.wins/p.games*100):0)+"%"].join(",")+"\n"; });
+  let csv="Rank,Player,Level,Games,Wins,Losses,Win %,Points for,Points against,Points +/-\n";
+  withPoints(s.players, s.log||[], true).forEach((p,i)=>{ csv+=[i+1,csvq(p.name),p.level||"",p.games,p.wins,p.losses,(p.games?Math.round(p.wins/p.games*100):0)+"%",p.scored?p.pf:"",p.scored?p.pa:"",p.scored?p.diff:""].join(",")+"\n"; });
   const blob=new Blob([csv],{type:"text/csv"}), url=URL.createObjectURL(blob), a=document.createElement("a");
   a.href=url; a.download="kimchi-jjigae-pickleball-openplay-"+new Date(s.endedAt).toISOString().slice(0,10)+".csv"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
@@ -2406,7 +2432,7 @@ document.addEventListener("keydown",e=>{ if($("upModal")&&!$("upModal").classLis
    Two firsts means two golds and no silver, exactly as a podium works. Sorting decides the row order, but it
    falls back to the name once wins and games match, and a name is no reason to hand someone the better medal.
    Players who have not played yet are never tied — they keep their own position at the bottom of the list. */
-function tiedRecord(a,b){ return !!(a&&b&&a.games>0&&b.games>0&&a.wins===b.wins&&a.games===b.games); }
+function tiedRecord(a,b){ return !!(a&&b&&a.games>0&&b.games>0&&a.wins===b.wins&&a.games===b.games&&(a.diff||0)===(b.diff||0)); }
 /* Two numbers per row. rank is the place, which skips the ones a tie used up: 1, 1, 3, 3, 5. tier counts
    distinct records instead, so the three medals always land on the best three records however many players
    share them — gold, gold, silver, silver, bronze. Players who have not played sit outside both. */
@@ -2437,19 +2463,21 @@ function playerBreakdown(log){
 }
 function fmtCounts(obj){ return Object.entries(obj).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([n,c])=>esc(n)+(c>1?' ×'+c:'')).join(", "); }
 function renderSession(s,isLive){
-  const champ=champLabel(s.players), log=s.log||[], showLvl=isAdmin();
-  const places=placeList(s.players);
-  const rows=s.players.map((p,i)=>`<tr class="${podiumClass(places[i],p)}"><td class="rank">${medalOf(places[i],p)}</td><td class="lname">${esc(p.name)}</td>${showLvl?`<td>${p.level?lvlAbbr(p.level):'-'}</td>`:''}<td>${p.games}</td><td class="w">${p.wins}</td><td class="l">${p.losses}</td><td>${p.games?Math.round(p.wins/p.games*100):0}%</td></tr>`).join("");
+  const log=s.log||[], showLvl=isAdmin();
+  const players=withPoints(s.players, isLive?null:log, true);          // the live card already carries its points
+  const champ=champLabel(players);
+  const places=placeList(players);
+  const rows=players.map((p,i)=>`<tr class="${podiumClass(places[i],p)}"><td class="rank">${medalOf(places[i],p)}</td><td class="lname">${esc(p.name)}</td>${showLvl?`<td>${p.level?lvlAbbr(p.level):'-'}</td>`:''}<td>${p.games}</td><td class="w">${p.wins}</td><td class="l">${p.losses}</td><td>${p.games?Math.round(p.wins/p.games*100):0}%</td>${diffCell(p)}</tr>`).join("");
   const glEdit = isLive ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint" style="padding:6px">No games recorded yet.</div>', glEdit);
   const noScore=isAdmin()?log.filter(g=>!scoreText(g)).length:0;
   const bd=playerBreakdown(log);
   const pb=Object.values(bd).length? Object.values(bd).sort((a,b)=>b.games-a.games||a.name.localeCompare(b.name)).map(e=>`<div class="pb"><b>${esc(e.name)}</b> · ${e.games}g · ${e.wins}-${e.losses}<div class="hint">🤝 with: ${fmtCounts(e.partners)||'—'}</div><div class="hint">⚔️ vs: ${fmtCounts(e.opp)||'—'}</div></div>`).join("") : '<div class="hint" style="padding:6px">No games yet.</div>';
-  const cols=showLvl?7:6;
+  const cols=showLvl?8:7;
   return `<details class="histitem"><summary>${isLive?'🟢':'🏓'} ${esc(s.name||fmtDate(s.endedAt))}<span class="meta">· ${isLive?'in progress':fmtDate(s.endedAt)} · ${s.games} games${s.endedAt&&s.startedAt?' · '+fmtDur(s.endedAt-s.startedAt):''}${champ?' · 🏆 '+champ:''}</span>${(!isLive&&isAdmin())?`<button class="histdel" data-delhist="${s.id}" title="Delete this saved session">✕</button>`:''}</summary>
     <div class="histinner">
       <details class="sub" open><summary>🎾 Game log (${log.length}) — latest first${noScore?' · '+noScore+' without a score':''}</summary>${log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':''}<div class="glwrap">${gl}</div></details>
-      <details class="sub"><summary>🏆 Standings</summary><table class="lb"><thead><tr><th>#</th><th>Player</th>${showLvl?'<th>Lvl</th>':''}<th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th></tr></thead><tbody>${rows||'<tr><td colspan="'+cols+'" style="color:var(--muted)">No players</td></tr>'}</tbody></table></details>
+      <details class="sub"><summary>🏆 Standings</summary><table class="lb"><thead><tr><th>#</th><th>Player</th>${showLvl?'<th>Lvl</th>':''}<th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th><th title="Points for minus points against">+/−</th></tr></thead><tbody>${rows||'<tr><td colspan="'+cols+'" style="color:var(--muted)">No players</td></tr>'}</tbody></table></details>
       <details class="sub"><summary>👥 Per-player — partners &amp; opponents</summary><div class="pbwrap">${pb}</div></details>
       ${isLive?'':`<div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-sm" data-csv="${s.id}">⬇ Standings CSV</button>${isAdmin()?`<button class="btn-ghost btn-sm" data-delhist="${s.id}">Delete</button>`:''}</div>`}
     </div></details>`;
@@ -2676,13 +2704,14 @@ async function renderSessionPage(id){
   document.title="Kimchi Jjigae · "+(s.name||fmtDate(s.endedAt));
   const del=$("sessDelete"); if(del){ del.dataset.delhist=live?"":String(s.id); del.hidden=!!live; del.style.display=live?"none":""; }
   const cont=$("sessContinue"); if(cont) cont.hidden=!(live&&isAdmin());   // visitors watch; only admins continue
-  const champ=champLabel(s.players);
+  const players=withPoints(s.players, live?null:(s.log||[]), true);     // live standings already carry their points
+  const champ=champLabel(players);
   const log=s.log||[];
   const showLvl=isAdmin();
   const abbr=typeof lvlAbbr==="function"?lvlAbbr:(x=>x||"-");
-  const places=placeList(s.players);
-  const rows=(s.players||[]).map((p,i)=>'<tr class="'+podiumClass(places[i],p)+'"><td class="rank">'+medalOf(places[i],p)+'</td><td class="lname">'+esc(p.name)+'</td>'+(showLvl?'<td>'+(p.level?abbr(p.level):'-')+'</td>':'')+'<td>'+p.games+'</td><td class="w">'+p.wins+'</td><td class="l">'+p.losses+'</td><td>'+(p.games?Math.round(p.wins/p.games*100):0)+'%</td></tr>').join("");
-  const emptyStand='<tr><td colspan="'+(showLvl?7:6)+'" style="color:var(--muted)">'+(live?"No games finished yet — standings appear as games end.":"No players")+'</td></tr>';
+  const places=placeList(players);
+  const rows=players.map((p,i)=>'<tr class="'+podiumClass(places[i],p)+'"><td class="rank">'+medalOf(places[i],p)+'</td><td class="lname">'+esc(p.name)+'</td>'+(showLvl?'<td>'+(p.level?abbr(p.level):'-')+'</td>':'')+'<td>'+p.games+'</td><td class="w">'+p.wins+'</td><td class="l">'+p.losses+'</td><td>'+(p.games?Math.round(p.wins/p.games*100):0)+'%</td>'+diffCell(p)+'</tr>').join("");
+  const emptyStand='<tr><td colspan="'+(showLvl?8:7)+'" style="color:var(--muted)">'+(live?"No games finished yet — standings appear as games end.":"No players")+'</td></tr>';
   const glEdit = live ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint">'+(live?"No games finished yet.":"No games recorded.")+'</div>', glEdit);
   const noScore=isAdmin()?log.filter(g=>!scoreText(g)).length:0;          // games Reclub cannot take yet
@@ -2714,7 +2743,7 @@ async function renderSessionPage(id){
         : '')+
       photoBlock+
       '<details class="sess-block sess-fold" open><summary>🏆 Standings<span class="foldcount">'+((s.players||[]).length)+' player'+(((s.players||[]).length)===1?'':'s')+'</span><span class="foldarrow">▾</span></summary>'+
-        '<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Player</th>'+(showLvl?'<th>Lvl</th>':'')+'<th>G</th><th>W</th><th>L</th><th>%</th></tr></thead><tbody>'+(rows||emptyStand)+'</tbody></table></div></details>'+
+        '<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Player</th>'+(showLvl?'<th>Lvl</th>':'')+'<th>G</th><th>W</th><th>L</th><th>%</th><th title="Points for minus points against">+/−</th></tr></thead><tbody>'+(rows||emptyStand)+'</tbody></table></div></details>'+
       '<div class="sess-block" style="grid-column:1/-1"><h3>🎾 Game log'+(noScore?' <span class="foldcount">'+noScore+' without a score</span>':'')+'</h3>'+(log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':'')+'<div class="glwrap">'+gl+'</div>'+((!live&&isAdmin())?'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-csv="'+s.id+'">⬇ Standings CSV</button></div>':'')+'</div>'+
     '</div>';
 }
@@ -2985,7 +3014,8 @@ function rebuildSessionStandings(sess){
     g.w.forEach(x=>{ const e=ent(x.name); e.games++; e.wins++; });
     g.l.forEach(x=>{ const e=ent(x.name); e.games++; e.losses++; });
   });
-  sess.players=Object.values(m).sort((a,b)=> b.wins-a.wins || (b.games?b.wins/b.games:0)-(a.games?a.wins/a.games:0) || b.games-a.games || a.name.localeCompare(b.name));
+  const pts=pointsBy(sess.log,true);
+  sess.players=Object.values(m).map(p=>addPoints(p, pts[p.name])).sort(cmpStand);
 }
 /* How many players' saved records disagree with that session's own game log. */
 function sessionMismatch(sess){
@@ -3145,14 +3175,14 @@ function renderBoard(){
   const total=Object.keys(state.players).length, played=Object.values(state.players).filter(p=>p.games>0).length;
   $("boardTotal").textContent=state.games+" game"+(state.games===1?"":"s")+" · "+total+" players ("+played+" have played)";
   let ids=Object.keys(state.players);                          // whole roster, un-played players fall to the bottom
-  ids.sort((a,b)=>{const A=P(a),B=P(b);
-    return B.wins-A.wins || winpct(B)-winpct(A) || B.games-A.games || A.name.localeCompare(B.name);});
+  const pts=pointsBy(state.log,false), PP={}; ids.forEach(id=>{ PP[id]=addPoints(P(id), pts[id]); });
+  ids.sort((a,b)=>cmpStand(PP[a],PP[b]));
   const el=$("board");
   if(!ids.length){ el.innerHTML='<div class="qempty">No players yet — add some to the roster.</div>'; return; }
   const pst=id=>onCourt(id)?'<span class="pst court">On court</span>':(state.queue.includes(id)?'<span class="pst q">In queue</span>':'<span class="pst">Bench</span>');
-  el.innerHTML=`<table class="lb"><thead><tr><th>#</th><th>Player</th>${showCats()?'<th>Lvl</th>':''}<th>Status</th><th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th></tr></thead><tbody>`
-    + (rk=>ids.map((id,i)=>{const p=P(id);const medal=medalOf(rk[i],p);
-        return `<tr class="${podiumClass(rk[i],p)}"><td class="rank">${medal}</td><td class="lname"><span class="edit" data-rename="${id}" title="Click to rename">${esc(p.name)}</span> <button class="rx phist" data-phist="${id}" title="Game history">📊</button></td><td style="text-align:left">${chip(id)}</td><td style="text-align:left">${pst(id)}</td><td>${p.games}</td><td class="w edit" data-editw="${id}" title="Click to edit wins">${p.wins}</td><td class="l edit" data-editl="${id}" title="Click to edit losses">${p.losses}</td><td>${p.games?winpct(p)+'%':'—'}</td></tr>`;}).join(""))(placeList(ids.map(id=>P(id))))
+  el.innerHTML=`<table class="lb"><thead><tr><th>#</th><th>Player</th>${showCats()?'<th>Lvl</th>':''}<th>Status</th><th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th><th title="Points for minus points against">+/−</th></tr></thead><tbody>`
+    + (rk=>ids.map((id,i)=>{const p=PP[id];const medal=medalOf(rk[i],p);
+        return `<tr class="${podiumClass(rk[i],p)}"><td class="rank">${medal}</td><td class="lname"><span class="edit" data-rename="${id}" title="Click to rename">${esc(p.name)}</span> <button class="rx phist" data-phist="${id}" title="Game history">📊</button></td><td style="text-align:left">${chip(id)}</td><td style="text-align:left">${pst(id)}</td><td>${p.games}</td><td class="w edit" data-editw="${id}" title="Click to edit wins">${p.wins}</td><td class="l edit" data-editl="${id}" title="Click to edit losses">${p.losses}</td><td>${p.games?winpct(p)+'%':'—'}</td>${diffCell(p)}</tr>`;}).join(""))(placeList(ids.map(id=>PP[id])))
     + `</tbody></table>`;
 }
 function ord(l){const i=lvlIdx(l);return i<0?9:i;}
