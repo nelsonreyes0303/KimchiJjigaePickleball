@@ -168,6 +168,10 @@ window.addEventListener("error",function(e){
   .chead b{font-size:1rem}
   .badge{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:4px 9px;border-radius:999px}
   .badge.live{background:#123024;color:#9fd07d} .badge.open{background:#2a2f36;color:var(--muted)}
+  .badge.dupr{background:var(--int);color:#111}
+  .glsc.dupr{color:var(--int);border-color:var(--int);font-size:.66rem;letter-spacing:.04em}
+  .ge-dupr{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.88rem;font-weight:700;cursor:pointer}
+  .ge-dupr input{width:18px;height:18px;accent-color:var(--int);margin:0}
   .badge.beg{background:var(--beg-soft);color:var(--beg)} .badge.int{background:var(--int-soft);color:var(--int)}
   .timer{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--txt);font-size:1rem;font-weight:800;background:var(--panel-2);padding:4px 10px;border-radius:10px;border:1px solid var(--line)}
   .timer.off{color:var(--muted);font-weight:600;background:transparent;border-color:transparent}
@@ -1837,6 +1841,8 @@ function askScore(c,winTeam){
   $("scoreWinNames").innerHTML=win.map(id=>esc(nm(id))).join("<br>");
   $("scoreLoseNames").innerHTML=lose.map(id=>esc(nm(id))).join("<br>");
   $("scoreWin").value=String(lastWinPts); $("scoreLose").value=""; $("scoreErr").textContent="";
+  $("scoreTitle").textContent=c.dupr?"Final score · DUPR game":"Final score";
+  $("scoreSkip").hidden=!!c.dupr;                                       // a DUPR game cannot go in without its score
   $("scoreModal").classList.remove("hidden");
   setTimeout(()=>{ $("scoreLose").focus(); },40);
   return new Promise(res=>{ scoreResolve=res; });
@@ -1879,7 +1885,7 @@ function finishGame(c,winTeam,score){
   (state.log=state.log||[]).push({ t:Date.now(), lvl:seatsLabel(c.seats),   // game-by-game record for history
     ms:(ran>0 && ran<24*3600e3) ? ran : 0,
     w:winners.map(id=>({id,name:nm(id)})), l:losers.map(id=>({id,name:nm(id)})),
-    ...(score?{ws:score.ws,ls:score.ls}:{}) });                            // points as played; absent when nobody kept score
+    ...(score?{ws:score.ws,ls:score.ls}:{}), ...(c.dupr?{dupr:true}:{}) }); // points as played; absent when nobody kept score
   const four=[...winners,...losers];
   const endedAt=Date.now();
   four.forEach(id=>{ const p=P(id); if(p) p.waitSince=endedAt; });   // playing is the only thing that restarts the wait clock
@@ -1909,17 +1915,20 @@ function finishGame(c,winTeam,score){
     scatterReturn(ret);
     rebalanceTail();
   }
-  c.seats=[null,null,null,null]; c.started=null;
+  c.seats=[null,null,null,null]; c.started=null; c.dupr=false;
   commit(); toast(together?"They'll play again together on their next turn":"Game recorded — court cleared");
 }
-function clearCourt(c){ pushUndo(); audit("clearCourt", cname(c)+": "+c.seats.filter(Boolean).map(nmsafe).join(", ")); c.again=false; c.seats.forEach(id=>{if(id)enqueue(id);}); c.seats=[null,null,null,null]; c.started=null; commit(); }
+function clearCourt(c){ pushUndo(); audit("clearCourt", cname(c)+": "+c.seats.filter(Boolean).map(nmsafe).join(", ")); c.again=false; c.dupr=false; c.seats.forEach(id=>{if(id)enqueue(id);}); c.seats=[null,null,null,null]; c.started=null; commit(); }
 function toggleAgain(c){ c.again=!c.again; audit("playAgain", cname(c)+": "+(c.again?"ON":"off")); commit(); }
+/* A DUPR game is marked per court, off by default, and the mark lasts for that one game only: it goes
+   with the game into the log, where Reclub entry can find it, and the court comes back unmarked. */
+function toggleDupr(c){ if(!isAdmin()){ toast("Admin only"); return; } c.dupr=!c.dupr; audit("duprGame", cname(c)+": "+(c.dupr?"ON":"off")); commit(); }
 function resetScores(){
   if(!confirm("Reset scores, levels and pairs, and clear the courts? Only the player names stay."))return;
   Object.values(state.players).forEach(p=>{ p.games=0;p.wins=0;p.losses=0;p.grp=null;p.partner=null;p.level=null;p.pg=0; });
   audit("resetScores","scores, levels, pairs cleared");
   state.games=0; state.log=[];
-  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; });
+  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; c.dupr=false; });
   state.queue=[];                                   // nobody is queued until you re-assign levels
   commit(); toast("Reset — names kept, re-assign levels to play");
 }
@@ -2046,7 +2055,7 @@ async function startOP(opts){
   const now=Date.now();
   Object.values(state.players).forEach(p=>{ p.games=0;p.wins=0;p.losses=0;p.grp=null;p.pg=0;p.partner=null;p.waitSince=now;p.checkedInAt=p.level?now:null; });
   state.games=0; state.log=[];
-  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; });
+  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; c.dupr=false; });
   state.queue=Object.keys(state.players).filter(id=>P(id).level);   // fresh line-up, in the order players were added
   state.qlocked=[]; state.manualSig=null; state.locked=false; state.frontPinned=[];   // last night's locks, pins and drags don't carry over
   try{ undoStack.length=0; }catch(e){}                              // Undo must not reach back into the previous session
@@ -2284,7 +2293,7 @@ async function addRsvpToRoster(ev){
   });
   // nobody from the previous night may linger in the queue, on a court, or in a lock
   state.queue=Object.keys(state.players).filter(id=>P(id).level);
-  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; });
+  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; c.dupr=false; });
   state.qlocked=[]; state.frontPinned=[]; state.manualSig=null;
   const guests=+j.guests||0, total=+j.total||0;
   const missing=total>names.length ? total-names.length : 0;   // not every confirmed player is named on the page
@@ -2730,6 +2739,7 @@ async function renderSessionPage(id){
   const glEdit = live ? (canEditLog()?"live":"") : (canEditHistory() && s.id!=null ? String(s.id) : "");
   const gl=glList(log, '<div class="hint">'+(live?"No games finished yet.":"No games recorded.")+'</div>', glEdit);
   const noScore=isAdmin()?log.filter(g=>!scoreText(g)).length:0;          // games Reclub cannot take yet
+  const nDupr=log.filter(g=>g.dupr).length;
   let photoHtml="", photoN=0;
   const sd=new Date(s.endedAt||s.startedAt||Date.now());
   const dlBase="kimchi-jjigae-"+sd.getFullYear()+"-"+String(sd.getMonth()+1).padStart(2,"0")+"-"+String(sd.getDate()).padStart(2,"0")+"-";
@@ -2759,7 +2769,7 @@ async function renderSessionPage(id){
       photoBlock+
       '<details class="sess-block sess-fold" open><summary>🏆 Standings<span class="foldcount">'+((s.players||[]).length)+' player'+(((s.players||[]).length)===1?'':'s')+'</span><span class="foldarrow">▾</span></summary>'+
         '<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Player</th>'+(showLvl?'<th>Lvl</th>':'')+'<th>G</th><th>W</th><th>L</th><th>%</th><th title="Points for minus points against">+/−</th></tr></thead><tbody>'+(rows||emptyStand)+'</tbody></table></div></details>'+
-      '<div class="sess-block" style="grid-column:1/-1"><h3>🎾 Game log'+(noScore?' <span class="foldcount">'+noScore+' without a score</span>':'')+'</h3>'+(log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':'')+'<div class="glwrap">'+gl+'</div>'+((!live&&isAdmin())?'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-csv="'+s.id+'">⬇ Standings CSV</button></div>':'')+'</div>'+
+      '<div class="sess-block" style="grid-column:1/-1"><h3>🎾 Game log'+(nDupr?' <span class="foldcount">'+nDupr+' DUPR</span>':'')+(noScore?' <span class="foldcount">'+noScore+' without a score</span>':'')+'</h3>'+(log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':'')+'<div class="glwrap">'+gl+'</div>'+((!live&&isAdmin())?'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-csv="'+s.id+'">⬇ Standings CSV</button></div>':'')+'</div>'+
     '</div>';
 }
 async function loginAsAdmin(){
@@ -2837,6 +2847,7 @@ function renderCourts(){
       const bc=set.length>1?'mix':lvlCls(set[0]); head+=`<span class="badge ${bc}">${lab}</span>`; }
     else if(active){ head+=`<span class="badge live">Live</span>`; }
     else head+=`<span class="badge open">Open</span>`;
+    if(active && c.dupr) head+=`<span class="badge dupr" title="DUPR game — the score is required and the game is tagged for Reclub">DUPR</span>`;
     const t=active&&c.started;
     head+=`<span class="timer ${t?'':'off'}" data-timer="${t?c.started:''}">${t?fmt(Date.now()-c.started):'—:—'}</span></div>`;
     let body;
@@ -2849,7 +2860,7 @@ function renderCourts(){
             <button class="winpick" data-win="${c.id}:A">🏆 ${esc(nm(c.seats[0]))} &amp; ${esc(nm(c.seats[1]))}</button>
             <button class="winpick" data-win="${c.id}:B">🏆 ${esc(nm(c.seats[2]))} &amp; ${esc(nm(c.seats[3]))}</button>
           </div></div>
-        <div class="cfoot"><button class="btn-ghost btn-sm ${c.again?'on':''}" data-again="${c.id}" title="When this game ends, these 4 re-queue together and play again on their next turn">↻ Play again</button><button class="btn-ghost btn-sm" data-clear="${c.id}">Cancel game</button><button class="btn-ghost btn-sm" data-rmcourt="${c.id}">Remove court</button></div>`
+        <div class="cfoot"><button class="btn-ghost btn-sm ${c.dupr?'on':''}" data-dupr="${c.id}" title="Mark this as a DUPR game: the score is required and the game is tagged for Reclub. Off by default.">${c.dupr?'✓ DUPR game':'DUPR game'}</button><button class="btn-ghost btn-sm ${c.again?'on':''}" data-again="${c.id}" title="When this game ends, these 4 re-queue together and play again on their next turn">↻ Play again</button><button class="btn-ghost btn-sm" data-clear="${c.id}">Cancel game</button><button class="btn-ghost btn-sm" data-rmcourt="${c.id}">Remove court</button></div>`
         : `<div class="winprompt"><p>Game in progress — only the admin can pick the winner.</p></div>
         <div class="cfoot"></div>`;
       body=`<div class="net"><div class="team">${st(0)}${st(1)}</div><div class="vs">VS</div><div class="team">${st(2)}${st(3)}</div></div>${winUI}`;
@@ -3005,7 +3016,7 @@ async function openGameEdit(sid,i){
   const g=ctx.log[i]; if(!g){ toast("That game is no longer in the log"); return; }
   geCtx=ctx; geIdx=i;
   geDraft={ a:g.w.map(x=>({id:x.id,name:geLabel(x)})), b:g.l.map(x=>({id:x.id,name:geLabel(x)})), win:"A",
-            sa:scoreText(g)?String(g.ws):"", sb:scoreText(g)?String(g.ls):"" };       // score boxes are Team A – Team B
+            sa:scoreText(g)?String(g.ws):"", sb:scoreText(g)?String(g.ls):"", dupr:!!g.dupr };   // score boxes are Team A – Team B
   renderGameEdit(); geValidate();
   $("gameModal").classList.remove("hidden");
 }
@@ -3086,6 +3097,7 @@ function renderGameEdit(){
     + '<input data-gescore="a" type="number" inputmode="numeric" min="0" max="99" value="'+esc(geDraft.sa)+'" aria-label="Team A points"><span class="ge-dash">–</span>'
     + '<input data-gescore="b" type="number" inputmode="numeric" min="0" max="99" value="'+esc(geDraft.sb)+'" aria-label="Team B points">'
     + '<span class="hint">Team A – Team B, points as played. Leave both blank if nobody kept score.</span></div>'
+    + '<label class="ge-dupr"><input type="checkbox" data-gedupr'+(geDraft.dupr?' checked':'')+'> DUPR game <span class="hint" style="margin:0;font-weight:500">— needs its score</span></label>'
     + '<p class="ge-err" id="geErr"></p>'
     + '<p class="ge-note">'+(geCtx&&geCtx.saved
         ? 'Saving rebuilds this session\'s standings from its game log, so the two always agree.'
@@ -3096,7 +3108,7 @@ function geValidate(){
   const ids=[...geDraft.a,...geDraft.b].map(x=>x.id);
   const dupe=new Set(ids).size!==4;
   const sc=geScore();
-  const msg = dupe ? "Each player can only appear once in a game." : (typeof sc==="string" ? sc : "");
+  const msg = dupe ? "Each player can only appear once in a game." : (typeof sc==="string" ? sc : (geDraft.dupr&&!sc ? "A DUPR game needs its score." : ""));
   const e=$("geErr"); if(e) e.textContent=msg;
   const b=$("gameEditSave"); if(b){ b.disabled=!!msg; b.style.opacity=msg?".5":"1"; }
   return !msg;
@@ -3126,10 +3138,11 @@ function saveGameEdit(){
   g.w=newW.map(x=>({id:x.id,name:geLabel(x)}));
   g.l=newL.map(x=>({id:x.id,name:geLabel(x)}));
   if(sc){ g.ws=sc.ws; g.ls=sc.ls; } else { delete g.ws; delete g.ls; }
+  if(geDraft.dupr) g.dupr=true; else delete g.dupr;
   const lv=geLvl([...g.w,...g.l]); if(lv) g.lvl=lv;
   const n=geIdx+1, saved=ctx.saved, sess=ctx.s;
   if(saved) rebuildSessionStandings(sess);
-  audit("editGame",(saved?(sess.name||String(sess.id))+" ":"")+"#"+n+": "+before+"  ->  "+g.w.map(x=>x.name).join(" & ")+" def. "+g.l.map(x=>x.name).join(" & ")+(scoreText(g)?" "+scoreText(g):""));
+  audit("editGame",(saved?(sess.name||String(sess.id))+" ":"")+"#"+n+": "+before+"  ->  "+g.w.map(x=>x.name).join(" & ")+" def. "+g.l.map(x=>x.name).join(" & ")+(scoreText(g)?" "+scoreText(g):"")+(g.dupr?" · DUPR":""));
   closeGameEdit();
   if(saved){ save(); refreshHistoryViews(); }
   else commit();
@@ -3148,6 +3161,7 @@ function glRow(g,i,editable){
   return '<div class="gl" data-names="'+esc(names)+'">'
     +'<span class="gln">'+(i+1)+'</span>'
     +'<div class="glmatch">'+glPair("win",g.w)+'<span class="gld">def.</span>'+glPair("lose",g.l)
+    +(g.dupr?'<span class="glsc dupr" title="DUPR game">DUPR</span>':'')
     +(scoreText(g)?'<span class="glsc" title="Final score">'+scoreText(g)+'</span>'
                   :(editable?'<span class="glsc none" title="No score recorded — use ✎ to add it">no score</span>':''))+'</div>'
     +meta
@@ -3181,8 +3195,8 @@ function filterLogRows(input){
 }
 function renderLiveLog(){
   const log=state.log||[], el=$("liveLog"); if(!el) return;
-  const lc=$("logCount"); if(lc){ const ns=log.filter(g=>!scoreText(g)).length;
-    lc.textContent=log.length+" game"+(log.length===1?"":"s")+(ns&&isAdmin()?" · "+ns+" without a score":""); }
+  const lc=$("logCount"); if(lc){ const ns=log.filter(g=>!scoreText(g)).length, nd=log.filter(g=>g.dupr).length;
+    lc.textContent=log.length+" game"+(log.length===1?"":"s")+(nd?" · "+nd+" DUPR":"")+(ns&&isAdmin()?" · "+ns+" without a score":""); }
   el.innerHTML = glList(log, '<div class="qempty">No games finished yet — finished games show up here as you play.</div>', canEditLog()?"live":"");
   const ls=$("logSearch"); if(ls) filterLogRows(ls);          // keep the player filter applied across re-renders
 }
@@ -3372,6 +3386,7 @@ $("gameModal").addEventListener("click",e=>{ if(e.target===$("gameModal")) close
 $("gameEditBody").addEventListener("click",e=>{ const w=e.target.closest("[data-gewin]"); if(w&&geDraft){ geDraft.win=w.dataset.gewin; renderGameEdit(); geValidate(); } });
 $("gameEditBody").addEventListener("input",e=>{ const s=e.target.closest("[data-gescore]"); if(!s||!geDraft) return; geDraft["s"+s.dataset.gescore]=s.value; geValidate(); });
 $("gameEditBody").addEventListener("change",e=>{
+  const d=e.target.closest("[data-gedupr]"); if(d&&geDraft){ geDraft.dupr=d.checked; geValidate(); return; }
   const sl=e.target.closest("[data-geslot]"); if(!sl||!geDraft) return;
   const key=sl.dataset.geslot[0], n=+sl.dataset.geslot[1], id=sl.value;
   geDraft[key][n]={ id, name:(state.players[id]?state.players[id].name:id) };
@@ -3438,7 +3453,7 @@ document.body.addEventListener("keydown",e=>{
 });
 
 document.body.addEventListener("click",e=>{
-  const t=e.target.closest("[data-set],[data-rename],[data-cname],[data-editw],[data-editl],[data-phist],[data-pair],[data-del],[data-start],[data-startmix],[data-win],[data-clear],[data-rmcourt],[data-swap],[data-again],[data-csv],[data-delhist],[data-glock],[data-spick],[data-sdrop]");
+  const t=e.target.closest("[data-set],[data-rename],[data-cname],[data-editw],[data-editl],[data-phist],[data-pair],[data-del],[data-start],[data-startmix],[data-win],[data-clear],[data-rmcourt],[data-dupr],[data-swap],[data-again],[data-csv],[data-delhist],[data-glock],[data-spick],[data-sdrop]");
   if(!t)return;
   if(t.dataset.csv){exportSession(t.dataset.csv);return;}
   if(t.dataset.phist){openPlayerHistory(t.dataset.phist);return;}
@@ -3461,6 +3476,7 @@ document.body.addEventListener("click",e=>{
   else if(t.dataset.clear){clearCourt(state.courts.find(c=>c.id===t.dataset.clear));}
   else if(t.dataset.rmcourt){removeCourt(t.dataset.rmcourt);}
   else if(t.dataset.again){toggleAgain(state.courts.find(c=>c.id===t.dataset.again));}
+  else if(t.dataset.dupr){toggleDupr(state.courts.find(c=>c.id===t.dataset.dupr));}
   else if(t.dataset.swap){handleSwap(parseSlot(t.dataset.swap));}
 });
 
