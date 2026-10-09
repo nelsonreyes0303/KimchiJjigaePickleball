@@ -784,12 +784,12 @@ window.addEventListener("error",function(e){
       <div class="rtools">
         <input id="rSearch" class="rsearch" placeholder="🔍 Search players…" autocomplete="off">
         <label class="hint">Sort
-          <select id="sortSel" title="Order the roster, or list only some of it">
+          <select id="sortSel" title="Order the roster — everyone stays listed, the chosen group comes first">
             <option value="name">Name</option>
             <option value="level">Category</option>
-            <option value="nolevel">No category</option>
-            <option value="out">Not checked in</option>
-            <option value="bench">Bench</option>
+            <option value="nolevel">No category first</option>
+            <option value="out">Not checked in first</option>
+            <option value="in">Checked in first</option>
           </select>
         </label>
         <button class="btn-ghost btn-sm admin-only" id="checkOutAllBtn" title="Check everyone out — nobody is removed, they just leave the queue until checked in again">Check out all</button>
@@ -1661,7 +1661,7 @@ function pairToggle(id){
 
 function take(list,idx){ const g=idx.map(i=>list[i]); for(let k=idx.length-1;k>=0;k--)list.splice(idx[k],1); return g; }
 const LVLS=['beginner','novice','lowint','highint'];               // ladder: only adjacent tiers may mix
-const ROSTER_SORTS=["name","level","nolevel","bench"];   // what the roster dropdown may hold
+const ROSTER_SORTS=["name","level","nolevel","out","in"];   // what the roster dropdown may hold; every one is a sort, never a filter
 function lvlIdx(l){ return LVLS.indexOf(l); }                       // Beg 0 · Nov 1 · Low Int 2 · High Int 3
 function levelOf(id){ return lvlIdx(P(id).level); }
 function lvlCls(l){ return {beginner:'beg',novice:'nov',lowint:'int',highint:'hi'}[l]||''; }
@@ -2974,26 +2974,25 @@ function renderRoster(){
   const el=$("roster");
   let ids=Object.keys(state.players);
   if(rosterSearch) ids=ids.filter(id=>P(id).name.toLowerCase().includes(rosterSearch));   // search filter
+  // Every choice is a sort: nobody is hidden, the group you asked for just comes first (A–Z inside each group).
+  // Only the search box narrows the list, so a name you can see on the leaderboard is always findable here.
   const s=state.sort;
-  if(s==="bench") ids=ids.filter(id=>!P(id).level);                                     // Bench: only benched / no tier
-  if(s==="out") ids=ids.filter(id=>!P(id).in);                                          // Not checked in: still to arrive
   const rung=id=>{ const l=P(id).level; return l?lvlIdx(l):LVLS.length; };               // no category sits after the four tiers
   ids.sort((a,b)=>{const A=P(a),B=P(b);
-    if(s==="level") return rung(a)-rung(b) || A.name.localeCompare(B.name);              // Category: Beginner up to High Int, then benched
-    if(s==="nolevel") return (!!A.level)- (!!B.level) || A.name.localeCompare(B.name);   // No category first, then rest
-    return A.name.localeCompare(B.name);                                                 // Name (and the Bench list): A–Z only
+    if(s==="level") return rung(a)-rung(b) || A.name.localeCompare(B.name);              // Category: Beginner up to High Int, then no category
+    if(s==="nolevel") return (!!A.level)-(!!B.level) || A.name.localeCompare(B.name);    // No category first, then the rest
+    if(s==="out") return (A.in?1:0)-(B.in?1:0) || A.name.localeCompare(B.name);          // Not checked in first: who is still to arrive
+    if(s==="in") return (B.in?1:0)-(A.in?1:0) || A.name.localeCompare(B.name);           // Checked in first: who is here tonight
+    return A.name.localeCompare(B.name);                                                 // Name: A–Z only
   });
-  // The panel title carries the count, and says "of" whenever something is being filtered out.
+  // The panel title carries the count, and says "of" while the search box narrows the list.
   const rc=$("rosterCount");
   if(rc){
     const total=Object.keys(state.players).length, inN=Object.values(state.players).filter(p=>p.in).length;
     rc.textContent = (ids.length===total ? total+" player"+(total===1?"":"s") : ids.length+" of "+total)+(total?" · "+inN+" in":"");
   }
   if(!ids.length){
-    const empty = rosterSearch ? 'No players match “'+esc(rosterSearch)+'”'
-      : s==="bench" ? 'No benched players — everyone has a level'
-      : s==="out" ? 'Everyone on the roster is checked in'
-      : 'Add players to build your roster';
+    const empty = rosterSearch ? 'No players match “'+esc(rosterSearch)+'”' : 'Add players to build your roster';
     el.innerHTML='<div class="qempty">'+empty+'</div>'; return;
   }
   el.innerHTML=ids.map(id=>{
@@ -3554,6 +3553,7 @@ document.addEventListener("drop",e=>{ const el=e.target.closest("[data-swap]"); 
   document.querySelectorAll(".dragging,.dragover").forEach(x=>x.classList.remove("dragging","dragover")); dragSrc=null; });
 
 ensureCourts();
+if(state.sort==="bench") state.sort="nolevel";                 // the old Bench filter: same people, now a sort
 if(!ROSTER_SORTS.includes(state.sort)) state.sort="name";
 $("sortSel").value=state.sort;
 if(!state.theme)state.theme="light";   // new visitors start in light mode; the toggle remembers their choice
