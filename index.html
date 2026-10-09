@@ -278,6 +278,8 @@ window.addEventListener("error",function(e){
   .pill.sel.int{background:var(--int-soft);border-color:var(--int);color:var(--int)}
   .pill.sel.hi{background:var(--hi-soft);border-color:var(--hi);color:var(--hi)}
   .pill.sel.bench{background:#2a2f36;border-color:#3a4652;color:var(--txt)}
+  .pill.chk{border-color:var(--accent);color:var(--accent);flex:none}
+  .pill.chk.sel{background:var(--int-soft);border-color:var(--int);color:var(--int)}
   .oncourt{font-size:.66rem;font-weight:800;color:var(--win);border:1px solid #4a3f13;background:#2a2410;padding:5px 9px;border-radius:8px;flex:none}
   .rx{background:transparent;color:var(--muted);font-size:1rem;padding:2px 7px;border-radius:8px;flex:none}
   .ricons{display:flex;align-items:center;gap:2px;flex:none}
@@ -781,10 +783,11 @@ window.addEventListener("error",function(e){
       <div class="rtools">
         <input id="rSearch" class="rsearch" placeholder="🔍 Search players…" autocomplete="off">
         <label class="hint">Sort
-          <select id="sortSel" title="Order the roster, or list only the benched players">
+          <select id="sortSel" title="Order the roster, or list only some of it">
             <option value="name">Name</option>
             <option value="level">Category</option>
             <option value="nolevel">No category</option>
+            <option value="out">Not checked in</option>
             <option value="bench">Bench</option>
           </select>
         </label>
@@ -1422,6 +1425,8 @@ function migrate(s){ if(!s)return null; if(!Array.isArray(s.queue))s.queue=[];
   if(!s.layout||typeof s.layout!=="object")s.layout={};
   (s.queue||[]).forEach(id=>{ const p=s.players&&s.players[id]; if(p&&!p.waitSince)p.waitSince=Date.now(); });   // wait timer added later; start it now for anyone already queued
   (s.queue||[]).forEach(id=>{ const p=s.players&&s.players[id]; if(p&&!p.checkedInAt)p.checkedInAt=p.waitSince||Date.now(); });   // check-in time added later
+  { const seated=new Set(); (s.courts||[]).forEach(c=>(c.seats||[]).forEach(id=>{ if(id) seated.add(id); }));          // check-in added later: whoever
+    Object.values(s.players||{}).forEach(p=>{ if(p.in===undefined) p.in=(s.queue||[]).includes(p.id)||seated.has(p.id); }); }   // was in line or playing is in
   Object.values(s.players||{}).forEach(p=>{ if(p.qkey===undefined)p.qkey=Math.random(); if(p.level==='intermediate')p.level='lowint'; }); // intermediate renamed to low intermediate
   if(!s.mixDefaulted){ Object.values(s.players||{}).forEach(p=>p.openMix=true); s.mixDefaulted=true; }  // one-time: everyone may mix by default
   (s.history||[]).forEach(h=>{ if(!Array.isArray(h.photos)) h.photos=[]; });
@@ -1481,7 +1486,7 @@ function weaveLocked(rest, locked){
    one contiguous rematch block. Two things never move: the groups pinned at the head, and any group the
    admin locked — a lock keeps those four together AND keeps their place, wherever in the queue they sit. */
 function scatterReturn(ids){
-  const ret=ids.filter(id=>id&&P(id)&&P(id).level);
+  const ret=ids.filter(id=>id&&inPlay(id));
   ret.forEach(dequeueId);
   if(!ret.length) return;
   const lset=new Set(state.qlocked||[]);
@@ -1765,32 +1770,58 @@ function addPlayers(text){
     const id="p"+(state.seq++);
     const lvl=lastKnownLevel(n);                               // a returning player keeps the tier they had
     if(lvl) recalled++;
-    state.players[id]={id,name:n,level:lvl,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
-    if(lvl && state.session&&state.session.active) enqueue(id);
+    state.players[id]={id,name:n,level:lvl,in:false,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};   // on the roster, not yet checked in
   });
   audit("addPlayers", added+" added, "+skipped+" dup, "+recalled+" tier recalled: "+names.join(", "));
   commit();
   toast(added ? added+(added>1?" players added":" player added")
                 +(recalled?" · "+recalled+" kept the categor"+(recalled===1?"y":"ies")+" from last time":"")
                 +(skipped?" · "+skipped+" already on the roster":"")
+                +(state.session&&state.session.active?" · check them in when they arrive":"")
               : "Everyone on that list is already on the roster");
+}
+/* ---------- check-in ----------
+   A category says how someone plays; checking in says they are here tonight. Only a player with both is in
+   the queue, so tiers can be set days ahead (from the RSVP list, say) without putting anyone in line.
+   Ending the night checks everyone out. */
+function inPlay(id){ const p=P(id); return !!(p && p.level && p.in); }
+/* Put a checked-in player with a category into the line, with the late-joiner baseline. */
+function joinQueue(id){
+  if(state.queue.includes(id) || onCourt(id)) return;
+  if(state.games>0){                    // late joiner: hand them a baseline so 0 games doesn't jump them ahead
+    const eff=Object.values(state.players).filter(p=>p.id!==id && inPlay(p.id)).map(p=>p.games+(p.pg||0));
+    P(id).pg = eff.length ? Math.max(0, Math.max(...eff)-P(id).games) : 0;
+  } else P(id).pg=0;
+  enqueue(id);
+}
+function toggleCheckIn(id){ const p=P(id); if(!p) return; if(p.in) checkOut(id); else checkIn(id); }
+function checkIn(id){
+  const p=P(id); if(!p||p.in) return;
+  p.in=true; p.checkedInAt=Date.now();
+  audit("checkIn", nmsafe(id)+(p.level?"":" (no category yet)"));
+  if(p.level) joinQueue(id);
+  commit();
+  toast(p.level ? p.name+" checked in — in the queue" : p.name+" checked in — pick a category to put them in the queue");
+}
+function checkOut(id){
+  const p=P(id); if(!p||!p.in) return;
+  const playing=onCourt(id);
+  p.in=false;
+  freeGroupOf(id); pairOff(id);           // leaving breaks their pair so the partner isn't stuck waiting
+  state.qlocked=(state.qlocked||[]).filter(x=>x!==id);
+  if(!playing) dequeueId(id);             // mid-game they finish first and simply don't come back to the line
+  audit("checkOut", nmsafe(id)+(playing?" (on court — off after this game)":""));
+  commit();
+  toast(p.name+(playing?" checked out — they come off after this game":" checked out"));
 }
 function setLevel(id,level){
   audit("setLevel", nmsafe(id)+" -> "+(level||"Bench")+(onCourt(id)?" (on court)":""));
   freeGroupOf(id);
   if(!level) pairOff(id);                 // benching a player breaks their pair so the partner isn't stuck waiting
-  const wasQueued=state.queue.includes(id);
   P(id).level=level;
   if(onCourt(id)){ commit(); return; }    // mid-game: just record the new tier; it applies when they return to the queue
-  if(!level){ dequeueId(id); }
-  else if(!wasQueued){
-    if(state.games>0){                    // late joiner: hand them a baseline so 0 games doesn't jump them ahead
-      const eff=Object.values(state.players).filter(p=>p.id!==id && p.level).map(p=>p.games+(p.pg||0));
-      P(id).pg = eff.length ? Math.max(0, Math.max(...eff)-P(id).games) : 0;
-    } else P(id).pg=0;
-    P(id).checkedInAt=Date.now();          // giving someone a category is their check-in
-    enqueue(id);
-  }
+  if(!level) dequeueId(id);
+  else if(P(id).in) joinQueue(id);        // a category alone is not a way in: only a checked-in player joins the line
   commit();
 }
 async function renamePlayer(id){ const p=P(id); if(!p)return; const nn=await askText({title:"Rename player",label:"Player name",value:p.name,ok:"Save name"}); if(nn===null)return; const t=nn.trim(); if(!t)return; audit("renamePlayer", p.name+" -> "+t); p.name=t; commit(); }
@@ -1897,7 +1928,7 @@ function finishGame(c,winTeam,score){
     if(members.every(p=>four.includes(p.id))) members.forEach(p=>{ p.grp=null; });
   });
   let together=false;
-  if(c.again && four.every(id=>P(id).level)){ state.grpSeq=(state.grpSeq||0)+1; const gid="g"+state.grpSeq; four.forEach(id=>P(id).grp=gid); c.again=false; together=true; }
+  if(c.again && four.every(inPlay)){ state.grpSeq=(state.grpSeq||0)+1; const gid="g"+state.grpSeq; four.forEach(id=>P(id).grp=gid); c.again=false; together=true; }
   else c.again=false;
   // Back to queue: Play-again keeps WWLL so the locked foursome stays a block.
   // Otherwise enqueue, break up the foursome so they are not one contiguous rematch chunk, and only then
@@ -1907,11 +1938,11 @@ function finishGame(c,winTeam,score){
   const ret=[];
   for(let i=0;i<winners.length;i++){ ret.push(winners[i]); if(losers[i]) ret.push(losers[i]); }
   if(together){
-    winners.forEach(id=>{ if(P(id).level) enqueue(id); });
-    losers .forEach(id=>{ if(P(id).level) enqueue(id); });
+    winners.forEach(id=>{ if(inPlay(id)) enqueue(id); });
+    losers .forEach(id=>{ if(inPlay(id)) enqueue(id); });
     rebalanceTail();
   }else{
-    ret.forEach(id=>{ if(P(id).level) enqueue(id); });
+    ret.forEach(id=>{ if(inPlay(id)) enqueue(id); });
     scatterReturn(ret);
     rebalanceTail();
   }
@@ -1925,7 +1956,7 @@ function toggleAgain(c){ c.again=!c.again; audit("playAgain", cname(c)+": "+(c.a
 function toggleDupr(c){ if(!isAdmin()){ toast("Admin only"); return; } c.dupr=!c.dupr; audit("duprGame", cname(c)+": "+(c.dupr?"ON":"off")); commit(); }
 function resetScores(){
   if(!confirm("Reset scores, levels and pairs, and clear the courts? Only the player names stay."))return;
-  Object.values(state.players).forEach(p=>{ p.games=0;p.wins=0;p.losses=0;p.grp=null;p.partner=null;p.level=null;p.pg=0; });
+  Object.values(state.players).forEach(p=>{ p.games=0;p.wins=0;p.losses=0;p.grp=null;p.partner=null;p.level=null;p.pg=0;p.in=false; });
   audit("resetScores","scores, levels, pairs cleared");
   state.games=0; state.log=[];
   state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; c.dupr=false; });
@@ -2049,14 +2080,14 @@ async function startOP(opts){
   const def=opts.name || ("Open play — "+new Date().toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"}));
   const roster=Object.keys(state.players).length;
   let name=await askText({ title:"Start open play", label:"Name this open play", value:def, ok:"▶ Start open play",
-    hint:(roster?roster+" player"+(roster===1?"":"s")+" on the roster. ":"")+"Scores, wait times, pairs, courts and the queue all start fresh. Names and tiers stay." });
+    hint:(roster?roster+" player"+(roster===1?"":"s")+" on the roster. ":"")+"Scores, wait times, pairs, courts and the queue all start fresh. Names, tiers and check-ins stay." });
   if(name===null) return;
   name=name.trim()||def;
   const now=Date.now();
-  Object.values(state.players).forEach(p=>{ p.games=0;p.wins=0;p.losses=0;p.grp=null;p.pg=0;p.partner=null;p.waitSince=now;p.checkedInAt=p.level?now:null; });
+  Object.values(state.players).forEach(p=>{ p.games=0;p.wins=0;p.losses=0;p.grp=null;p.pg=0;p.partner=null;p.waitSince=now;p.checkedInAt=p.in?now:null; });
   state.games=0; state.log=[];
   state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; c.dupr=false; });
-  state.queue=Object.keys(state.players).filter(id=>P(id).level);   // fresh line-up, in the order players were added
+  state.queue=Object.keys(state.players).filter(inPlay);              // fresh line-up of the checked-in, in the order players were added
   state.qlocked=[]; state.manualSig=null; state.locked=false; state.frontPinned=[];   // last night's locks, pins and drags don't carry over
   try{ undoStack.length=0; }catch(e){}                              // Undo must not reach back into the previous session
   const sid=now;
@@ -2071,6 +2102,8 @@ async function endOP(){
   const sid=state.session.id||Date.now();
   state.history.unshift({ id:sid, name:state.session.name||"", startedAt:state.session.startedAt, endedAt:Date.now(), games:state.games, players:standings(), log:(state.log||[]).slice(), photos:[] });
   state.session={active:false,startedAt:null};
+  Object.values(state.players).forEach(p=>{ p.in=false; });            // the night is over: everyone is checked out
+  state.queue=[]; state.qlocked=[]; state.frontPinned=[]; state.manualSig=null;
   audit("endOpenPlay", state.history[0]?state.history[0].name+" · "+state.history[0].games+" games":"");
   commit(); openSessionPage(sid); toast("Open play ended — saved to history");
 }
@@ -2288,11 +2321,11 @@ async function addRsvpToRoster(ev){
     const id="p"+(state.seq++);
     const lvl=lastKnownLevel(display);                 // a regular comes back with the tier they last played at
     if(lvl) recalled++;
-    state.players[id]={id,name:display,level:lvl,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
+    state.players[id]={id,name:display,level:lvl,in:false,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};   // confirmed, not yet here
     added++;
   });
   // nobody from the previous night may linger in the queue, on a court, or in a lock
-  state.queue=Object.keys(state.players).filter(id=>P(id).level);
+  state.queue=Object.keys(state.players).filter(inPlay);               // only the ones already checked in
   state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; c.dupr=false; });
   state.qlocked=[]; state.frontPinned=[]; state.manualSig=null;
   const guests=+j.guests||0, total=+j.total||0;
@@ -2510,7 +2543,7 @@ function groupStillComing(gid, exceptId){
 }
 function setupEligible(){
   return Object.values(state.players)
-    .filter(p=>p.level)
+    .filter(p=>p.level && (p.in||onCourt(p.id)))                      // here tonight, with a category
     .sort((a,b)=> (onCourt(a.id)?1:0)-(onCourt(b.id)?1:0) || effGames(a.id)-effGames(b.id) || a.name.localeCompare(b.name));
 }
 function renderSetup(){
@@ -2890,7 +2923,7 @@ function renderTopWait(){
 function renderQueue(){
   $("qCount").textContent=state.queue.length+" waiting";
   renderTopWait();
-  if(!state.queue.length){ $("queue").innerHTML='<div class="qempty">No one queued — assign players a level in the roster</div>'; return; }
+  if(!state.queue.length){ $("queue").innerHTML='<div class="qempty">No one queued — check players in from the roster (they also need a category)</div>'; return; }
   const {groups,leftovers,manual}=queueGroups();
   let n=0, html="";
   groups.forEach((grp,gi)=>{
@@ -2924,6 +2957,7 @@ function renderRoster(){
   if(rosterSearch) ids=ids.filter(id=>P(id).name.toLowerCase().includes(rosterSearch));   // search filter
   const s=state.sort;
   if(s==="bench") ids=ids.filter(id=>!P(id).level);                                     // Bench: only benched / no tier
+  if(s==="out") ids=ids.filter(id=>!P(id).in);                                          // Not checked in: still to arrive
   const rung=id=>{ const l=P(id).level; return l?lvlIdx(l):LVLS.length; };               // no category sits after the four tiers
   ids.sort((a,b)=>{const A=P(a),B=P(b);
     if(s==="level") return rung(a)-rung(b) || A.name.localeCompare(B.name);              // Category: Beginner up to High Int, then benched
@@ -2933,12 +2967,13 @@ function renderRoster(){
   // The panel title carries the count, and says "of" whenever something is being filtered out.
   const rc=$("rosterCount");
   if(rc){
-    const total=Object.keys(state.players).length;
-    rc.textContent = ids.length===total ? total+" player"+(total===1?"":"s") : ids.length+" of "+total;
+    const total=Object.keys(state.players).length, inN=Object.values(state.players).filter(p=>p.in).length;
+    rc.textContent = (ids.length===total ? total+" player"+(total===1?"":"s") : ids.length+" of "+total)+(total?" · "+inN+" in":"");
   }
   if(!ids.length){
     const empty = rosterSearch ? 'No players match “'+esc(rosterSearch)+'”'
       : s==="bench" ? 'No benched players — everyone has a level'
+      : s==="out" ? 'Everyone on the roster is checked in'
       : 'Add players to build your roster';
     el.innerHTML='<div class="qempty">'+empty+'</div>'; return;
   }
@@ -2959,6 +2994,10 @@ function renderRoster(){
       : (showCats()
           ? `<span class="pill ${p.level?lvlCls(p.level)+' sel':'bench sel'}">${p.level?lvlShort(p.level):'Bench'}</span>`
           : (p.level ? "" : `<span class="pill bench sel">Bench</span>`));
+    // Check-in sits first: it is the way into the queue, a category on its own is not.
+    const chkEl = isAdmin()
+      ? `<button class="pill chk ${p.in?'sel':''}" data-chk="${id}" title="${p.in?'Checked in — tap to check out':'Check in — they join the queue once they have a category'}">${p.in?'✓ In':'Check in'}</button>`
+      : (p.in ? `<span class="pill chk sel">✓ In</span>` : "");
     const pairBtn = (!isAdmin()||court) ? '' : `<button class="pill${p.partner?' sel':''}${selPair===id?' pairing':''}" data-pair="${id}" title="Lock as a fixed pair for the whole session">🔗</button>`;
     const pm = p.partner&&P(p.partner) ? ` <span class="pairm">🔗 ${esc(P(p.partner).name)}</span>` : "";
     const oc = court ? ` <span class="oncourt">On court</span>` : "";
@@ -2967,7 +3006,7 @@ function renderRoster(){
       : `<span class="rnametext">${esc(p.name)}</span>`;
     return `<div class="rrow">
         <span class="rname">${nameEl}${pm}${oc}</span>
-        ${benchEl}
+        ${chkEl}${benchEl}
         <div class="ricons">${pairBtn}<button class="rx phist" data-phist="${id}" title="Game history">📊</button>${isAdmin()?`<button class="rx" data-del="${id}" title="Remove">✕</button>`:""}</div>
         ${tiers}
       </div>`;
@@ -3208,7 +3247,7 @@ function renderBoard(){
   ids.sort((a,b)=>cmpStand(PP[a],PP[b]));
   const el=$("board");
   if(!ids.length){ el.innerHTML='<div class="qempty">No players yet — add some to the roster.</div>'; return; }
-  const pst=id=>onCourt(id)?'<span class="pst court">On court</span>':(state.queue.includes(id)?'<span class="pst q">In queue</span>':'<span class="pst">Bench</span>');
+  const pst=id=>onCourt(id)?'<span class="pst court">On court</span>':(state.queue.includes(id)?'<span class="pst q">In queue</span>':(P(id).in?'<span class="pst">Bench</span>':'<span class="pst">Not in</span>'));
   el.innerHTML=`<table class="lb"><thead><tr><th>#</th><th>Player</th>${showCats()?'<th>Lvl</th>':''}<th>Status</th><th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th><th title="Points for minus points against">+/−</th></tr></thead><tbody>`
     + (rk=>ids.map((id,i)=>{const p=PP[id];const medal=medalOf(rk[i],p);
         return `<tr class="${podiumClass(rk[i],p)}"><td class="rank">${medal}</td><td class="lname"><span class="edit" data-rename="${id}" title="Click to rename">${esc(p.name)}</span> <button class="rx phist" data-phist="${id}" title="Game history">📊</button></td><td style="text-align:left">${chip(id)}</td><td style="text-align:left">${pst(id)}</td><td>${p.games}</td><td class="w edit" data-editw="${id}" title="Click to edit wins">${p.wins}</td><td class="l edit" data-editl="${id}" title="Click to edit losses">${p.losses}</td><td>${p.games?winpct(p)+'%':'—'}</td>${diffCell(p)}</tr>`;}).join(""))(placeList(ids.map(id=>PP[id])))
@@ -3453,7 +3492,7 @@ document.body.addEventListener("keydown",e=>{
 });
 
 document.body.addEventListener("click",e=>{
-  const t=e.target.closest("[data-set],[data-rename],[data-cname],[data-editw],[data-editl],[data-phist],[data-pair],[data-del],[data-start],[data-startmix],[data-win],[data-clear],[data-rmcourt],[data-dupr],[data-swap],[data-again],[data-csv],[data-delhist],[data-glock],[data-spick],[data-sdrop]");
+  const t=e.target.closest("[data-set],[data-rename],[data-cname],[data-editw],[data-editl],[data-phist],[data-pair],[data-del],[data-start],[data-startmix],[data-win],[data-clear],[data-rmcourt],[data-dupr],[data-chk],[data-swap],[data-again],[data-csv],[data-delhist],[data-glock],[data-spick],[data-sdrop]");
   if(!t)return;
   if(t.dataset.csv){exportSession(t.dataset.csv);return;}
   if(t.dataset.phist){openPlayerHistory(t.dataset.phist);return;}
@@ -3465,7 +3504,8 @@ document.body.addEventListener("click",e=>{
   if(t.dataset.delhist){e.preventDefault();e.stopPropagation();deleteHistory(t.dataset.delhist);return;}
   if(t.dataset.editw){editStat(t.dataset.editw,"wins");return;}
   if(t.dataset.editl){editStat(t.dataset.editl,"losses");return;}
-  if(t.dataset.set){const[id,lv]=t.dataset.set.split(":");setLevel(id,lv==="bench"?null:lv);}
+  if(t.dataset.chk){toggleCheckIn(t.dataset.chk);}
+  else if(t.dataset.set){const[id,lv]=t.dataset.set.split(":");setLevel(id,lv==="bench"?null:lv);}
   else if(t.dataset.rename){renamePlayer(t.dataset.rename);}
   else if(t.dataset.cname){renameCourt(t.dataset.cname);}
   else if(t.dataset.pair){pairToggle(t.dataset.pair);}
