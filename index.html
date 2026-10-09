@@ -791,6 +791,7 @@ window.addEventListener("error",function(e){
             <option value="bench">Bench</option>
           </select>
         </label>
+        <button class="btn-ghost btn-sm admin-only" id="checkOutAllBtn" title="Check everyone out — nobody is removed, they just leave the queue until checked in again">Check out all</button>
       </div>
       <div class="roster" id="roster"></div>
     </details>
@@ -1425,8 +1426,12 @@ function migrate(s){ if(!s)return null; if(!Array.isArray(s.queue))s.queue=[];
   if(!s.layout||typeof s.layout!=="object")s.layout={};
   (s.queue||[]).forEach(id=>{ const p=s.players&&s.players[id]; if(p&&!p.waitSince)p.waitSince=Date.now(); });   // wait timer added later; start it now for anyone already queued
   (s.queue||[]).forEach(id=>{ const p=s.players&&s.players[id]; if(p&&!p.checkedInAt)p.checkedInAt=p.waitSince||Date.now(); });   // check-in time added later
-  { const seated=new Set(); (s.courts||[]).forEach(c=>(c.seats||[]).forEach(id=>{ if(id) seated.add(id); }));          // check-in added later: whoever
-    Object.values(s.players||{}).forEach(p=>{ if(p.in===undefined) p.in=(s.queue||[]).includes(p.id)||seated.has(p.id); }); }   // was in line or playing is in
+  { // Check-in added later. Only a night in progress keeps its line: whoever is queued or playing is in.
+    // Between nights the old version left last week's queue in place, so there nobody is checked in.
+    const live=!!(s.session&&s.session.active), seated=new Set();
+    (s.courts||[]).forEach(c=>(c.seats||[]).forEach(id=>{ if(id) seated.add(id); }));
+    Object.values(s.players||{}).forEach(p=>{ if(p.in===undefined) p.in=live&&((s.queue||[]).includes(p.id)||seated.has(p.id)); });
+    if(!live && (s.queue||[]).length){ s.queue=[]; s.qlocked=[]; s.frontPinned=[]; } }
   Object.values(s.players||{}).forEach(p=>{ if(p.qkey===undefined)p.qkey=Math.random(); if(p.level==='intermediate')p.level='lowint'; }); // intermediate renamed to low intermediate
   if(!s.mixDefaulted){ Object.values(s.players||{}).forEach(p=>p.openMix=true); s.mixDefaulted=true; }  // one-time: everyone may mix by default
   (s.history||[]).forEach(h=>{ if(!Array.isArray(h.photos)) h.photos=[]; });
@@ -1795,6 +1800,18 @@ function joinQueue(id){
   enqueue(id);
 }
 function toggleCheckIn(id){ const p=P(id); if(!p) return; if(p.in) checkOut(id); else checkIn(id); }
+/* Start the check-in from scratch: everyone leaves the queue, players on a court finish their game first. */
+function checkOutAll(){
+  const ids=Object.values(state.players).filter(p=>p.in).map(p=>p.id);
+  if(!ids.length){ toast("Nobody is checked in"); return; }
+  const playing=ids.filter(onCourt).length;
+  if(!confirm("Check out all "+ids.length+" players?\n\nThe queue empties and you check people in again as they arrive."+(playing?" The "+playing+" on court finish their game first.":"")))return;
+  pushUndo();
+  ids.forEach(id=>{ const p=P(id); p.in=false; p.grp=null; p.partner=null; });
+  state.queue=[]; state.qlocked=[]; state.frontPinned=[]; state.manualSig=null;
+  audit("checkOutAll", ids.length+" checked out");
+  commit(); toast(ids.length+" checked out — the queue is empty");
+}
 function checkIn(id){
   const p=P(id); if(!p||p.in) return;
   p.in=true; p.checkedInAt=Date.now();
@@ -3449,6 +3466,7 @@ document.body.addEventListener("change",e=>{
 });
 $("challengeBtn").addEventListener("click",()=>{ if(!isAdmin()) return; state.challenge=!state.challenge;audit("challenge",state.challenge?"ON":"off");commit();toast(state.challenge?"Challenge ON — everyone plays within their own level":"Challenge off — levels get mixed");});
 $("sortSel").addEventListener("change",e=>{state.sort=e.target.value;save();renderRoster();});
+if($("checkOutAllBtn")) $("checkOutAllBtn").addEventListener("click",()=>{ if(!isAdmin()){ toast("Admin only"); return; } checkOutAll(); });
 if($("tierToggle")) $("tierToggle").addEventListener("click",()=>{
   if(!isAdmin()) return;
   state.hideTiers=!state.hideTiers; save(); render(); syncTierToggle();
