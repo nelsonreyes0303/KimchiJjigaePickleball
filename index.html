@@ -1816,7 +1816,7 @@ function checkOutAll(){
 function checkIn(id){
   const p=P(id); if(!p||p.in) return;
   if(!p.level){ toast(p.name+" needs a category before check-in"); return; }   // no tier, no place in the line
-  p.in=true; p.checkedInAt=Date.now();
+  p.in=true; p.checkedInAt=p.waitSince=Date.now();   // the wait starts when they arrive, not when the night did
   audit("checkIn", nmsafe(id));
   joinQueue(id);
   commit();
