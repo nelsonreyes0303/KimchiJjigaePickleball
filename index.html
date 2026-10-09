@@ -280,6 +280,7 @@ window.addEventListener("error",function(e){
   .pill.sel.bench{background:#2a2f36;border-color:#3a4652;color:var(--txt)}
   .pill.chk{border-color:var(--accent);color:var(--accent);flex:none}
   .pill.chk.sel{background:var(--int-soft);border-color:var(--int);color:var(--int)}
+  .pill.chk.off{border-color:var(--line);color:var(--muted);opacity:.6}
   .oncourt{font-size:.66rem;font-weight:800;color:var(--win);border:1px solid #4a3f13;background:#2a2410;padding:5px 9px;border-radius:8px;flex:none}
   .rx{background:transparent;color:var(--muted);font-size:1rem;padding:2px 7px;border-radius:8px;flex:none}
   .ricons{display:flex;align-items:center;gap:2px;flex:none}
@@ -1814,11 +1815,12 @@ function checkOutAll(){
 }
 function checkIn(id){
   const p=P(id); if(!p||p.in) return;
+  if(!p.level){ toast(p.name+" needs a category before check-in"); return; }   // no tier, no place in the line
   p.in=true; p.checkedInAt=Date.now();
-  audit("checkIn", nmsafe(id)+(p.level?"":" (no category yet)"));
-  if(p.level) joinQueue(id);
+  audit("checkIn", nmsafe(id));
+  joinQueue(id);
   commit();
-  toast(p.level ? p.name+" checked in — in the queue" : p.name+" checked in — pick a category to put them in the queue");
+  toast(p.name+" checked in — in the queue");
 }
 function checkOut(id){
   const p=P(id); if(!p||!p.in) return;
@@ -2940,7 +2942,7 @@ function renderTopWait(){
 function renderQueue(){
   $("qCount").textContent=state.queue.length+" waiting";
   renderTopWait();
-  if(!state.queue.length){ $("queue").innerHTML='<div class="qempty">No one queued — check players in from the roster (they also need a category)</div>'; return; }
+  if(!state.queue.length){ $("queue").innerHTML='<div class="qempty">No one queued — give players a category and check them in from the roster</div>'; return; }
   const {groups,leftovers,manual}=queueGroups();
   let n=0, html="";
   groups.forEach((grp,gi)=>{
@@ -3013,7 +3015,7 @@ function renderRoster(){
           : (p.level ? "" : `<span class="pill bench sel">Bench</span>`));
     // Check-in sits first: it is the way into the queue, a category on its own is not.
     const chkEl = isAdmin()
-      ? `<button class="pill chk ${p.in?'sel':''}" data-chk="${id}" title="${p.in?'Checked in — tap to check out':'Check in — they join the queue once they have a category'}">${p.in?'✓ In':'Check in'}</button>`
+      ? `<button class="pill chk ${p.in?'sel':''}${p.level?'':' off'}" data-chk="${id}" title="${p.in?'Checked in — tap to check out':(p.level?'Check in — they join the queue':'Pick a category first, then check in')}">${p.in?'✓ In':'Check in'}</button>`
       : (p.in ? `<span class="pill chk sel">✓ In</span>` : "");
     const pairBtn = (!isAdmin()||court) ? '' : `<button class="pill${p.partner?' sel':''}${selPair===id?' pairing':''}" data-pair="${id}" title="Lock as a fixed pair for the whole session">🔗</button>`;
     const pm = p.partner&&P(p.partner) ? ` <span class="pairm">🔗 ${esc(P(p.partner).name)}</span>` : "";
