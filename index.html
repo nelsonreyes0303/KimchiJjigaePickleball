@@ -309,6 +309,7 @@ window.addEventListener("error",function(e){
   .pill.chk{border-color:var(--accent);color:var(--accent);flex:none}
   .pill.chk.sel{background:var(--int-soft);border-color:var(--int);color:var(--int)}
   .pill.chk.off{border-color:var(--line);color:var(--muted);opacity:.6}
+  .rintime{font-size:.66rem;font-weight:600;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
   .oncourt{font-size:.66rem;font-weight:800;color:var(--win);border:1px solid #4a3f13;background:#2a2410;padding:5px 9px;border-radius:8px;flex:none}
   .rx{background:transparent;color:var(--muted);font-size:1rem;padding:2px 7px;border-radius:8px;flex:none}
   .ricons{display:flex;align-items:center;gap:2px;flex:none}
@@ -3115,11 +3116,12 @@ function renderRoster(){
     const pairBtn = (!isAdmin()||court) ? '' : `<button class="pill${p.partner?' sel':''}${selPair===id?' pairing':''}" data-pair="${id}" title="Lock as a fixed pair for the whole session">🔗</button>`;
     const pm = p.partner&&P(p.partner) ? ` <span class="pairm">🔗 ${esc(P(p.partner).name)}</span>` : "";
     const oc = court ? ` <span class="oncourt">On court</span>` : "";
+    const inAt = (p.in&&p.checkedInAt) ? ` <span class="rintime" title="Checked in at ${fmtTime(p.checkedInAt)}">🕒 ${fmtTime(p.checkedInAt)}</span>` : "";   // when they arrived tonight
     const nameEl = isAdmin()
       ? `<span class="rnametext" data-rename="${id}" title="Click to rename">${esc(p.name)}</span>`
       : `<span class="rnametext">${esc(p.name)}</span>`;
     return `<div class="rrow">
-        <span class="rname">${nameEl}${pm}${oc}</span>
+        <span class="rname">${nameEl}${pm}${inAt}${oc}</span>
         ${chkEl}${benchEl}
         <div class="ricons">${pairBtn}<button class="rx phist" data-phist="${id}" title="Game history">📊</button>${isAdmin()?`<button class="rx" data-del="${id}" title="Remove">✕</button>`:""}</div>
         ${tiers}
