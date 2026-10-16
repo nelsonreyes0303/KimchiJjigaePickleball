@@ -819,6 +819,7 @@ window.addEventListener("error",function(e){
             <option value="nolevel">No category first</option>
             <option value="out">Not checked in first</option>
             <option value="in">Checked in first</option>
+            <option value="time">Check-in time</option>
           </select>
         </label>
         <button class="btn-ghost btn-sm admin-only" id="checkOutAllBtn" title="Check everyone out — nobody is removed, they just leave the queue until checked in again">Check out all</button>
@@ -1702,7 +1703,7 @@ function pairToggle(id){
 
 function take(list,idx){ const g=idx.map(i=>list[i]); for(let k=idx.length-1;k>=0;k--)list.splice(idx[k],1); return g; }
 const LVLS=['beginner','novice','lowint','highint'];               // ladder: only adjacent tiers may mix
-const ROSTER_SORTS=["name","level","nolevel","out","in"];   // what the roster dropdown may hold; every one is a sort, never a filter
+const ROSTER_SORTS=["name","level","nolevel","out","in","time"];   // what the roster dropdown may hold; every one is a sort, never a filter
 function lvlIdx(l){ return LVLS.indexOf(l); }                       // Beg 0 · Nov 1 · Low Int 2 · High Int 3
 function levelOf(id){ return lvlIdx(P(id).level); }
 function lvlCls(l){ return {beginner:'beg',novice:'nov',lowint:'int',highint:'hi'}[l]||''; }
@@ -3080,6 +3081,7 @@ function renderRoster(){
     if(s==="nolevel") return (!!A.level)-(!!B.level) || A.name.localeCompare(B.name);    // No category first, then the rest
     if(s==="out") return (A.in?1:0)-(B.in?1:0) || A.name.localeCompare(B.name);          // Not checked in first: who is still to arrive
     if(s==="in") return (B.in?1:0)-(A.in?1:0) || A.name.localeCompare(B.name);           // Checked in first: who is here tonight
+    if(s==="time") return (B.in?1:0)-(A.in?1:0) || (A.in?(A.checkedInAt||0)-(B.checkedInAt||0):0) || A.name.localeCompare(B.name);   // Check-in time: earliest arrival first, so the top should have the most games
     return A.name.localeCompare(B.name);                                                 // Name: A–Z only
   });
   // The panel title carries the count, and says "of" while the search box narrows the list.
