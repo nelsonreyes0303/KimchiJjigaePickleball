@@ -601,6 +601,7 @@ window.addEventListener("error",function(e){
   .hist-empty{padding:48px 20px;text-align:center;color:var(--muted);line-height:1.5}
   .sess-hero{margin-bottom:22px}
   .sess-fold{padding:0;overflow:hidden}
+  .sess-fold>summary .foldcount{margin-left:auto} .sess-fold>summary [data-podium]{margin-left:6px}
   .sess-fold>summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;user-select:none;
     padding:15px 18px;font-family:"Fraunces",Georgia,"Times New Roman",serif;font-size:1.05rem;font-weight:700}
   .sess-fold>summary::-webkit-details-marker{display:none}
@@ -962,7 +963,6 @@ window.addEventListener("error",function(e){
     <span class="sep" aria-hidden="true"></span>
     <button type="button" class="btn-ghost btn-sm" id="sessBackBtn">← All open plays</button>
     <div class="spacer"></div>
-    <button type="button" class="btn-accent btn-sm" id="sessPodium" title="Show the top ten with fireworks">🎉 Podium</button>
     <button type="button" class="btn btn-sm" id="sessContinue" hidden>Continue open play</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="sessDelete">Delete</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="sessLockBtn" title="Lock admin on this device">Log out</button>
@@ -2935,7 +2935,8 @@ async function renderSessionPage(id){
         ? '<div class="sess-warn"><span><b>Standings and game log disagree.</b> '+sessionMismatch(s)+' player'+(sessionMismatch(s)===1?"'s record does":"s\' records do")+' not match the games recorded below.</span><button class="btn btn-sm" data-fixstand="'+esc(String(s.id))+'" style="margin-left:auto">Rebuild from game log</button></div>'
         : '')+
       photoBlock+
-      '<details class="sess-block sess-fold" open><summary>🏆 Standings<span class="foldcount">'+((s.players||[]).length)+' player'+(((s.players||[]).length)===1?'':'s')+'</span><span class="foldarrow">▾</span></summary>'+
+      '<details class="sess-block sess-fold" open><summary>🏆 Standings<span class="foldcount">'+((s.players||[]).length)+' player'+(((s.players||[]).length)===1?'':'s')+'</span>'
+        +'<button type="button" class="btn-accent btn-sm" data-podium="'+(live?"live":esc(String(s.id)))+'" title="Show the top ten with fireworks">🎉 Podium</button><span class="foldarrow">▾</span></summary>'+
         '<div class="lbwrap"><table class="lb"><thead><tr><th>#</th><th>Player</th>'+(showLvl?'<th>Lvl</th>':'')+'<th>G</th><th>W</th><th>L</th><th>%</th><th title="Points for minus points against">+/−</th></tr></thead><tbody>'+(rows||emptyStand)+'</tbody></table></div></details>'+
       '<div class="sess-block" style="grid-column:1/-1"><h3>🎾 Game log'+(nDupr?' <span class="foldcount">'+nDupr+' DUPR</span>':'')+(noScore?' <span class="foldcount">'+noScore+' without a score</span>':'')+'</h3>'+(log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':'')+'<div class="glwrap">'+gl+'</div>'+((!live&&isAdmin())?'<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-sm" data-csv="'+s.id+'">⬇ Standings CSV</button></div>':'')+'</div>'+
     '</div>';
@@ -3527,7 +3528,7 @@ document.addEventListener("click",e=>{ if(e.target.closest("[data-gohome],#brand
 if($("histAdminPlay")) $("histAdminPlay").addEventListener("click",()=>{ isAdmin() ? enterAdminPlay() : adminLogin(); });
 if($("sessBackBtn")) $("sessBackBtn").addEventListener("click",()=>openHistory());
 if($("sessContinue")) $("sessContinue").addEventListener("click",()=>enterAdminPlay());
-if($("sessPodium")) $("sessPodium").addEventListener("click",()=>openPodium(viewingSessionId));
+document.body.addEventListener("click",e=>{ const b=e.target.closest("[data-podium]"); if(!b) return; e.preventDefault(); e.stopPropagation(); openPodium(b.dataset.podium); });   // sits inside the fold heading, so the click must not fold it
 $("podClose").addEventListener("click",closePodium);
 $("podAgain").addEventListener("click",()=>startPodiumFx());
 $("podiumModal").addEventListener("click",e=>{ if(e.target===$("podiumModal")||e.target===$("podiumFx")) closePodium(); });
