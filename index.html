@@ -1031,7 +1031,7 @@ window.addEventListener("error",function(e){
     <h2 class="pod-title" id="podTitle">Congratulations!</h2>
     <p class="pod-sub" id="podSub"></p>
     <div id="podBody"></div>
-    <div class="pod-foot"><button type="button" class="btn-ghost btn-sm" id="podAgain">🎆 Again</button><button type="button" class="btn-accent btn-sm" id="podClose">Close</button></div>
+    <div class="pod-foot"><button type="button" class="btn-ghost btn-sm" id="podSound">🔊 Sound on</button><button type="button" class="btn-ghost btn-sm" id="podAgain">🎆 Again</button><button type="button" class="btn-accent btn-sm" id="podClose">Close</button></div>
   </div>
 </div>
 
@@ -2178,6 +2178,38 @@ async function startOP(opts){
    A celebration screen for the top ten: a podium for the first three places (a tie shares the step), the
    rest in a list, fireworks and confetti on a canvas behind. It pops up when open play ends, and the
    🎉 Podium button on a session page brings it back, so it can go up on a screen for the players. */
+/* ---- podium sound: a short fanfare when it opens, a pop for every firework. All synthesised with the browser's
+   audio engine, so there are no audio files to host. The 🔊 button mutes it and the choice is remembered. */
+let podAC=null;
+const POD_SOUND_KEY="kjp_podium_sound";
+function podSoundOn(){ try{ return localStorage.getItem(POD_SOUND_KEY)!=="off"; }catch(e){ return true; } }
+function podAudio(){
+  if(!podSoundOn()) return null;
+  try{ if(!podAC) podAC=new (window.AudioContext||window.webkitAudioContext)(); if(podAC.state==="suspended") podAC.resume(); return podAC; }catch(e){ return null; }
+}
+function podTone(ac,freq,t,dur,type,gain){
+  const o=ac.createOscillator(), g=ac.createGain(); o.type=type||"triangle"; o.frequency.value=freq;
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(gain||0.18,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t+dur+0.05);
+}
+function podFanfare(){
+  const ac=podAudio(); if(!ac) return; const t=ac.currentTime+0.05;
+  // ta - da - da - DAA, then a bright chord under the last note
+  [[523.25,0,0.18],[659.25,0.18,0.18],[783.99,0.36,0.18],[1046.5,0.54,0.7]].forEach(([f,at,d])=>{ podTone(ac,f,t+at,d,"square",0.07); podTone(ac,f/2,t+at,d,"triangle",0.1); });
+  [523.25,659.25,783.99].forEach(f=>podTone(ac,f,t+0.54,0.9,"triangle",0.05));
+}
+function podPop(){
+  const ac=podAudio(); if(!ac) return; const t=ac.currentTime;
+  const n=Math.floor(ac.sampleRate*0.25), buf=ac.createBuffer(1,n,ac.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,2.5);                       // a burst of noise that dies fast
+  const src=ac.createBufferSource(); src.buffer=buf;
+  const f=ac.createBiquadFilter(); f.type="bandpass"; f.frequency.value=900+Math.random()*1200; f.Q.value=0.8;
+  const g=ac.createGain(); g.gain.setValueAtTime(0.4,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.25);
+  src.connect(f).connect(g).connect(ac.destination); src.start(t);
+  podTone(ac,70+Math.random()*40,t,0.18,"sine",0.22);                                        // the thump underneath
+}
+function syncSoundBtn(){ const b=$("podSound"); if(!b) return; const on=podSoundOn(); b.textContent=on?"🔊 Sound on":"🔇 Sound off"; b.title=on?"Turn the podium sound off":"Turn the podium sound on"; }
+function toggleSound(){ const on=!podSoundOn(); try{ localStorage.setItem(POD_SOUND_KEY,on?"on":"off"); }catch(e){} syncSoundBtn(); if(on) podFanfare(); }
 let podAnim=null;
 function openPodium(sid){
   const live=(sid==="live");
@@ -2202,7 +2234,7 @@ function openPodium(sid){
   $("podSub").textContent=(s.name||"Open play")+" · "+(s.games||0)+" game"+((s.games||0)===1?"":"s")+" · "+rows.length+" player"+(rows.length===1?"":"s");
   $("podBody").innerHTML='<div class="pod-stage">'+spot(0,"p1","🥇")+spot(1,"p2","🥈")+spot(2,"p3","🥉")+'</div>'+list;
   $("podiumModal").classList.remove("hidden");
-  startPodiumFx();
+  syncSoundBtn(); startPodiumFx(); podFanfare();
 }
 function closePodium(){ $("podiumModal").classList.add("hidden"); stopPodiumFx(); }
 /* Fireworks for a dozen seconds, confetti the whole time. Nothing runs for people who asked for reduced motion. */
@@ -2221,7 +2253,7 @@ function startPodiumFx(){
     podAnim=requestAnimationFrame(frame); fit();
     ctx.clearRect(0,0,cv.width,cv.height);
     if(now>nextRocket && now-t0<12000){ rockets.push({x:cv.width*(0.15+Math.random()*0.7),y:cv.height,vy:-(7+Math.random()*4),c:colors[Math.floor(Math.random()*colors.length)]}); nextRocket=now+300+Math.random()*700; }
-    for(let i=rockets.length-1;i>=0;i--){ const r=rockets[i]; r.y+=r.vy; r.vy+=0.12; ctx.fillStyle=r.c; ctx.fillRect(r.x-1.5,r.y,3,8); if(r.vy>=-1){ burst(r); rockets.splice(i,1); } }
+    for(let i=rockets.length-1;i>=0;i--){ const r=rockets[i]; r.y+=r.vy; r.vy+=0.12; ctx.fillStyle=r.c; ctx.fillRect(r.x-1.5,r.y,3,8); if(r.vy>=-1){ burst(r); podPop(); rockets.splice(i,1); } }
     for(let i=sparks.length-1;i>=0;i--){ const p=sparks[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.05; p.vx*=0.985; p.vy*=0.985; p.life-=0.016;
       if(p.life<=0){ sparks.splice(i,1); continue; } ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,2,0,6.283); ctx.fill(); }
     ctx.globalAlpha=1;
@@ -3530,7 +3562,8 @@ if($("sessBackBtn")) $("sessBackBtn").addEventListener("click",()=>openHistory()
 if($("sessContinue")) $("sessContinue").addEventListener("click",()=>enterAdminPlay());
 document.body.addEventListener("click",e=>{ const b=e.target.closest("[data-podium]"); if(!b) return; e.preventDefault(); e.stopPropagation(); openPodium(b.dataset.podium); });   // sits inside the fold heading, so the click must not fold it
 $("podClose").addEventListener("click",closePodium);
-$("podAgain").addEventListener("click",()=>startPodiumFx());
+$("podAgain").addEventListener("click",()=>{ startPodiumFx(); podFanfare(); });
+$("podSound").addEventListener("click",toggleSound);
 $("podiumModal").addEventListener("click",e=>{ if(e.target===$("podiumModal")||e.target===$("podiumFx")) closePodium(); });
 if($("sessAdminLogin")) $("sessAdminLogin").addEventListener("click",()=>adminLogin());
 if($("navHomeBtn")) $("navHomeBtn").addEventListener("click",()=>showLanding());
