@@ -614,7 +614,16 @@ window.addEventListener("error",function(e){
   .sess-hero h2{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-size:clamp(1.7rem,4vw,2.4rem);margin:0 0 8px;font-weight:700;line-height:1.1}
   .sess-hero p{margin:0;color:var(--muted)}
   .sess-grid{display:grid;gap:22px}
-  @media(min-width:900px){.sess-grid{grid-template-columns:1.1fr .9fr}}
+  @media(min-width:900px){
+    .sess-grid{grid-template-columns:1.1fr .9fr}
+    /* Standings stretch to the height of the photos beside them, never below 360px, and the list scrolls inside
+       instead of forcing the row taller. Folded, the card just hugs its heading. */
+    .sess-grid>.sess-fold[open]{display:flex;flex-direction:column;min-height:360px;contain:size}   /* contain:size — the list does not count toward the row height */
+    .sess-grid>.sess-fold:not([open]){align-self:start}
+    .sess-grid>.sess-fold[open]>summary{flex:none}
+    .sess-grid>.sess-fold[open]::details-content{display:flex;flex-direction:column;flex:1 1 0;min-height:0}   /* the browser's own box around the content */
+    .sess-grid>.sess-fold[open] .lbwrap{flex:1 1 0;min-height:0;max-height:none}
+  }
   .sess-block{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px 18px}
   .sess-block h3{font-family:"Fraunces",Georgia,"Times New Roman",serif;font-size:1.05rem;margin:0 0 12px;font-weight:700}
   /* live page: courts now + who's next — the player-facing, read-only view of the queue */
