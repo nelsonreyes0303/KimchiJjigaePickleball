@@ -351,6 +351,11 @@ window.addEventListener("error",function(e){
   .lb tbody tr:last-child td{border-bottom:none}
   .pst{font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
   .pst.q{color:var(--accent)} .pst.court{color:var(--win)}
+  .ci-note{font-size:.84rem;color:var(--muted);margin:0 0 10px;line-height:1.45}
+  .ci-ok{color:var(--int);font-weight:700}
+  .lb tr.ci-behind td{background:rgba(242,112,112,.1)}
+  .lb td.ci-flag{color:var(--danger);font-weight:800;font-size:.72rem;text-align:left;white-space:nowrap}
+  .lb td.ci-time{font-variant-numeric:tabular-nums;white-space:nowrap}
   .lb td.edit{cursor:pointer} .lb td.edit:hover{background:var(--line);border-radius:6px}
 
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
@@ -862,7 +867,7 @@ window.addEventListener("error",function(e){
     </div>
     <button type="button" class="split split-v" id="queueSplit" aria-label="Resize queue panel" title="Drag to resize · double-click to reset"></button>
     <div class="card board-pane">
-      <h2>🏆 Leaderboard <span class="hint" id="boardTotal" style="margin-left:auto;font-weight:500"></span></h2>
+      <h2>🏆 Leaderboard <span class="hint" id="boardTotal" style="margin-left:auto;font-weight:500"></span><button type="button" class="btn-ghost btn-sm" id="ciBoardBtn" title="Players in check-in order with their games — earlier arrivals should never have fewer">🕒 Check-in board</button></h2>
       <div id="board" style="padding:4px 6px"></div>
     </div>
   </div>
@@ -1066,6 +1071,13 @@ window.addEventListener("error",function(e){
 </div>
 
 <div id="lightbox" class="lightbox hidden" title="Click to close"></div>
+
+<div id="ciModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="ciTitle">
+  <div class="modalcard">
+    <div class="modalhead"><b id="ciTitle">🕒 Check-in board</b><button class="btn-ghost btn-sm" id="ciClose">Close</button></div>
+    <div id="ciBody" class="modalbody"></div>
+  </div>
+</div>
 
 <div id="playerModal" class="modal hidden">
   <div class="modalcard">
@@ -2769,6 +2781,35 @@ function confirmSetup(){
     ? "Game set — waiting for "+playing.map(nm).join(" & ")+" to finish: "+four.map(nm).join(", ")
     : "Game set: "+four.map(nm).join(", ")+(gi===0?" · up next":gi>0?" · up as Group "+(gi+1):""));
 }
+/* ---------- check-in board ----------
+   The fairness rule in one table: everyone who played or is checked in, in the order they arrived, with their
+   games. If someone who arrived later has more games than you, your row is flagged "behind by N", so a glance
+   shows whether the queue is keeping its promise. Players who have left tonight are listed too, since their
+   games still count. */
+function ciRows(){
+  const list=Object.values(state.players).filter(p=>p.in||p.games>0)
+    .sort((a,b)=>(a.checkedInAt||Infinity)-(b.checkedInAt||Infinity)||a.name.localeCompare(b.name));
+  // the most games anyone who arrived after this player has
+  let maxLater=-1; const later=new Array(list.length).fill(0);
+  for(let i=list.length-1;i>=0;i--){ later[i]=Math.max(0,maxLater); maxLater=Math.max(maxLater,list[i].games); }
+  return list.map((p,i)=>({p,behind:Math.max(0,later[i]-p.games)}));
+}
+function renderCiBoard(){
+  const el=$("ciBody"); if(!el) return;
+  const rows=ciRows();
+  if(!rows.length){ el.innerHTML='<div class="qempty">Nobody has checked in yet.</div>'; return; }
+  const flagged=rows.filter(r=>r.behind>0).length;
+  const st=p=>onCourt(p.id)?'<span class="pst court">On court</span>':(state.queue.includes(p.id)?'<span class="pst q">In queue</span>':(p.in?'<span class="pst">Bench</span>':'<span class="pst">Left</span>'));
+  el.innerHTML='<p class="ci-note">Earliest check-in first. Whoever arrived earlier should have at least as many games as anyone who arrived later. '
+    +(flagged?'<b style="color:var(--danger)">'+flagged+' player'+(flagged===1?' is':'s are')+' behind someone who came later.</b>':'<span class="ci-ok">Everyone is in line with the rule.</span>')+'</p>'
+    +'<table class="lb"><thead><tr><th>#</th><th style="text-align:left">Player</th><th>Checked in</th><th>Games</th><th>Status</th><th style="text-align:left">Rule</th></tr></thead><tbody>'
+    +rows.map((r,i)=>'<tr class="'+(r.behind?'ci-behind':'')+'"><td class="rank">'+(i+1)+'</td><td class="lname">'+esc(r.p.name)+'</td>'
+      +'<td class="ci-time">'+(r.p.checkedInAt?fmtTime(r.p.checkedInAt):'—')+'</td><td><b>'+r.p.games+'</b></td><td style="text-align:left">'+st(r.p)+'</td>'
+      +'<td class="ci-flag">'+(r.behind?'behind by '+r.behind:'')+'</td></tr>').join("")
+    +'</tbody></table>';
+}
+function openCiBoard(){ renderCiBoard(); $("ciModal").classList.remove("hidden"); }
+function closeCiBoard(){ $("ciModal").classList.add("hidden"); }
 function openPlayerHistory(id){ const p=P(id); if(!p)return; $("playerTitle").textContent="📊 "+p.name+" — this open play"; $("playerBody").innerHTML=renderPlayerGames(id,p.name); $("playerModal").classList.remove("hidden"); }
 function closePlayer(){ $("playerModal").classList.add("hidden"); }
 function renderPlayerGames(pid,pname){
@@ -3427,6 +3468,7 @@ function render(){
   const sb=$("challengeBtn"); if(sb){ sb.classList.toggle("on",!!state.challenge); sb.textContent=state.challenge?"🎯 Challenge: ON":"🎯 Challenge"; }
   const ob=$("opBtn"); if(ob){ const on=state.session&&state.session.active; ob.textContent=on?"⏹ End open play":"▶ Start open play"; ob.className="btn-sm "+(on?"btn opactive":"btn-accent"); }
   renderCourts(); renderQueue(); renderRoster(); renderBoard(); renderLiveLog();
+  if($("ciModal") && !$("ciModal").classList.contains("hidden")) renderCiBoard();   // the board follows the night while it is open
   const playing=state.courts.reduce((n,c)=>n+(c.seats.every(x=>x)?4:0),0);
   $("stRoster").textContent=Object.keys(state.players).length;
   $("stPlaying").textContent=playing;
@@ -3549,6 +3591,9 @@ $("setupModal").addEventListener("click",e=>{ if(e.target===$("setupModal")) clo
 $("opBtn").addEventListener("click",toggleOP);
 $("historyBtn").addEventListener("click",openHistory);
 $("playerClose").addEventListener("click",closePlayer);
+if($("ciBoardBtn")) $("ciBoardBtn").addEventListener("click",openCiBoard);
+$("ciClose").addEventListener("click",closeCiBoard);
+$("ciModal").addEventListener("click",e=>{ if(e.target===$("ciModal")) closeCiBoard(); });
 $("playerModal").addEventListener("click",e=>{ if(e.target===$("playerModal")) closePlayer(); });
 $("landingAdmin").addEventListener("click",()=>adminLogin());
 if($("landingGoCourts")) $("landingGoCourts").addEventListener("click",()=>enterAdminPlay());
