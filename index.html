@@ -1786,7 +1786,22 @@ function seatsLabel(ids){
 }
 function cmpCost(a,b){ for(let i=0;i<4;i++){ if(a[i]!==b[i]) return a[i]-b[i]; } return 0; }  // compare games (highest first)
 function levelsOK(ids){ const ix=ids.map(levelOf), mn=Math.min(...ix), mx=Math.max(...ix);
-  if(mx-mn>1) return false; if(state.challenge && new Set(ix).size>1) return false; return true; }   // never Beg+Int; Challenge = same level
+  if(mx-mn>1) return bridgeOK(ids); if(state.challenge && new Set(ix).size>1) return false; return true; }   // never Beg+Int; Challenge = same level
+/* Wait relief: Novice + High Int vs Low Int + Low Int. Both teams add up to the same tier total, so the game is
+   even, and it lets a Novice or a High Int who has waited BRIDGE_WAIT_MIN in through the Low Ints, the tier both
+   of them depend on. Only that exact shape (or a part of it while the group is being built), never in Challenge
+   mode, never with a fixed pair, and only for someone already kept waiting. The team split puts Nov with HI. */
+const BRIDGE_WAIT_MIN=20;
+function bridgeOK(ids){
+  if(state.challenge || ids.length<2) return false;
+  const lv=ids.map(id=>P(id)&&P(id).level);
+  const n=lv.filter(l=>l==="novice").length, h=lv.filter(l=>l==="highint").length, li=lv.filter(l=>l==="lowint").length;
+  if(n!==1 || h!==1 || n+h+li!==ids.length) return false;                  // part of exactly {Nov, HI, LI, LI}
+  if(ids.some(id=>P(id).partner)) return false;                              // a fixed pair would break the even split
+  const now=Date.now();
+  return ids.some(id=>{ const l=P(id).level; return (l==="novice"||l==="highint") && !onCourt(id) && now-waitSince(id)>=BRIDGE_WAIT_MIN*60000; });
+}
+function isBridge(ids){ const ix=ids.filter(Boolean).map(levelOf); return ix.length===4 && Math.max(...ix)-Math.min(...ix)>1; }
 function teammateCount(){ const m={}; (state.log||[]).forEach(g=>{ const k=(x,y)=>[x.id,y.id].sort().join("|"); const kw=k(g.w[0],g.w[1]),kl=k(g.l[0],g.l[1]); m[kw]=(m[kw]||0)+1; m[kl]=(m[kl]||0)+1; }); return m; }
 function splits(ids){ const [a,b,c,d]=ids; return [[a,b,c,d],[a,c,b,d],[a,d,b,c]]; }   // the 3 ways to make 2v2; first = current order
 function teamGap(o){ return Math.abs((levelOf(o[0])+levelOf(o[1])) - (levelOf(o[2])+levelOf(o[3]))); }  // tier difference between the two teams
@@ -3146,7 +3161,8 @@ function renderCourts(){
     const active=c.seats.every(x=>x);
     let head=`<div class="chead"><b class="cname"${isAdmin()?` data-cname="${c.id}" title="Click to rename"`:""}>${esc(c.name||('Court '+(idx+1)))}</b>`;
     if(active && showCats()){ const set=[...new Set(c.seats.map(id=>P(id).level))]; const lab=seatsLabel(c.seats);
-      const bc=set.length>1?'mix':lvlCls(set[0]); head+=`<span class="badge ${bc}">${lab}</span>`; }
+      const bc=set.length>1?'mix':lvlCls(set[0]);
+      head+=isBridge(c.seats) ? `<span class="badge ${bc}" title="Wait relief: a Novice or High Int had waited ${BRIDGE_WAIT_MIN}+ minutes, so Novice + High Int play Low Int + Low Int">⏳ ${lab}</span>` : `<span class="badge ${bc}">${lab}</span>`; }
     else if(active){ head+=`<span class="badge live">Live</span>`; }
     else head+=`<span class="badge open">Open</span>`;
     if(active && c.dupr) head+=`<span class="badge dupr" title="DUPR game — the score is required and the game is tagged for Reclub">DUPR</span>`;
