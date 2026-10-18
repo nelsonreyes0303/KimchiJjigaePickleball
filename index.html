@@ -812,6 +812,7 @@ window.addEventListener("error",function(e){
       <span id="opStatus" class="hint" style="font-weight:700"></span>
       <button class="btn btn-sm tool-extra" id="historyBtn">🕘 History</button>
       <button class="btn btn-sm admin-only tool-extra" id="challengeBtn" title="Force everyone to play only within their own level — no mixing across tiers">🎯 Challenge</button>
+      <button class="btn btn-sm admin-only tool-extra" id="freshBtn" title="Avoid rematches: a player with the fewest games who has waited under 20 minutes can be passed over for a fresher game by someone with at most one more game. Anyone waiting 20 minutes or more is never passed over.">✨ Fresh matches</button>
       <button class="btn btn-sm admin-only" id="addCourt">+ Court</button>
       <button class="btn-ghost btn-sm admin-only" id="undoBtn" title="Undo the last action — shuffle, drag, start, or game">↶ Undo</button>
       <button class="btn-ghost btn-sm admin-only" id="resetBtn">Reset scores</button>
@@ -1669,8 +1670,15 @@ function rebalanceTail(){
     while(grp.length<4){
       let cand=pool.filter(id=>levelsOK(grp.concat([id])));    // keep the foursome tier-legal
       if(!cand.length) cand=pool.slice();                      // never strand anyone — fall back if no legal pick
-      cand.sort((a,b)=> effGames(a)-effGames(b)                // fewest games first (keeps it fair)…
+      // Fresh matches: a player on the fewest games who has waited under LONG_WAIT_MIN can be passed over for a
+      // fresher matchup by someone with at most one more game. A long waiter on the fewest games is never passed
+      // over — they go in first — and the group's anchor (pool[0]) is always the one owed a game.
+      const least=Math.min.apply(null,cand.map(effGames));
+      const longWaiter=id=>effGames(id)===least && Date.now()-waitSince(id)>=LONG_WAIT_MIN*60000;
+      const key=id=>{ const g=effGames(id); if(longWaiter(id)) return least-1; return (!state.strictFair && g<=least+1) ? least : g; };
+      cand.sort((a,b)=> key(a)-key(b)                          // fewest games first, with one game of give when nobody has waited long…
                      || coSum(cop,grp,a)-coSum(cop,grp,b)      // …then the freshest matchup (stops repeats)
+                     || effGames(a)-effGames(b)                // …then strictly fewer games
                      || pos[a]-pos[b]);
       const pick=cand[0]; grp.push(pick); drop(pick); addPartner(pick);
     }
@@ -2063,6 +2071,7 @@ function resetSession(){
   const keepTheme=state.theme||"dark";
   const keepSort=ROSTER_SORTS.includes(state.sort)?state.sort:"name";
   const keepChallenge=!!state.challenge;
+  const keepStrict=!!state.strictFair;
   const keepHideTiers=!!state.hideTiers;
   const keepSec=state.secOpen||{};
   const keepLayout=state.layout&&typeof state.layout==="object"?{...state.layout}:{};
@@ -2074,6 +2083,7 @@ function resetSession(){
   state.theme=keepTheme;
   state.sort=keepSort;
   state.challenge=keepChallenge;
+  state.strictFair=keepStrict;
   state.hideTiers=keepHideTiers;
   state.secOpen=keepSec;
   state.layout=keepLayout;
@@ -3466,6 +3476,7 @@ function renderBoard(){
 function ord(l){const i=lvlIdx(l);return i<0?9:i;}
 function render(){
   const sb=$("challengeBtn"); if(sb){ sb.classList.toggle("on",!!state.challenge); sb.textContent=state.challenge?"🎯 Challenge: ON":"🎯 Challenge"; }
+  const fb=$("freshBtn"); if(fb){ fb.classList.toggle("on",!state.strictFair); fb.textContent=state.strictFair?"✨ Fresh matches: off":"✨ Fresh matches"; }
   const ob=$("opBtn"); if(ob){ const on=state.session&&state.session.active; ob.textContent=on?"⏹ End open play":"▶ Start open play"; ob.className="btn-sm "+(on?"btn opactive":"btn-accent"); }
   renderCourts(); renderQueue(); renderRoster(); renderBoard(); renderLiveLog();
   if($("ciModal") && !$("ciModal").classList.contains("hidden")) renderCiBoard();   // the board follows the night while it is open
@@ -3667,6 +3678,8 @@ document.body.addEventListener("change",e=>{
   if(inp&&inp.files){ addPhotosToSession(inp.dataset.addphotos, inp.files); inp.value=""; }
 });
 $("challengeBtn").addEventListener("click",()=>{ if(!isAdmin()) return; state.challenge=!state.challenge;audit("challenge",state.challenge?"ON":"off");commit();toast(state.challenge?"Challenge ON — everyone plays within their own level":"Challenge off — levels get mixed");});
+if($("freshBtn")) $("freshBtn").addEventListener("click",()=>{ if(!isAdmin()) return; state.strictFair=!state.strictFair; audit("freshMatches",state.strictFair?"off":"ON"); pushUndo(); rebalanceTail(); commit();
+  toast(state.strictFair?"Fresh matches off — strictly fewest games first":"Fresh matches on — short waiters may be passed over for a fresher game"); });
 $("sortSel").addEventListener("change",e=>{state.sort=e.target.value;save();renderRoster();});
 if($("checkOutAllBtn")) $("checkOutAllBtn").addEventListener("click",()=>{ if(!isAdmin()){ toast("Admin only"); return; } checkOutAll(); });
 if($("tierToggle")) $("tierToggle").addEventListener("click",()=>{
