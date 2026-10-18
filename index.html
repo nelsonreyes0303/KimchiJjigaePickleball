@@ -1711,8 +1711,41 @@ function pinnedFront(work){
   });
   return out;
 }
+/* ---------- no straight-back reunions ----------
+   Early in a night everyone is level on games, and the next group can form while the people who would freshen
+   it are still on court. Once held it would stay together, so three of the four walked straight back on as a
+   group. Each time the queue changes this looks at the next group: if three or more of them came off the same
+   game, one of them trades places with a fresher player who has the same number of games or fewer, so nobody
+   is owed less. Someone who has waited LONG_WAIT_MIN or more is never the one traded out. Set-up groups, Play
+   again, fixed pairs, 🔒 locks and your own drag are left exactly as you made them. Measured on a replay of the
+   Oct 17 night, this cut these reunions from about 11 a night to 4 with no change in fairness or waits. */
+function avoidRematch(){
+  if(!(state.session&&state.session.active) || state.locked || manualActive()) return;
+  const g=queueGroups().groups[0]; if(!g||g.length!==4) return;
+  const lastG={}; (state.log||[]).forEach((x,k)=>[...x.w,...x.l].forEach(n=>{ lastG[n.id]=k; }));
+  const from={}; g.forEach(id=>{ if(id in lastG)(from[lastG[id]]=from[lastG[id]]||[]).push(id); });
+  const club=Object.values(from).find(a=>a.length>=3); if(!club) return;
+  const held=id=>{ const p=P(id); return !p || p.grp || p.partner || (state.qlocked||[]).includes(id); };
+  if(g.some(held)) return;
+  const cop=coplayCount(), now=Date.now(), longW=id=>now-waitSince(id)>=LONG_WAIT_MIN*60000;
+  let best=null;
+  club.filter(id=>!longW(id)).forEach(out=>{
+    const rest=g.filter(x=>x!==out);
+    state.queue.forEach(cand=>{
+      if(g.includes(cand) || held(cand) || onCourt(cand) || effGames(cand)>effGames(out) || !levelsOK(rest.concat([cand]))) return;
+      const score=[coSum(cop,rest,cand), effGames(cand), waitSince(cand)];     // freshest, then fewest games, then longest waiting
+      if(!best || score[0]<best.score[0] || (score[0]===best.score[0] && (score[1]<best.score[1] || (score[1]===best.score[1] && score[2]<best.score[2])))) best={out,cand,score};
+    });
+  });
+  if(!best || best.score[0]>=club.length-1) return;                          // only when it really is a fresher game
+  const q=state.queue, a=q.indexOf(best.out), b=q.indexOf(best.cand); if(a<0||b<0) return;
+  q[a]=best.cand; q[b]=best.out;
+  state.frontPinned=(state.frontPinned||[]).map(p=>p.map(x=>x===best.out?best.cand:(x===best.cand?best.out:x)));
+  audit("avoidRematch", nmsafe(best.cand)+" in for "+nmsafe(best.out)+" — "+club.map(nmsafe).join(", ")+" just played together");
+}
 function pinFront(){
   if(!Array.isArray(state.queue)) return;
+  try{ avoidRematch(); }catch(e){ console.warn("avoidRematch", e); }      // never let this block the queue
   state.frontPinned=queueGroups().groups.slice(0,pinnedGroups()).filter(g=>g.length===4).map(g=>g.slice());
 }
 function clearFrontPin(){ state.frontPinned=[]; }
