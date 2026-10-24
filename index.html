@@ -2337,7 +2337,7 @@ async function endOP(){
   if(!(await requireAdmin())) return;
   if(!state.session.active){ toast("No open play in progress"); return; }
   const sid=state.session.id||Date.now();
-  const checkins=Object.values(state.players).filter(p=>p.checkedInAt&&(p.in||p.games>0)).map(p=>({name:p.name,at:p.checkedInAt}));   // for the check-in board in history
+  const checkins=Object.values(state.players).filter(p=>p.checkedInAt&&(p.in||p.games>0)).map(p=>({id:p.id,name:p.name,at:p.checkedInAt}));   // for the check-in board in history
   state.history.unshift({ id:sid, name:state.session.name||"", startedAt:state.session.startedAt, endedAt:Date.now(), games:state.games, players:standings(), log:(state.log||[]).slice(), checkins, photos:[] });
   state.session={active:false,startedAt:null};
   Object.values(state.players).forEach(p=>{ p.in=false; });            // the night is over: everyone is checked out
@@ -2855,8 +2855,9 @@ function ciEntries(){
   }
   const sess=(state.history||[]).find(h=>String(h.id)===String(ciSid)); if(!sess) return null;
   if(!Array.isArray(sess.checkins)) return null;
-  const g={}; (sess.log||[]).forEach(x=>[...x.w,...x.l].forEach(p=>{ g[p.name]=(g[p.name]||0)+1; }));
-  return sess.checkins.map(c=>({name:c.name, at:c.at||0, games:g[c.name]||0, status:null}));
+  // counted by player id: someone renamed mid-night has their earlier games logged under the old name
+  const g={}, idOf={}; (sess.log||[]).forEach(x=>[...x.w,...x.l].forEach(p=>{ const k=p.id||p.name; g[k]=(g[k]||0)+1; idOf[p.name]=k; }));
+  return sess.checkins.map(c=>({name:c.name, at:c.at||0, games:g[c.id||idOf[c.name]||c.name]||0, status:null}));
 }
 function ciRows(list){
   list=list.slice().sort((a,b)=>(a.at||Infinity)-(b.at||Infinity)||a.name.localeCompare(b.name));
