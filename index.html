@@ -1684,6 +1684,7 @@ function fmt(ms){const s=Math.max(0,Math.floor(ms/1000));return Math.floor(s/60)
 const LONG_WAIT_MIN=20;   // queue rows turn gold once someone has waited this long
 const FRESH_SLACK_MIN=5;  // a fresher matchup may reorder players whose waits are this close, never someone who waited longer
 const REUNION_SLACK_MIN=10; // …stretched this far only to stop three off the same court walking back on together
+const SAME_LEVEL_FIRST=false; // among players owed a seat, the one closest in level to the group goes first
 function fmtWait(ms){ const m=Math.max(0,Math.floor(ms/60000)); return m<1 ? "<1m" : m<60 ? m+"m" : Math.floor(m/60)+"h "+String(m%60).padStart(2,"0")+"m"; }
 function waitSince(id){ const p=P(id); if(!p) return Date.now(); if(!p.waitSince) p.waitSince=Date.now(); return p.waitSince; }
 function waitSpan(id){ const t=waitSince(id), ms=Date.now()-t; return `<span class="qwait ${ms>=LONG_WAIT_MIN*60000?'long':''}" data-wait="${t}" title="Time waiting in the queue">${fmtWait(ms)}</span>`; }
@@ -1798,61 +1799,88 @@ function queueGroups(){
   let g; while(g=nextGroupFrom(work, man)) groups.push(g);
   return {groups, leftovers:work, manual:man};
 }
-/* Auto-levelling. Next up + Group 2 (the first 8 in line) are YOURS — never touched.
-   From Group 3 back, players are re-ordered fewest-games-first so nobody runs away with the game count.
-   Locked groups (🔒) keep their exact slots, and fixed pairs stay adjacent. */
+/* Auto-levelling: the planner. The held groups (Next up, Group 2) and 🔒 locked groups keep their players and
+   their slots; everyone else is planned into foursomes, fewest games first, then longest waiting, and written
+   back into the line as whole foursomes in order. Each foursome is level-legal and keeps its fixed pair or
+   Play-again four inside it, so queueGroups() forms exactly the groups planned here. The old re-order planned in
+   the line's order and the groups were then re-formed by different rules, so one player frozen near the front,
+   a pair split across two groups, or a foursome that broke the level rules shifted every group behind it.
+   Anyone who cannot make a legal foursome right now waits at the back until someone they can play with is free. */
 function rebalanceTail(){
   if(state.locked) return;                                   // whole queue locked = hands off
   const q=state.queue;
-  if(q.length<=keepFront()+1) return;
-  const lset=new Set(state.qlocked||[]);
+  const lset=new Set(state.qlocked||[]), held=new Set(pinnedFront(q.slice()).flat());
   const freeIdx=[], freeIds=[];
-  for(let i=keepFront();i<q.length;i++){ if(!lset.has(q[i])){ freeIdx.push(i); freeIds.push(q[i]); } }
+  q.forEach((id,i)=>{ if(!lset.has(id) && !held.has(id)){ freeIdx.push(i); freeIds.push(id); } });
+  state.planSig=queueSig();
   if(freeIds.length<2) return;
   const pos={}; freeIds.forEach((id,i)=>pos[id]=i);
   const cop=coplayCount();                                    // who has already played with whom
   const lastG={}; (state.log||[]).forEach((x,k)=>[...x.w,...x.l].forEach(n=>{ lastG[n.id]=k; }));   // each player's last game
+  // The units nextGroupFrom() builds: a Play-again four, a fixed pair, or one player. A set-up group still waiting
+  // for someone on court, or a player whose partner is not in the line, sits this round out at the back.
+  const inFree=new Set(freeIds), byGrp={}, seen=new Set(), units=[], aside=[];
+  freeIds.forEach(id=>{ const g=P(id).grp; if(g)(byGrp[g]=byGrp[g]||[]).push(id); });
+  freeIds.forEach(id=>{
+    if(seen.has(id)) return;
+    const g=P(id).grp;
+    if(g && byGrp[g].length>=4){ const four=byGrp[g].slice(0,4); four.forEach(x=>seen.add(x)); units.push({ids:four,four:true}); return; }
+    seen.add(id);
+    if(g && groupStillComing(g,id)){ aside.push(id); return; }
+    const pt=P(id).partner;
+    if(pt){ if(inFree.has(pt) && !seen.has(pt)){ seen.add(pt); units.push({ids:[id,pt]}); } else aside.push(id); return; }
+    units.push({ids:[id]});
+  });
+  const gOf=u=>Math.min.apply(null,u.ids.map(effGames)), wOf=u=>Math.min.apply(null,u.ids.map(waitSince)), pOf=u=>Math.min.apply(null,u.ids.map(x=>pos[x]));
   // fewest games first, then longest waiting. Not queue position: the four just off court are spread through the
   // line, so on equal games position would let one of them lead a group ahead of someone who has waited 20 minutes.
-  const pool=freeIds.slice().sort((a,b)=> effGames(a)-effGames(b) || waitSince(a)-waitSince(b) || pos[a]-pos[b]);
-  const drop=id=>{ const i=pool.indexOf(id); if(i>=0) pool.splice(i,1); };
-  const ordered=[];
-  while(pool.length){
-    if(pool.length<4){ ordered.push.apply(ordered,pool); pool.length=0; break; }
-    const grp=[pool[0]]; drop(pool[0]);
-    const addPartner=id=>{ const pt=P(id).partner; if(pt && grp.length<4 && pool.indexOf(pt)>=0){ grp.push(pt); drop(pt); } };
-    addPartner(grp[0]);
-    while(grp.length<4){
-      let cand=pool.filter(id=>levelsOK(grp.concat([id])));    // keep the foursome tier-legal
-      if(!cand.length) cand=pool.slice();                      // never strand anyone — fall back if no legal pick
-      // Fresh matches: the freshest matchup wins among the players owed this seat. A long waiter on the fewest
-      // games is always owed it. Otherwise someone with at most one more game may take it, but never past a
-      // player with fewer or the same games who has waited FRESH_SLACK_MIN longer: one who just came off court
-      // does not jump the line for a fresher game. The group's anchor (pool[0]) is always the one owed a game.
-      // Ordering by wait keeps the four off one court together, so when every player owed the seat would make
-      // three from the same game, the slack widens to REUNION_SLACK_MIN to find someone to break them up.
-      const least=Math.min.apply(null,cand.map(effGames));
-      const longWaiter=id=>effGames(id)===least && Date.now()-waitSince(id)>=LONG_WAIT_MIN*60000;
-      const give=state.strictFair?0:1;
-      const within=min=>cand.filter(x=>effGames(x)<=least+give
-        && cand.every(y=>effGames(y)>effGames(x) || waitSince(x)<=waitSince(y)+min*60000));
-      const reunites=id=>(id in lastG) && grp.filter(x=>lastG[x]===lastG[id]).length>=2;
-      let owed=cand.filter(longWaiter);
-      if(!owed.length){
-        owed=within(FRESH_SLACK_MIN);
-        if(owed.every(reunites)){ const wide=within(REUNION_SLACK_MIN).filter(x=>!reunites(x)); if(wide.length) owed=wide; }
-      }
-      owed.sort((a,b)=> coSum(cop,grp,a)-coSum(cop,grp,b)      // the freshest matchup (stops repeats)…
-                     || effGames(a)-effGames(b)                // …then fewer games
-                     || waitSince(a)-waitSince(b)              // …then the longer wait
-                     || pos[a]-pos[b]);
-      const pick=owed[0]; grp.push(pick); drop(pick); addPartner(pick);
+  const byOwed=(a,b)=> gOf(a)-gOf(b) || wOf(a)-wOf(b) || pOf(a)-pOf(b);
+  units.sort(byOwed);
+  // Fresh matches: the freshest matchup wins among the players owed the next seat. A long waiter on the fewest
+  // games is always owed it. Otherwise someone with at most one more game may take it, but never past a player
+  // with fewer or the same games who has waited FRESH_SLACK_MIN longer: one who just came off court does not
+  // jump the line for a fresher game. Ordering by wait keeps the four off one court together, so when every
+  // player owed the seat would make three from the same game, the slack widens to REUNION_SLACK_MIN to find
+  // someone to break them up. Everyone else follows, most owed first, so a legal foursome is found if one exists.
+  const give=state.strictFair?0:1;
+  const preferred=(ids,cands)=>{
+    const least=Math.min.apply(null,cands.map(gOf));
+    const longWaiter=u=>gOf(u)===least && Date.now()-wOf(u)>=LONG_WAIT_MIN*60000;
+    const within=min=>cands.filter(x=>gOf(x)<=least+give && cands.every(y=>gOf(y)>gOf(x) || wOf(x)<=wOf(y)+min*60000));
+    const reunites=u=>u.ids.some(id=>(id in lastG) && ids.concat(u.ids).filter(x=>lastG[x]===lastG[id]).length>=3);
+    let owed=cands.filter(longWaiter);
+    if(!owed.length){
+      owed=within(FRESH_SLACK_MIN);
+      if(owed.every(reunites)){ const wide=within(REUNION_SLACK_MIN).filter(u=>!reunites(u)); if(wide.length) owed=wide; }
     }
-    ordered.push.apply(ordered,grp);
+    const fresh=u=>u.ids.reduce((s,x)=>s+coSum(cop,ids,x),0);
+    const spread=u=>{ const ix=ids.concat(u.ids).map(levelOf); return Math.max.apply(null,ix)-Math.min.apply(null,ix); };
+    owed.sort((a,b)=> (SAME_LEVEL_FIRST ? Math.min(spread(a),2)-Math.min(spread(b),2) : 0)   // the closest levels…
+                   || fresh(a)-fresh(b) || byOwed(a,b));     // …then the freshest matchup (stops repeats), then the most owed
+    // Novice + High Int (wait relief) is the last resort: only when no group of neighbouring levels can be made.
+    const all=owed.concat(cands.filter(u=>!owed.includes(u)));
+    return all.filter(u=>spread(u)<2).concat(all.filter(u=>spread(u)>=2));
+  };
+  const fill=(grp,avail)=>{                                   // complete grp to four, trying the preferred units first
+    const ids=[].concat(...grp.map(u=>u.ids));
+    if(ids.length===4) return grp;
+    const cands=avail.filter(u=>!u.four && ids.length+u.ids.length<=4 && levelsOK(ids.concat(u.ids)));
+    for(const u of preferred(ids,cands)){ const done=fill(grp.concat([u]), avail.filter(x=>x!==u)); if(done) return done; }
+    return null;
+  };
+  const ordered=[], stranded=[];
+  let avail=units.slice();
+  while(avail.length){
+    const a=avail[0];
+    const grp=a.four ? [a] : fill([a], avail.slice(1));
+    if(!grp){ stranded.push(...a.ids); avail=avail.slice(1); continue; }
+    grp.forEach(u=>{ ordered.push(...u.ids); });
+    avail=avail.filter(u=>!grp.includes(u));
   }
+  ordered.push(...stranded, ...aside);
   const changed=freeIdx.some((idx,k)=>q[idx]!==ordered[k]);
   freeIdx.forEach((idx,k)=>{ q[idx]=ordered[k]; });            // drop them back into the same slots
-  if(changed) audit("autoLevel","re-ordered from Group 3 back");
+  if(changed) audit("autoLevel","re-planned the groups after the held ones");
   state.manualSig=null;
 }
 function lockGroupTogether(ids){
@@ -1908,6 +1936,8 @@ function avoidRematchAt(gi){
     state.queue.forEach(cand=>{
       if(g.includes(cand) || ahead.has(cand) || held(cand) || onCourt(cand) || effGames(cand)>effGames(out)
          || waitSince(cand)>waitSince(out)+slack || !levelsOK(rest.concat([cand]))) return;
+      const theirs=groups.find(x=>x.includes(cand));                          // the player traded out must fit the group they join
+      if(theirs && !levelsOK(theirs.filter(x=>x!==cand).concat([out]))) return;
       const score=[coSum(cop,rest,cand), effGames(cand), waitSince(cand)];     // freshest, then fewest games, then longest waiting
       if(!best || score[0]<best.score[0] || (score[0]===best.score[0] && (score[1]<best.score[1] || (score[1]===best.score[1] && score[2]<best.score[2])))) best={out,cand,score};
     });
@@ -1919,6 +1949,11 @@ function avoidRematchAt(gi){
 }
 function pinFront(){
   if(!Array.isArray(state.queue)) return;
+  // Re-plan whenever the people in line change (a check-in, a check-out, a game starting), not only when one
+  // ends, so the groups behind the held ones always follow the plan. Your drag is left alone until the line changes.
+  if(state.session&&state.session.active && !state.locked && !manualActive() && state.planSig!==queueSig()){
+    try{ rebalanceTail(); }catch(e){ console.warn("rebalanceTail", e); }
+  }
   try{ avoidRematch(); }catch(e){ console.warn("avoidRematch", e); }      // never let this block the queue
   state.frontPinned=queueGroups().groups.slice(0,pinnedGroups()).filter(g=>g.length===4).map(g=>g.slice());
 }
