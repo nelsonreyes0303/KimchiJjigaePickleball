@@ -860,6 +860,42 @@ window.addEventListener("error",function(e){
   .tv-empty p{font-size:2.6vh;color:#b9c7ad;margin:0}
   .tv-hint{position:fixed;bottom:3vh;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.2);padding:1vh 1.6vw;border-radius:999px;font-size:1.8vh;cursor:pointer;z-index:3}
 
+  /* ---- TV mode in light: follows the app's Light/Dark setting (light by default). Warm paper, green ink. ---- */
+  body.light .tv{color:#2c3a24;background:radial-gradient(1400px 900px at 85% -20%,#e3ecd2 0,transparent 60%),radial-gradient(1000px 700px at -10% 120%,#f8e3df 0,transparent 55%),#f4f1e6}
+  body.light .tv-brand span,body.light .tv-empty p{color:#6f7d63}
+  body.light .tv-stats{color:#4a5a40}
+  body.light .tv-live{color:#c23a2f} body.light .tv-live i{background:#e0453a}
+  body.light .tv-clock,body.light .tv-h{color:#2c3a24}
+  body.light .tv-h small{color:#6f7d63}
+  body.light .tv-court{background:linear-gradient(180deg,#fffef8,#f6f4e8);border-color:#dcdec5;box-shadow:0 1vh 2.6vh rgba(90,100,60,.13)}
+  body.light .tv-court.live{border-color:#7aa863}
+  body.light .tv-badge{background:#dcebcf;color:#3f5f37}
+  body.light .tv-court.open .tv-badge{background:#ebeadc;color:#6f7d63}
+  body.light .tv-timer{background:#2c3a24;color:#fff}
+  body.light .tv-when,body.light .tv-wait{color:#6f7d63}
+  body.light .tv-team{background:#f1f2e4;border-left-color:#ec8f99}
+  body.light .tv-team.b{border-left-color:#7aa863}
+  body.light .tv-court.open .tv-fit{color:#6f7d63}
+  body.light .tv-vs{color:#b7860b}
+  body.light .tv-grp{background:#fffef8;border-color:#dcdec5}
+  body.light .tv-grp.first{border-color:#ec8f99;background:linear-gradient(180deg,rgba(242,165,173,.22),#fffef8 70%)}
+  body.light .tv-gh{color:#c9566a}
+  body.light .tv-grp:not(.first) .tv-gh{color:#6f7d63}
+  body.light .tv-fixed{background:#f2a5ad;color:#3a2226}
+  body.light .tv-stand{background:#fffef8;border-color:#dcdec5}
+  body.light .tv-lb th{background:#eef0e0;color:#6f7d63}
+  body.light .tv-lb td{border-top-color:#e6e7d3}
+  body.light .tv-lb td.tv-rk,body.light .tv-lb td.tv-g,body.light .tv-lb .tv-none{color:#6f7d63}
+  body.light .tv-lb tr.p1 td{background:linear-gradient(90deg,rgba(232,176,40,.26),rgba(232,176,40,.05))}
+  body.light .tv-lb tr.p2 td{background:linear-gradient(90deg,rgba(150,160,175,.22),rgba(150,160,175,.04))}
+  body.light .tv-lb tr.p3 td{background:linear-gradient(90deg,rgba(205,127,50,.24),rgba(205,127,50,.05))}
+  body.light .tv-lb .up{color:#3f7a2e} body.light .tv-lb .dn{color:#c94b4b}
+  body.light .tv-ctl button{background:rgba(255,255,255,.92);color:#2c3a24;border-color:#cfd3b8}
+  body.light .tv-ctl button:hover{background:#fff}
+  body.light .tv-hint{background:rgba(44,58,36,.88);color:#fff}
+  body.light .tv-court.fresh{animation-name:tvFreshL}
+  @keyframes tvFreshL{0%{box-shadow:0 0 0 .8vh #f0b84a,0 0 6vh rgba(240,184,74,.55)}100%{box-shadow:0 1vh 2.6vh rgba(90,100,60,.13)}}
+
   /* ---- match intro: "A & B vs C & D", with Korean food fighters ---- */
   .vs-ov{position:fixed;inset:0;z-index:450;overflow:hidden;background:#0b0a0a;color:#fff;font-family:"DM Sans",system-ui,sans-serif;opacity:0;pointer-events:none}
   .vs-ov.hidden{display:none}
@@ -4001,7 +4037,7 @@ function tvUnlock(){
 function tvWake(){ const el=$("tvView"); if(!el) return; el.classList.add("tv-awake"); clearTimeout(tvAwakeT); tvAwakeT=setTimeout(()=>el.classList.remove("tv-awake"),3000); }
 function tvTop(active){
   const s=state.session||{};
-  const ctl='<div class="tv-ctl"><button data-tvact="preview">▶ Preview intro</button><button data-tvact="sound">'+(podSoundOn()?"🔊 Sound on":"🔇 Sound off")+'</button><button data-tvact="fs">⛶ Full screen</button><button data-tvact="exit">✕ Exit TV</button></div>';
+  const ctl='<div class="tv-ctl"><button data-tvact="preview">▶ Preview intro</button><button data-tvact="sound">'+(podSoundOn()?"🔊 Sound on":"🔇 Sound off")+'</button><button data-tvact="theme">'+(state.theme==="light"?"🌙 Dark":"☀️ Light")+'</button><button data-tvact="fs">⛶ Full screen</button><button data-tvact="exit">✕ Exit TV</button></div>';
   return '<div class="tv-top"><div class="tv-brand"><img src="logo.png" alt="" class="tv-logo"><div><b>Kimchi Jjigae Pickleball Club</b><span>'+esc(active?(s.name||"Open play"):"Open play")+'</span></div></div>'
     +(active?'<div class="tv-stats"><span class="tv-live"><i></i>Live</span><span>'+state.games+' game'+(state.games===1?'':'s')+'</span>'+(s.startedAt?'<span>'+fmtDur(Date.now()-s.startedAt)+'</span>':'')+'<span>'+state.queue.length+' waiting</span></div>':'')
     +'<div class="tv-clock" data-tvclock>'+new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})+'</div>'+ctl+'</div>';
@@ -4233,6 +4269,7 @@ document.addEventListener("click",e=>{
   else if(a==="preview") tvPreview();
   else if(a==="fs"){ if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{}); }
   else if(a==="sound"){ toggleSound(); renderTv(); }
+  else if(a==="theme"){ state.theme=state.theme==="light"?"dark":"light"; applyTheme(); save(); renderTv(); }
 });
 document.addEventListener("mousemove",()=>{ if(tvMode) tvWake(); });
 document.addEventListener("keydown",e=>{
