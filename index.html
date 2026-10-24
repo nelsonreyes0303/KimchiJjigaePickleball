@@ -1684,6 +1684,7 @@ function fmt(ms){const s=Math.max(0,Math.floor(ms/1000));return Math.floor(s/60)
 const LONG_WAIT_MIN=20;   // queue rows turn gold once someone has waited this long
 const FRESH_SLACK_MIN=5;  // a fresher matchup may reorder players whose waits are this close, never someone who waited longer
 const REUNION_SLACK_MIN=10; // …stretched this far only to stop three off the same court walking back on together
+const REST_MIN=3;          // the next groups (Next up, Group 2) never take a player off court less than this, unless nobody else can play
 const SAME_LEVEL_FIRST=false; // among players owed a seat, the one closest in level to the group goes first
 function fmtWait(ms){ const m=Math.max(0,Math.floor(ms/60000)); return m<1 ? "<1m" : m<60 ? m+"m" : Math.floor(m/60)+"h "+String(m%60).padStart(2,"0")+"m"; }
 function waitSince(id){ const p=P(id); if(!p) return Date.now(); if(!p.waitSince) p.waitSince=Date.now(); return p.waitSince; }
@@ -1809,7 +1810,7 @@ function queueGroups(){
 function rebalanceTail(){
   if(state.locked) return;                                   // whole queue locked = hands off
   const q=state.queue;
-  const lset=new Set(state.qlocked||[]), held=new Set(pinnedFront(q.slice()).flat());
+  const heldGroups=pinnedFront(q.slice()), lset=new Set(state.qlocked||[]), held=new Set(heldGroups.flat());
   const freeIdx=[], freeIds=[];
   q.forEach((id,i)=>{ if(!lset.has(id) && !held.has(id)){ freeIdx.push(i); freeIds.push(id); } });
   state.planSig=queueSig();
@@ -1868,12 +1869,30 @@ function rebalanceTail(){
     for(const u of preferred(ids,cands)){ const done=fill(grp.concat([u]), avail.filter(x=>x!==u)); if(done) return done; }
     return null;
   };
+  // The next groups to be fixed (Next up / Group 2, whichever are not held yet) never take a player who came off
+  // court less than REST_MIN ago. Only when no legal group can be made without them, as early in the night when
+  // few are checked in, do they go back on sooner.
+  // If that cannot be done, those off court longest are let in first, a few at a time, never the freshest first.
+  const lastEnd={}; (state.log||[]).forEach(x=>[...x.w,...x.l].forEach(n=>{ lastEnd[n.id]=Math.max(lastEnd[n.id]||0, x.t||0); }));
+  const now=Date.now(), offAt=u=>Math.max.apply(null,u.ids.map(id=>lastEnd[id]||0)), justOff=u=>offAt(u)>now-REST_MIN*60000;
+  const firstLegal=pool=>{ for(const a of pool){ const g=a.four ? [a] : fill([a], pool.filter(u=>u!==a)); if(g) return g; } return null; };
+  let restricted=Math.max(1,pinnedGroups())-heldGroups.length;
   const ordered=[], stranded=[];
   let avail=units.slice();
   while(avail.length){
-    const a=avail[0];
-    const grp=a.four ? [a] : fill([a], avail.slice(1));
-    if(!grp){ stranded.push(...a.ids); avail=avail.slice(1); continue; }
+    let grp=null;
+    if(restricted>0){
+      restricted--;
+      const rested=avail.filter(u=>!justOff(u));
+      grp=firstLegal(rested);
+      const steps=[...new Set(avail.filter(justOff).map(offAt))].sort((a,b)=>a-b);   // came off earliest first
+      for(let k=0; !grp && k<steps.length; k++) grp=firstLegal(avail.filter(u=>!justOff(u) || offAt(u)<=steps[k]));
+    }
+    if(!grp){
+      const a=avail[0];
+      grp=a.four ? [a] : fill([a], avail.slice(1));
+      if(!grp){ stranded.push(...a.ids); avail=avail.slice(1); continue; }
+    }
     grp.forEach(u=>{ ordered.push(...u.ids); });
     avail=avail.filter(u=>!grp.includes(u));
   }
@@ -1921,6 +1940,8 @@ function avoidRematch(){
   const kept=pinnedFront(state.queue.slice()).length;          // still-whole held groups come first in queueGroups()
   for(let gi=kept; gi<Math.max(1,pinnedGroups()); gi++) avoidRematchAt(gi);
 }
+/* Minutes since this player's last game ended; Infinity before their first game. */
+function restedMin(id){ let t=0; (state.log||[]).forEach(g=>{ if([...g.w,...g.l].some(x=>x.id===id)) t=Math.max(t,g.t||0); }); return t ? (Date.now()-t)/60000 : Infinity; }
 function avoidRematchAt(gi){
   const groups=queueGroups().groups, g=groups[gi]; if(!g||g.length!==4) return;
   const ahead=new Set(groups.slice(0,gi).flat());               // the groups in front keep their players
@@ -1934,7 +1955,7 @@ function avoidRematchAt(gi){
   club.filter(id=>!longW(id)).forEach(out=>{
     const rest=g.filter(x=>x!==out);
     state.queue.forEach(cand=>{
-      if(g.includes(cand) || ahead.has(cand) || held(cand) || onCourt(cand) || effGames(cand)>effGames(out)
+      if(g.includes(cand) || ahead.has(cand) || held(cand) || onCourt(cand) || effGames(cand)>effGames(out) || restedMin(cand)<REST_MIN
          || waitSince(cand)>waitSince(out)+slack || !levelsOK(rest.concat([cand]))) return;
       const theirs=groups.find(x=>x.includes(cand));                          // the player traded out must fit the group they join
       if(theirs && !levelsOK(theirs.filter(x=>x!==cand).concat([out]))) return;
