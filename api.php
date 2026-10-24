@@ -38,6 +38,7 @@ const LOCK_FILE  = DATA_DIR . '/.lock';
 const UP_FILE    = DATA_DIR . '/upcoming.json';       // live list, edited by admins in the app
 const UP_SEED    = DATA_DIR . '/upcoming.seed.json';  // committed starting point, used once when the live file is missing
 const LIVE_FILE  = DATA_DIR . '/live.json';           // the one live open play every admin device works on
+const LIVE_VER_FILE = DATA_DIR . '/live.ver';         // just the live version number, for cheap polling
 const MAX_LIVE_JSON = 2 * 1024 * 1024;
 const MAX_RSVP_BYTES = 1024 * 1024;                   // an RSVP page is ~30 KB; stop well before anything silly
 const MAX_EVENTS = 60;
@@ -152,6 +153,13 @@ function writeLive(array $live): void {
   if (file_put_contents($tmp, json_encode($live, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) === false) fail('Cannot write live file', 500);
   if (!rename($tmp, LIVE_FILE)) fail('Cannot replace live file', 500);
   @chmod(LIVE_FILE, 0644);
+  if (@file_put_contents(LIVE_VER_FILE, (string)$live['version'], LOCK_EX) === false) @unlink(LIVE_VER_FILE);   // a stale sidecar would hide updates
+}
+/* Just the version number, so the frequent "anything new?" polls never have to read the whole live file.
+ * null when the sidecar is missing or half-written: the caller then falls back to readLive(). */
+function liveVersion(): ?int {
+  $s = @file_get_contents(LIVE_VER_FILE);
+  return ($s === false || !preg_match('/^\d+$/', trim($s))) ? null : (int)trim($s);
 }
 
 /* ---- reading the confirmed list off an RSVP page ----
@@ -388,8 +396,9 @@ switch ($action) {
     out(['ok' => true] + parseRsvpNames($html));
 
   case 'live':
-    $live = readLive();
     $v = $_GET['v'] ?? null;
+    if ($v !== null && liveVersion() === (int)$v) out(['version' => (int)$v, 'same' => true]);
+    $live = readLive();
     if ($v !== null && (int)$v === $live['version']) out(['version' => $live['version'], 'same' => true]);
     out($live);
 

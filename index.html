@@ -1345,7 +1345,7 @@ async function pollLive(){
 }
 function schedulePoll(){
   clearTimeout(live.pollTimer);
-  live.pollTimer=setTimeout(async()=>{ await pollLive(); schedulePoll(); }, isAdmin()?2500:5000);
+  live.pollTimer=setTimeout(async()=>{ await pollLive(); schedulePoll(); }, 1500);   // "same" replies are tiny, so the TV can afford to ask often
 }
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") pollLive(); });
 /* First contact with the website: take its live open play, or seed it from this device if it has none yet. */
