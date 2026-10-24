@@ -958,7 +958,7 @@ window.addEventListener("error",function(e){
       <span id="opStatus" class="hint" style="font-weight:700"></span>
       <button class="btn btn-sm tool-extra" id="historyBtn">🕘 History</button>
       <button class="btn btn-sm admin-only tool-extra" id="challengeBtn" title="Force everyone to play only within their own level — no mixing across tiers">🎯 Challenge</button>
-      <button class="btn btn-sm admin-only tool-extra" id="freshBtn" title="Avoid rematches: a player with the fewest games who has waited under 20 minutes can be passed over for a fresher game by someone with at most one more game. Anyone waiting 20 minutes or more is never passed over.">✨ Fresh matches</button>
+      <button class="btn btn-sm admin-only tool-extra" id="freshBtn" title="Avoid rematches: a player with the fewest games who has waited under 20 minutes can be passed over for a fresher game by someone with at most one more game who has waited about as long. Nobody is passed over by a player who just came off court, and anyone waiting 20 minutes or more is never passed over.">✨ Fresh matches</button>
       <button class="btn btn-sm admin-only" id="addCourt">+ Court</button>
       <button class="btn-ghost btn-sm admin-only" id="undoBtn" title="Undo the last action — shuffle, drag, start, or game">↶ Undo</button>
       <button class="btn-ghost btn-sm admin-only" id="resetBtn">Reset scores</button>
@@ -1682,6 +1682,8 @@ function onCourt(id){return state.courts.some(c=>c.seats.includes(id));}
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function fmt(ms){const s=Math.max(0,Math.floor(ms/1000));return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
 const LONG_WAIT_MIN=20;   // queue rows turn gold once someone has waited this long
+const FRESH_SLACK_MIN=5;  // a fresher matchup may reorder players whose waits are this close, never someone who waited longer
+const REUNION_SLACK_MIN=10; // …stretched this far only to stop three off the same court walking back on together
 function fmtWait(ms){ const m=Math.max(0,Math.floor(ms/60000)); return m<1 ? "<1m" : m<60 ? m+"m" : Math.floor(m/60)+"h "+String(m%60).padStart(2,"0")+"m"; }
 function waitSince(id){ const p=P(id); if(!p) return Date.now(); if(!p.waitSince) p.waitSince=Date.now(); return p.waitSince; }
 function waitSpan(id){ const t=waitSince(id), ms=Date.now()-t; return `<span class="qwait ${ms>=LONG_WAIT_MIN*60000?'long':''}" data-wait="${t}" title="Time waiting in the queue">${fmtWait(ms)}</span>`; }
@@ -1809,7 +1811,10 @@ function rebalanceTail(){
   if(freeIds.length<2) return;
   const pos={}; freeIds.forEach((id,i)=>pos[id]=i);
   const cop=coplayCount();                                    // who has already played with whom
-  const pool=freeIds.slice().sort((a,b)=> effGames(a)-effGames(b) || pos[a]-pos[b]);   // fewest games first
+  const lastG={}; (state.log||[]).forEach((x,k)=>[...x.w,...x.l].forEach(n=>{ lastG[n.id]=k; }));   // each player's last game
+  // fewest games first, then longest waiting. Not queue position: the four just off court are spread through the
+  // line, so on equal games position would let one of them lead a group ahead of someone who has waited 20 minutes.
+  const pool=freeIds.slice().sort((a,b)=> effGames(a)-effGames(b) || waitSince(a)-waitSince(b) || pos[a]-pos[b]);
   const drop=id=>{ const i=pool.indexOf(id); if(i>=0) pool.splice(i,1); };
   const ordered=[];
   while(pool.length){
@@ -1820,17 +1825,28 @@ function rebalanceTail(){
     while(grp.length<4){
       let cand=pool.filter(id=>levelsOK(grp.concat([id])));    // keep the foursome tier-legal
       if(!cand.length) cand=pool.slice();                      // never strand anyone — fall back if no legal pick
-      // Fresh matches: a player on the fewest games who has waited under LONG_WAIT_MIN can be passed over for a
-      // fresher matchup by someone with at most one more game. A long waiter on the fewest games is never passed
-      // over — they go in first — and the group's anchor (pool[0]) is always the one owed a game.
+      // Fresh matches: the freshest matchup wins among the players owed this seat. A long waiter on the fewest
+      // games is always owed it. Otherwise someone with at most one more game may take it, but never past a
+      // player with fewer or the same games who has waited FRESH_SLACK_MIN longer: one who just came off court
+      // does not jump the line for a fresher game. The group's anchor (pool[0]) is always the one owed a game.
+      // Ordering by wait keeps the four off one court together, so when every player owed the seat would make
+      // three from the same game, the slack widens to REUNION_SLACK_MIN to find someone to break them up.
       const least=Math.min.apply(null,cand.map(effGames));
       const longWaiter=id=>effGames(id)===least && Date.now()-waitSince(id)>=LONG_WAIT_MIN*60000;
-      const key=id=>{ const g=effGames(id); if(longWaiter(id)) return least-1; return (!state.strictFair && g<=least+1) ? least : g; };
-      cand.sort((a,b)=> key(a)-key(b)                          // fewest games first, with one game of give when nobody has waited long…
-                     || coSum(cop,grp,a)-coSum(cop,grp,b)      // …then the freshest matchup (stops repeats)
-                     || effGames(a)-effGames(b)                // …then strictly fewer games
+      const give=state.strictFair?0:1;
+      const within=min=>cand.filter(x=>effGames(x)<=least+give
+        && cand.every(y=>effGames(y)>effGames(x) || waitSince(x)<=waitSince(y)+min*60000));
+      const reunites=id=>(id in lastG) && grp.filter(x=>lastG[x]===lastG[id]).length>=2;
+      let owed=cand.filter(longWaiter);
+      if(!owed.length){
+        owed=within(FRESH_SLACK_MIN);
+        if(owed.every(reunites)){ const wide=within(REUNION_SLACK_MIN).filter(x=>!reunites(x)); if(wide.length) owed=wide; }
+      }
+      owed.sort((a,b)=> coSum(cop,grp,a)-coSum(cop,grp,b)      // the freshest matchup (stops repeats)…
+                     || effGames(a)-effGames(b)                // …then fewer games
+                     || waitSince(a)-waitSince(b)              // …then the longer wait
                      || pos[a]-pos[b]);
-      const pick=cand[0]; grp.push(pick); drop(pick); addPartner(pick);
+      const pick=owed[0]; grp.push(pick); drop(pick); addPartner(pick);
     }
     ordered.push.apply(ordered,grp);
   }
@@ -1868,21 +1884,30 @@ function pinnedFront(work){
    game, one of them trades places with a fresher player who has the same number of games or fewer, so nobody
    is owed less. Someone who has waited LONG_WAIT_MIN or more is never the one traded out. Set-up groups, Play
    again, fixed pairs, 🔒 locks and your own drag are left exactly as you made them. Measured on a replay of the
-   Oct 17 night, this cut these reunions from about 11 a night to 4 with no change in fairness or waits. */
+   Oct 17 night, this cut these reunions from about 11 a night to 4 with no change in fairness or waits.
+   It only shapes a group as it forms. A group already held for the next court (🔒 Fixed) is never touched: a
+   winner being picked used to trade one of its four for a player who had just come off that court. The player
+   traded in must also have waited about as long as the one traded out (FRESH_SLACK_MIN). */
 function avoidRematch(){
   if(!(state.session&&state.session.active) || state.locked || manualActive()) return;
-  const g=queueGroups().groups[0]; if(!g||g.length!==4) return;
+  const kept=pinnedFront(state.queue.slice()).length;          // still-whole held groups come first in queueGroups()
+  for(let gi=kept; gi<Math.max(1,pinnedGroups()); gi++) avoidRematchAt(gi);
+}
+function avoidRematchAt(gi){
+  const groups=queueGroups().groups, g=groups[gi]; if(!g||g.length!==4) return;
+  const ahead=new Set(groups.slice(0,gi).flat());               // the groups in front keep their players
   const lastG={}; (state.log||[]).forEach((x,k)=>[...x.w,...x.l].forEach(n=>{ lastG[n.id]=k; }));
   const from={}; g.forEach(id=>{ if(id in lastG)(from[lastG[id]]=from[lastG[id]]||[]).push(id); });
   const club=Object.values(from).find(a=>a.length>=3); if(!club) return;
   const held=id=>{ const p=P(id); return !p || p.grp || p.partner || (state.qlocked||[]).includes(id); };
   if(g.some(held)) return;
-  const cop=coplayCount(), now=Date.now(), longW=id=>now-waitSince(id)>=LONG_WAIT_MIN*60000;
+  const cop=coplayCount(), now=Date.now(), longW=id=>now-waitSince(id)>=LONG_WAIT_MIN*60000, slack=FRESH_SLACK_MIN*60000;
   let best=null;
   club.filter(id=>!longW(id)).forEach(out=>{
     const rest=g.filter(x=>x!==out);
     state.queue.forEach(cand=>{
-      if(g.includes(cand) || held(cand) || onCourt(cand) || effGames(cand)>effGames(out) || !levelsOK(rest.concat([cand]))) return;
+      if(g.includes(cand) || ahead.has(cand) || held(cand) || onCourt(cand) || effGames(cand)>effGames(out)
+         || waitSince(cand)>waitSince(out)+slack || !levelsOK(rest.concat([cand]))) return;
       const score=[coSum(cop,rest,cand), effGames(cand), waitSince(cand)];     // freshest, then fewest games, then longest waiting
       if(!best || score[0]<best.score[0] || (score[0]===best.score[0] && (score[1]<best.score[1] || (score[1]===best.score[1] && score[2]<best.score[2])))) best={out,cand,score};
     });
@@ -1890,7 +1915,6 @@ function avoidRematch(){
   if(!best || best.score[0]>=club.length-1) return;                          // only when it really is a fresher game
   const q=state.queue, a=q.indexOf(best.out), b=q.indexOf(best.cand); if(a<0||b<0) return;
   q[a]=best.cand; q[b]=best.out;
-  state.frontPinned=(state.frontPinned||[]).map(p=>p.map(x=>x===best.out?best.cand:(x===best.cand?best.out:x)));
   audit("avoidRematch", nmsafe(best.cand)+" in for "+nmsafe(best.out)+" — "+club.map(nmsafe).join(", ")+" just played together");
 }
 function pinFront(){
