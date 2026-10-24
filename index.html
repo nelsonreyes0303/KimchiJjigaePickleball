@@ -982,6 +982,7 @@ window.addEventListener("error",function(e){
   <div class="main-top">
     <div class="toolbar">
       <button class="btn-accent btn-sm admin-only" id="opBtn">▶ Start open play</button>
+      <button class="btn btn-sm admin-only" id="tvOpenBtn" title="Open TV mode in its own window. Drag it to the TV, then click it once for full screen and sound.">📺 TV</button>
       <span id="opStatus" class="hint" style="font-weight:700"></span>
       <button class="btn btn-sm tool-extra" id="historyBtn">🕘 History</button>
       <button class="btn btn-sm admin-only tool-extra" id="challengeBtn" title="Force everyone to play only within their own level — no mixing across tiers">🎯 Challenge</button>
@@ -1496,7 +1497,7 @@ function applyLive(j, msg){
   for(const k of Object.keys(remote)) if(!LIVE_LOCAL_KEYS.includes(k)) state[k]=remote[k];
   state=migrate(state); ensureCourts();
   live.version=j.version; live.json=liveJson();
-  try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(_){}
+  if(!tvMode){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(_){} }   // a TV window never overwrites the admin's saved copy
   selSwap=null; selPair=null;
   render(); syncAdminUI(); syncTierToggle();
   const sel=$("sortSel"); if(sel) sel.value=state.sort;
@@ -3864,6 +3865,13 @@ if($("histAdminPlay")) $("histAdminPlay").addEventListener("click",()=>{ isAdmin
 if($("sessBackBtn")) $("sessBackBtn").addEventListener("click",()=>openHistory());
 if($("sessContinue")) $("sessContinue").addEventListener("click",()=>enterAdminPlay());
 if($("sessTv")) $("sessTv").addEventListener("click",()=>enterTv(true));
+/* Two Chrome windows: this one for running the night, a second one on the TV. The TV window opens without this
+   tab's admin login (noopener), so it is a plain viewer that can never push changes, and it picks up every save
+   from here straight away through the browser's shared storage. */
+if($("tvOpenBtn")) $("tvOpenBtn").addEventListener("click",()=>{
+  window.open(location.origin+location.pathname+"#tv","kjp_tv","noopener,popup,width=1280,height=720");
+  toast("TV window opened — drag it to the TV and click it once for full screen and sound");
+});
 document.body.addEventListener("click",e=>{ const b=e.target.closest("[data-podium]"); if(!b) return; e.preventDefault(); e.stopPropagation(); openPodium(b.dataset.podium); });   // sits inside the fold heading, so the click must not fold it
 $("podClose").addEventListener("click",closePodium);
 $("podAgain").addEventListener("click",()=>{ startPodiumFx(); podFanfare(); });
@@ -4009,6 +4017,7 @@ document.body.addEventListener("click",e=>{
 let tvMode=false, tvSeen=null, tvWasActive=false, tvClockT=null, tvScrollT=null, tvAwakeT=null, tvUnlocked=false;
 let tvPhase="hold", tvTicks=125;
 function enterTv(fromClick){
+  try{ const t=localStorage.getItem("kjp_tv_theme"); if(t){ state.theme=t; applyTheme(); } }catch(_){}
   tvMode=true; tvSeen=null; tvWasActive=!!(state.session&&state.session.active);
   document.body.classList.add("tv-on");
   const el=$("tvView"); el.classList.remove("hidden");
@@ -4269,7 +4278,7 @@ document.addEventListener("click",e=>{
   else if(a==="preview") tvPreview();
   else if(a==="fs"){ if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); else document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{}); }
   else if(a==="sound"){ toggleSound(); renderTv(); }
-  else if(a==="theme"){ state.theme=state.theme==="light"?"dark":"light"; applyTheme(); save(); renderTv(); }
+  else if(a==="theme"){ state.theme=state.theme==="light"?"dark":"light"; applyTheme(); try{ localStorage.setItem("kjp_tv_theme",state.theme); }catch(_){} renderTv(); }   // kept apart, so the TV never saves over the admin
 });
 document.addEventListener("mousemove",()=>{ if(tvMode) tvWake(); });
 document.addEventListener("keydown",e=>{
@@ -4281,6 +4290,16 @@ document.addEventListener("keydown",e=>{
   else if(k==="m"){ toggleSound(); renderTv(); }
 });
 window.addEventListener("resize",()=>{ if(tvMode){ const el=$("tvView"); if(el) tvFit(el); } });
+window.addEventListener("storage",e=>{                  // the admin window in this browser saved: show it now, no server round trip
+  if(!tvMode || e.key!==KEY || !e.newValue) return;
+  let remote; try{ remote=JSON.parse(e.newValue); }catch(_){ return; }
+  if(!remote || typeof remote!=="object") return;
+  for(const k of Object.keys(state)) if(!LIVE_LOCAL_KEYS.includes(k) && !(k in remote)) delete state[k];
+  for(const k of Object.keys(remote)) if(!LIVE_LOCAL_KEYS.includes(k)) state[k]=remote[k];
+  state=migrate(state); ensureCourts();
+  try{ live.json=liveJson(); }catch(_){}                // nothing here for this window to push
+  render();
+});
 window.addEventListener("hashchange",()=>{ if(location.hash==="#tv"&&!tvMode) enterTv(false); else if(location.hash!=="#tv"&&tvMode) exitTv(); });   // typing or bookmarking #tv works without a reload
 
 /* ---------- drag & drop to swap ---------- */
