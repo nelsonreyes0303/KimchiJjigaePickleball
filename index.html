@@ -1287,7 +1287,7 @@ function syncAdminUI(){
   const sa=$("sessAdminLogin");
   const viewingLive=String(viewingSessionId)==="live" && live;
   if(sa) sa.hidden=on;
-  if(sc) sc.hidden=!(on && (viewingLive || canContinue(savedOP(viewingSessionId))));
+  if(sc) sc.hidden=!(on && viewingLive);
 }
 /* PIN hash: Web Crypto when available (https/localhost); fallback so file:// still works. */
 async function hashPin(pin){
@@ -2512,9 +2512,7 @@ async function endOP(){
   if(!state.session.active){ toast("No open play in progress"); return; }
   const sid=state.session.id||Date.now();
   const checkins=Object.values(state.players).filter(p=>p.checkedInAt&&(p.in||p.games>0)).map(p=>({id:p.id,name:p.name,at:p.checkedInAt}));   // for the check-in board in history
-  const prev=savedOP(sid);                                             // a continued open play replaces its own saved record
-  state.history=(state.history||[]).filter(h=>String(h.id)!==String(sid));
-  state.history.unshift({ id:sid, name:state.session.name||"", startedAt:state.session.startedAt, endedAt:Date.now(), games:state.games, players:standings(), log:(state.log||[]).slice(), checkins, photos:prev&&Array.isArray(prev.photos)?prev.photos:[] });
+  state.history.unshift({ id:sid, name:state.session.name||"", startedAt:state.session.startedAt, endedAt:Date.now(), games:state.games, players:standings(), log:(state.log||[]).slice(), checkins, photos:[] });
   state.session={active:false,startedAt:null};
   Object.values(state.players).forEach(p=>{ p.in=false; });            // the night is over: everyone is checked out
   state.queue=[]; state.qlocked=[]; state.frontPinned=[]; state.manualSig=null;
@@ -2522,68 +2520,6 @@ async function endOP(){
   commit(); openSessionPage(sid); openPodium(sid); toast("Open play ended — saved to history");
 }
 async function toggleOP(){ if(!(await requireAdmin())) return; state.session.active ? endOP() : startOP(); }
-/* ---------- continue a saved open play ----------
-   An open play ended by mistake, or stopped for a break, can be picked up again the same day. Games, standings,
-   the game log and check-ins come back from the saved record. Wait clocks resume where they stopped, so the
-   break does not count as waiting. It keeps its id, so ending it again updates that record instead of adding a
-   second one, and the photos stay with it. */
-function savedOP(id){ return id==null ? null : (state.history||[]).find(h=>String(h.id)===String(id))||null; }
-function sameDay(a,b){ const x=new Date(a), y=new Date(b); return x.getFullYear()===y.getFullYear() && x.getMonth()===y.getMonth() && x.getDate()===y.getDate(); }
-function canContinue(s){ return !!s && !(state.session&&state.session.active) && [s.startedAt,s.endedAt].some(t=>t && sameDay(t,Date.now())); }
-async function continueOP(id){
-  if(!(await requireAdmin())) return;
-  const s=savedOP(id);
-  if(state.session&&state.session.active){ toast("An open play is already running — end it first"); return; }
-  if(!canContinue(s)){ toast("Only an open play from today can be continued"); return; }
-  const label=s.name||fmtDate(s.endedAt);
-  if(!confirm("Continue “"+label+"”?\n\nIts "+(s.games||0)+" games, standings and check-ins come back and the queue picks up from there. "
-    +"Ending it again updates this saved open play.")) return;
-  const now=Date.now(), paused=Math.max(0, now-(s.endedAt||now));
-  // Match the saved ids to this roster: the same id under the same name, else the same name, else the same id
-  // if that player was renamed since; anyone no longer on the roster is added back. A roster rebuilt on another
-  // device can reuse an id for someone else, so an id alone is not trusted when the name points elsewhere.
-  const key=n=>String(n||"").trim().toLowerCase();
-  const byName={}; Object.values(state.players).forEach(p=>{ byName[key(p.name)]=p.id; });
-  const savedNames=new Set(); (s.log||[]).forEach(g=>[...g.w,...g.l].forEach(x=>savedNames.add(key(x.name)))); (s.checkins||[]).forEach(c=>savedNames.add(key(c.name)));
-  const savedLevel={}; (s.players||[]).forEach(p=>{ if(p.level) savedLevel[key(p.name)]=p.level; });
-  const idFor=(pid,name)=>{
-    const k=key(name);
-    if(P(pid) && key(P(pid).name)===k) return pid;
-    if(byName[k]) return byName[k];
-    if(P(pid) && !savedNames.has(key(P(pid).name))) return pid;
-    while(P("p"+state.seq)) state.seq++;
-    const nid="p"+(state.seq++);
-    state.players[nid]={id:nid,name:String(name||"Player"),level:savedLevel[k]||lastKnownLevel(name),in:false,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
-    byName[k]=nid; return nid;
-  };
-  Object.values(state.players).forEach(p=>{ p.games=0;p.wins=0;p.losses=0;p.grp=null;p.partner=null;p.pg=0;p.in=false;p.checkedInAt=null;p.waitSince=null; });
-  const log=(s.log||[]).map(g=>Object.assign({},g,{ w:g.w.map(x=>({id:idFor(x.id,x.name),name:x.name})), l:g.l.map(x=>({id:idFor(x.id,x.name),name:x.name})) }));
-  const lastEnd={};
-  log.forEach(g=>{ g.w.forEach(x=>{ const p=P(x.id); p.games++; p.wins++; }); g.l.forEach(x=>{ const p=P(x.id); p.games++; p.losses++; });
-    [...g.w,...g.l].forEach(x=>{ lastEnd[x.id]=Math.max(lastEnd[x.id]||0, g.t||0); }); });
-  // Who is back in the line: the saved check-ins, or for an older record without them, everyone who played.
-  const arrivals=Array.isArray(s.checkins)&&s.checkins.length ? s.checkins.map(c=>({id:idFor(c.id,c.name),at:c.at}))
-    : Object.keys(lastEnd).map(pid=>({id:pid,at:s.startedAt}));
-  const gamesAt=(pid,t)=>log.filter(g=>(g.t||0)<=t && [...g.w,...g.l].some(x=>x.id===pid)).length;
-  arrivals.forEach(a=>{
-    const p=P(a.id); if(!p) return;
-    p.in=!!p.level; p.checkedInAt=a.at||s.startedAt;
-    p.waitSince=Math.max(lastEnd[a.id]||0, p.checkedInAt)+paused;       // the clock stopped while the open play was closed
-    const before=log.filter(g=>(g.t||0)<=p.checkedInAt);                 // a late arrival keeps the baseline joinQueue gave them
-    if(before.length){ const top=Math.max(0,...Object.keys(state.players).map(x=>gamesAt(x,p.checkedInAt))); p.pg=Math.max(0, top-gamesAt(a.id,p.checkedInAt)); }
-  });
-  state.log=log; state.games=log.length;
-  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; c.dupr=false; });
-  state.queue=Object.keys(state.players).filter(inPlay).sort((a,b)=>effGames(a)-effGames(b) || waitSince(a)-waitSince(b));
-  state.qlocked=[]; state.manualSig=null; state.locked=false; state.frontPinned=[];
-  try{ undoStack.length=0; }catch(e){}
-  state.session={active:true,startedAt:s.startedAt,name:s.name||"",id:s.id};
-  rebalanceTail();
-  const back=state.queue.length;
-  audit("continueOpenPlay", label+" · "+state.games+" games · "+back+" checked back in");
-  hideLanding(); hideHistoryPages(); commit();
-  toast("Continued: "+label+" — "+back+" checked back in. Check out anyone who has left.");
-}
 let undoStack=[];
 function pushUndo(withHistory){ try{ const snap={players:state.players,queue:state.queue,courts:state.courts,games:state.games,log:state.log||[],manualSig:state.manualSig||null,challenge:state.challenge,locked:state.locked}; if(withHistory) snap.history=state.history||[]; undoStack.push(JSON.stringify(snap)); if(undoStack.length>50)undoStack.shift(); }catch(e){} }
 function undo(){
@@ -3149,8 +3085,7 @@ function renderHistory(){
   if(state.session&&state.session.active){
     items.push({live:true,id:"live",name:state.session.name||"Open play in progress",startedAt:state.session.startedAt,endedAt:Date.now(),games:state.games,players:standings(),photos:[]});
   }
-  const liveId=state.session&&state.session.active ? String(state.session.id) : null;
-  (state.history||[]).forEach(s=>{ if(String(s.id)!==liveId) items.push(Object.assign({live:false},s)); });   // a continued open play shows once, as the live one
+  (state.history||[]).forEach(s=>items.push(Object.assign({live:false},s)));
   if(!items.length){
     el.innerHTML='<div class="hist-empty">No open plays yet.<br>When the admin ends a session, it shows up here with standings and photos.</div>';
     return;
@@ -3282,7 +3217,7 @@ async function renderSessionPage(id){
   }
   document.title="Kimchi Jjigae · "+(s.name||fmtDate(s.endedAt));
   const del=$("sessDelete"); if(del){ del.dataset.delhist=live?"":String(s.id); del.hidden=!!live; del.style.display=live?"none":""; }
-  const cont=$("sessContinue"); if(cont) cont.hidden=!((live||canContinue(s))&&isAdmin());   // visitors watch; only admins continue
+  const cont=$("sessContinue"); if(cont) cont.hidden=!(live&&isAdmin());   // visitors watch; only admins continue
   const tvb=$("sessTv"); if(tvb) tvb.hidden=!live;
   const players=withPoints(s.players, live?null:(s.log||[]), true);     // live standings already carry their points
   const champ=champLabel(players);
@@ -3924,7 +3859,7 @@ if($("homeThemeBtn")) $("homeThemeBtn").addEventListener("click",()=>$("themeBtn
 document.addEventListener("click",e=>{ if(e.target.closest("[data-gohome],#brandMark")) showLanding(); });   // club brand = home
 if($("histAdminPlay")) $("histAdminPlay").addEventListener("click",()=>{ isAdmin() ? enterAdminPlay() : adminLogin(); });
 if($("sessBackBtn")) $("sessBackBtn").addEventListener("click",()=>openHistory());
-if($("sessContinue")) $("sessContinue").addEventListener("click",()=>{ String(viewingSessionId)==="live" ? enterAdminPlay() : continueOP(viewingSessionId); });
+if($("sessContinue")) $("sessContinue").addEventListener("click",()=>enterAdminPlay());
 if($("sessTv")) $("sessTv").addEventListener("click",()=>enterTv(true));
 /* Two Chrome windows: this one for running the night, a second one on the TV. The TV window opens without this
    tab's admin login (noopener), so it is a plain viewer that can never push changes, and it picks up every save
