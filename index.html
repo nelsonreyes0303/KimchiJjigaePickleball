@@ -1671,6 +1671,7 @@ function commit(){
     renderSessionPage("live");
 }
 let selSwap=null;   // currently-picked player for a manual teammate swap
+let restWake=0;      // when the first resting player may join the next group (set by renderQueue, read by the tick)
 let selPair=null;   // currently-picked player for a fixed-pair link
 let rosterSearch=""; // roster search filter
 
@@ -1799,9 +1800,28 @@ function queueGroups(){
     p.forEach(id=>{ const i=work.indexOf(id); if(i>=0) work.splice(i,1); });
     groups.push(arrangeTeams(p, false, false));
   });
-  let g; while(g=nextGroupFrom(work, man)) groups.push(g);
-  return {groups, leftovers:work, manual:man};
+  // An open fixed slot (Next up, Group 2) takes only players who have rested REST_MIN since their last game; a 🔒
+  // group is yours and counts as ready. If no legal group of rested players exists, the slot waits and nothing forms
+  // behind it, so the players who just came off court never fill it. It fills when someone who can join checks in
+  // or the rest runs out (readyAt). Only an empty court with nobody else to play takes them sooner (courtFallback).
+  let resting=null, readyAt=0;
+  if(!man && state.session && state.session.active){
+    const ends=lastGameEnds(), now=Date.now(), lset=new Set(state.qlocked||[]), restMs=REST_MIN*60000;
+    const ready=id=>lset.has(id) || !ends[id] || now-ends[id]>=restMs;
+    while(groups.length<Math.max(1,pinnedGroups())){
+      const g=nextGroupFrom(work.filter(ready), false);
+      if(!g){ resting=work.filter(id=>!ready(id)); if(resting.length) readyAt=Math.min(...resting.map(id=>ends[id]+restMs)); break; }
+      g.forEach(id=>{ const i=work.indexOf(id); if(i>=0) work.splice(i,1); });
+      groups.push(g);
+    }
+  }
+  if(!resting){ let g; while(g=nextGroupFrom(work, man)) groups.push(g); }
+  return {groups, leftovers:work, manual:man, resting:resting||[], readyAt};
 }
+/* When each player's last game ended, by id. */
+function lastGameEnds(){ const m={}; (state.log||[]).forEach(g=>[...g.w,...g.l].forEach(x=>{ m[x.id]=Math.max(m[x.id]||0, g.t||0); })); return m; }
+/* The exception: a court is free and no group of rested players can play, so the players just off court may. */
+function courtFallback(gq){ return gq.resting.length ? nextGroupFrom(gq.leftovers.slice(), false) : null; }
 /* Auto-levelling: the planner. The held groups (Next up, Group 2) and 🔒 locked groups keep their players and
    their slots; everyone else is planned into foursomes, fewest games first, then longest waiting, and written
    back into the line as whole foursomes in order. Each foursome is level-legal and keeps its fixed pair or
@@ -2219,7 +2239,7 @@ function removeCourt(id){ audit("removeCourt", id);
   state.courts=state.courts.filter(x=>x.id!==id); commit();
 }
 function startCourt(c){
-  const g=queueGroups().groups[0];
+  const gq=queueGroups(), g=gq.groups[0]||courtFallback(gq);
   if(!g){ audit("startCourt-FAILED","no legal group of 4 · "+cname(c)); toast("No group of 4 is ready"); return; }
   pushUndo();
   audit("startCourt", cname(c)+": "+g.map(nmsafe).join(", "));
@@ -3419,7 +3439,8 @@ function handleSwap(slot){
 
 /* ---------- render ---------- */
 function renderCourts(){
-  const gq=queueGroups(); const preview=gq.groups.slice(); const strandable=gq.leftovers.length>=4;  // stranded players who can't form a tier-legal group
+  const gq=queueGroups(); const preview=gq.groups.slice(); const strandable=!gq.resting.length && gq.leftovers.length>=4;  // stranded players who can't form a tier-legal group
+  let fallback=courtFallback(gq);                   // nobody rested can play: an empty court takes those just off court
   $("courts").innerHTML=state.courts.map((c,idx)=>{
     const active=c.seats.every(x=>x);
     let head=`<div class="chead"><b class="cname"${isAdmin()?` data-cname="${c.id}" title="Click to rename"`:""}>${esc(c.name||('Court '+(idx+1)))}</b>`;
@@ -3449,6 +3470,8 @@ function renderCourts(){
       const g=preview.shift();                   // distinct preview per open court
       let inner;
       if(g){ inner=`<p>Next up${showCats()?' · <b>'+seatsLabel(g)+'</b>':''}: ${esc(g.map(nm).join(", "))}</p>`+(isAdmin()?`<button class="btn-accent" data-start="${c.id}" style="padding:12px 22px">Start game</button>`:""); }
+      else if(fallback && !preview.length && !gq.groups.length){ const f=fallback; fallback=null;
+        inner=`<p>Nobody rested can make a game, so the players just off court go again${showCats()?' · <b>'+seatsLabel(f)+'</b>':''}: ${esc(f.map(nm).join(", "))}</p>`+(isAdmin()?`<button class="btn-accent" data-start="${c.id}" style="padding:12px 22px">Start game</button>`:""); }
       else if(strandable){ inner=`<p>No same-tier group can form — <b>${gq.leftovers.length}</b> players are stuck waiting.</p>`+(isAdmin()?`<button class="btn-accent" data-startmix="${c.id}" style="padding:12px 22px">⤢ Start mixed-tier game</button>`:""); }
       else{ inner=`<p>Waiting for 4 players in the queue</p>`+(isAdmin()?`<button class="btn-accent" disabled style="padding:12px 22px">Start game</button>`:""); }
       body=`<div class="cidle">${inner}</div>
@@ -3472,7 +3495,8 @@ function renderQueue(){
   $("qCount").textContent=state.queue.length+" waiting";
   renderTopWait();
   if(!state.queue.length){ $("queue").innerHTML='<div class="qempty">No one queued — give players a category and check them in from the roster</div>'; return; }
-  const {groups,leftovers,manual}=queueGroups();
+  const {groups,leftovers,manual,resting,readyAt}=queueGroups();
+  restWake=readyAt||0;                             // the tick re-forms the groups when the first of them has rested
   let n=0, html="";
   groups.forEach((grp,gi)=>{
     const set=[...new Set(grp.map(id=>P(id).level))];
@@ -3492,9 +3516,15 @@ function renderQueue(){
         <div class="qteam b">${qrow(grp[2],++n)}${qrow(grp[3],++n)}</div>
       </div>`;
   });
+  if(resting.length){
+    const at=new Date(readyAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
+    html+=`<div class="qgroup leftover resting"><div class="qghead"><span class="qgtag">${groups.length?'Group '+(groups.length+1):'▶ Next up'} · forming</span></div>`
+      + `<div class="hint" style="padding:0 3px 3px">Players just off court rest ${REST_MIN} minutes before they can be in the next group, and nobody else here can make a game right now. `
+      + `It forms at about <b>${at}</b>, or sooner if someone who can join checks in.<br>Resting: ${esc(resting.map(nm).join(", "))}</div></div>`;
+  }
   if(leftovers.length){
-    html+=`<div class="qgroup leftover"><div class="qghead"><span class="qgtag">Waiting for a match</span></div>`
-      + `<div class="hint" style="padding:0 3px 3px">${manual?"Not enough left for another group of 4.":(leftovers.length>=4?"Can't fill a tier-legal group — use “⤢ Start mixed-tier game” on an open court to let them play across tiers.":"Waiting for more compatible players in nearby tiers.")}</div>`
+    html+=`<div class="qgroup leftover"><div class="qghead"><span class="qgtag">${resting.length?'Waiting':'Waiting for a match'}</span></div>`
+      + `<div class="hint" style="padding:0 3px 3px">${manual?"Not enough left for another group of 4.":resting.length?"The groups after the next one form once it does.":(leftovers.length>=4?"Can't fill a tier-legal group — use “⤢ Start mixed-tier game” on an open court to let them play across tiers.":"Waiting for more compatible players in nearby tiers.")}</div>`
       + leftovers.map(id=>qrow(id,'·',true)).join("") + `</div>`;
   }
   $("queue").innerHTML=html;
@@ -3887,7 +3917,12 @@ function initResizers(){
   bind($("sideSplit"), "side");
   bind($("queueSplit"), "queue");
 }
-setInterval(()=>{document.querySelectorAll("[data-timer]").forEach(el=>{const t=+el.dataset.timer;if(t)el.textContent=fmt(Date.now()-t);});
+
+setInterval(()=>{
+  if(restWake && Date.now()>=restWake){             // rest ran out: form the waiting group now, and fix it if you're the admin
+    restWake=0; if(isAdmin()){ state.planSig=null; commit(); } else render();
+  }
+  document.querySelectorAll("[data-timer]").forEach(el=>{const t=+el.dataset.timer;if(t)el.textContent=fmt(Date.now()-t);});
   document.querySelectorAll("[data-wait]").forEach(el=>{const t=+el.dataset.wait;if(t){const ms=Date.now()-t;el.textContent=fmtWait(ms);el.classList.toggle("long",ms>=LONG_WAIT_MIN*60000);}});
   const os=$("opStatus"); if(os) os.textContent = (state.session&&state.session.active) ? "● "+(state.session.name?state.session.name+" · ":"")+fmtDur(Date.now()-state.session.startedAt) : "";
 },1000);
