@@ -1805,7 +1805,7 @@ function queueGroups(){
   // behind it, so the players who just came off court never fill it. It fills when someone who can join checks in
   // or the rest runs out (readyAt). Only an empty court with nobody else to play takes them sooner (courtFallback).
   let resting=null, readyAt=0;
-  if(!man && state.session && state.session.active){
+  if(!man && !state.locked && state.session && state.session.active){
     const ends=lastGameEnds(), now=Date.now(), lset=new Set(state.qlocked||[]), restMs=REST_MIN*60000;
     const ready=id=>lset.has(id) || !ends[id] || now-ends[id]>=restMs;
     while(groups.length<Math.max(1,pinnedGroups())){
@@ -1817,6 +1817,15 @@ function queueGroups(){
   }
   if(!resting){ let g; while(g=nextGroupFrom(work, man)) groups.push(g); }
   return {groups, leftovers:work, manual:man, resting:resting||[], readyAt};
+}
+/* Called every second: when the first resting player's rest runs out, form the waiting group now (and fix it, on an
+   admin device) without waiting for the next tap. A tap-to-swap you have started is kept, and nothing redraws
+   under a drag in progress; it tries again a second later. */
+function restTick(){
+  if(!restWake || Date.now()<restWake || dragSrc) return;
+  restWake=0;
+  if(isAdmin()){ state.planSig=null; pinFront(); save(); }
+  render();
 }
 /* When each player's last game ended, by id. */
 function lastGameEnds(){ const m={}; (state.log||[]).forEach(g=>[...g.w,...g.l].forEach(x=>{ m[x.id]=Math.max(m[x.id]||0, g.t||0); })); return m; }
@@ -1844,14 +1853,16 @@ function rebalanceTail(){
   // for someone on court, or a player whose partner is not in the line, sits this round out at the back.
   const inFree=new Set(freeIds), byGrp={}, seen=new Set(), units=[], aside=[];
   freeIds.forEach(id=>{ const g=P(id).grp; if(g)(byGrp[g]=byGrp[g]||[]).push(id); });
+  const mates=g=>g&&byGrp[g] ? byGrp[g].filter(x=>!seen.has(x)) : [];
   freeIds.forEach(id=>{
     if(seen.has(id)) return;
-    const g=P(id).grp;
-    if(g && byGrp[g].length>=4){ const four=byGrp[g].slice(0,4); four.forEach(x=>seen.add(x)); units.push({ids:four,four:true}); return; }
+    const g=P(id).grp, four=mates(g);
+    if(four.length>=4){ four.slice(0,4).forEach(x=>seen.add(x)); units.push({ids:four.slice(0,4),four:true}); return; }
     seen.add(id);
     if(g && groupStillComing(g,id)){ aside.push(id); return; }
+    // A partner who is in a ready Play-again four plays with that four; this player waits (as nextGroupFrom does).
     const pt=P(id).partner;
-    if(pt){ if(inFree.has(pt) && !seen.has(pt)){ seen.add(pt); units.push({ids:[id,pt]}); } else aside.push(id); return; }
+    if(pt){ if(inFree.has(pt) && !seen.has(pt) && mates(P(pt)&&P(pt).grp).length<4){ seen.add(pt); units.push({ids:[id,pt]}); } else aside.push(id); return; }
     units.push({ids:[id]});
   });
   const gOf=u=>Math.min.apply(null,u.ids.map(effGames)), wOf=u=>Math.min.apply(null,u.ids.map(waitSince)), pOf=u=>Math.min.apply(null,u.ids.map(x=>pos[x]));
@@ -1919,6 +1930,13 @@ function rebalanceTail(){
     avail=avail.filter(u=>!grp.includes(u));
   }
   ordered.push(...stranded, ...aside);
+  // The plan must be exactly the same players in a new order. If it is not, keep the line as it is rather than
+  // lose or double anyone.
+  if(ordered.length!==freeIds.length || new Set(ordered).size!==ordered.length || ordered.some(x=>!inFree.has(x))){
+    console.warn("rebalanceTail: plan did not match the line, left unchanged", ordered, freeIds);
+    audit("autoLevel-SKIPPED","plan did not match the line");
+    return;
+  }
   const changed=freeIdx.some((idx,k)=>q[idx]!==ordered[k]);
   freeIdx.forEach((idx,k)=>{ q[idx]=ordered[k]; });            // drop them back into the same slots
   if(changed) audit("autoLevel","re-planned the groups after the held ones");
@@ -2082,9 +2100,9 @@ function nextGroupFrom(list, ignoreLevels){
   if(list.length<4) return null;
   const lset=new Set(state.qlocked||[]);                     // 🔒 outranks tier rules, fairness, everything
   const byGrp={}; list.forEach(id=>{ const g=P(id).grp; if(g)(byGrp[g]=byGrp[g]||[]).push(id); });
-  const readyGrp=g=>g&&byGrp[g]&&byGrp[g].length>=4;
-  // build units in queue order: play-again foursome, fixed pair (both present), or single; a paired player waits if their partner isn't available
   const used=new Set(), units=[];
+  const readyGrp=g=>g&&byGrp[g]&&byGrp[g].filter(x=>!used.has(x)).length>=4;   // only players not already in a unit
+  // build units in queue order: play-again foursome, fixed pair (both present), or single; a paired player waits if their partner isn't available
   for(const id of list){
     if(used.has(id)) continue;
     if(lset.has(id)){                                        // a locked run of 4 is one game; nothing may split it
@@ -2095,7 +2113,7 @@ function nextGroupFrom(list, ignoreLevels){
       if(run.length===4){ units.push({ids:run,four:true,locked:true}); run.forEach(x=>used.add(x)); continue; }
     }
     const g=P(id).grp;
-    if(readyGrp(g)){ const four=byGrp[g].slice(0,4); units.push({ids:four,four:true}); four.forEach(x=>used.add(x)); continue; }
+    if(readyGrp(g)){ const four=byGrp[g].filter(x=>!used.has(x)).slice(0,4); units.push({ids:four,four:true}); four.forEach(x=>used.add(x)); continue; }
     // A set-up group whose last member is still on a court holds its place: the others sit this one out
     // rather than being pulled into someone else's game. groupStillComing() releases them if that member
     // can no longer turn up, so nobody waits forever.
@@ -3919,9 +3937,7 @@ function initResizers(){
 }
 
 setInterval(()=>{
-  if(restWake && Date.now()>=restWake){             // rest ran out: form the waiting group now, and fix it if you're the admin
-    restWake=0; if(isAdmin()){ state.planSig=null; commit(); } else render();
-  }
+  restTick();
   document.querySelectorAll("[data-timer]").forEach(el=>{const t=+el.dataset.timer;if(t)el.textContent=fmt(Date.now()-t);});
   document.querySelectorAll("[data-wait]").forEach(el=>{const t=+el.dataset.wait;if(t){const ms=Date.now()-t;el.textContent=fmtWait(ms);el.classList.toggle("long",ms>=LONG_WAIT_MIN*60000);}});
   const os=$("opStatus"); if(os) os.textContent = (state.session&&state.session.active) ? "● "+(state.session.name?state.session.name+" · ":"")+fmtDur(Date.now()-state.session.startedAt) : "";
