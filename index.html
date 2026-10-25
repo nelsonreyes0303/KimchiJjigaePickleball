@@ -963,6 +963,7 @@ window.addEventListener("error",function(e){
       <button class="btn-ghost btn-sm admin-only" id="undoBtn" title="Undo the last action — shuffle, drag, start, or game">↶ Undo</button>
       <button class="btn-ghost btn-sm admin-only" id="resetBtn">Reset scores</button>
       <button class="btn-ghost btn-sm admin-only" id="resetAllBtn">Reset all</button>
+      <button class="btn-ghost btn-sm admin-only tool-extra" id="skipTimeBtn" title="For testing: make 2 minutes pass at once — wait times, rest, check-in times and court timers all move forward. Not for a real open play.">⏩ +2 min</button>
       <button class="btn-ghost btn-sm admin-only tool-extra" id="auditBtn" title="Download a log of every action — send it over if something looks wrong">🧾 Audit</button>
       <button class="btn-ghost btn-sm admin-only tool-extra" data-backup title="Download everything — roster, open play history, photos — as one file">💾 Backup</button>
       <label class="btn-ghost btn-sm admin-only tool-extra" title="Load a backup file made on another device" style="cursor:pointer">📥 Import<input type="file" accept="application/json,.json" data-restore style="display:none"></label>
@@ -2325,6 +2326,22 @@ function finishGame(c,winTeam,score){
   }
   c.seats=[null,null,null,null]; c.started=null; c.dupr=false;
   commit(); toast(together?"They'll play again together on their next turn":"Game recorded — court cleared");
+}
+/* Testing aid: make TEST_SKIP_MIN minutes pass at once. Every clock the queue reads (wait times, check-in times,
+   when each game ended, court timers, the open play's start) moves back by that much, so waits grow, the rest
+   rule runs out and court timers advance exactly as if the time had gone by. The game log's times move with it. */
+const TEST_SKIP_MIN=2;
+function skipTime(){
+  if(!isAdmin()) return;
+  if(!(state.session&&state.session.active)){ toast("Start an open play first"); return; }
+  const ms=TEST_SKIP_MIN*60000;
+  pushUndo();
+  Object.values(state.players).forEach(p=>{ if(p.waitSince) p.waitSince-=ms; if(p.checkedInAt) p.checkedInAt-=ms; });
+  state.courts.forEach(c=>{ if(c.started) c.started-=ms; });
+  (state.log||[]).forEach(g=>{ if(g.t) g.t-=ms; });
+  if(state.session.startedAt) state.session.startedAt-=ms;
+  audit("skipTime","+"+TEST_SKIP_MIN+" min (testing)");
+  commit(); toast("⏩ "+TEST_SKIP_MIN+" minutes passed (testing)");
 }
 function clearCourt(c){ pushUndo(); audit("clearCourt", cname(c)+": "+c.seats.filter(Boolean).map(nmsafe).join(", ")); c.again=false; c.dupr=false; c.seats.forEach(id=>{if(id)enqueue(id);}); c.seats=[null,null,null,null]; c.started=null; commit(); }
 function toggleAgain(c){ c.again=!c.again; audit("playAgain", cname(c)+": "+(c.again?"ON":"off")); commit(); }
@@ -3882,6 +3899,7 @@ $("addCourt").addEventListener("click",()=>{ if(!isAdmin()) return; addCourt(); 
 $("resetBtn").addEventListener("click",()=>{ if(!isAdmin()) return; resetScores(); });
 $("resetAllBtn").addEventListener("click",()=>{ if(!isAdmin()) return; resetSession(); });
 $("auditBtn").addEventListener("click",()=>{ if(!isAdmin()) return; exportAudit(); });
+$("skipTimeBtn").addEventListener("click",skipTime);
 $("undoBtn").addEventListener("click",()=>{ if(!isAdmin()) return; undo(); });
 const SIDE_SECS=["rosterSec","logSec"];
 state.secOpen=state.secOpen||{};
