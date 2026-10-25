@@ -21,6 +21,8 @@
  *                                               with v equal to the current version only { version, same:true } comes back
  * POST ?action=saveLive     key, base, state -> replace the live open play if base is still the current version; otherwise
  *                                               409 { conflict:true, version, state } so the device can catch up and redo
+ * POST ?action=auditAdd     key, id, entries -> append audit entries (JSON array) to that open play's log, data/audit/<id>.jsonl
+ * POST ?action=auditGet     key, id          -> { ok, entries:[...] } that open play's log from every admin device, oldest first
  *
  * The live open play is one shared record (data/live.json) so any number of admin devices can run the same
  * session: every change is pushed here and every device polls for a newer version. The version number is the
@@ -39,6 +41,9 @@ const UP_FILE    = DATA_DIR . '/upcoming.json';       // live list, edited by ad
 const UP_SEED    = DATA_DIR . '/upcoming.seed.json';  // committed starting point, used once when the live file is missing
 const LIVE_FILE  = DATA_DIR . '/live.json';           // the one live open play every admin device works on
 const LIVE_VER_FILE = DATA_DIR . '/live.ver';         // just the live version number, for cheap polling
+const AUDIT_DIR  = DATA_DIR . '/audit';               // one JSON-lines file per open play: every admin device's actions
+const MAX_AUDIT_POST = 512 * 1024;
+const MAX_AUDIT_FILE = 16 * 1024 * 1024;
 const MAX_LIVE_JSON = 2 * 1024 * 1024;
 const MAX_RSVP_BYTES = 1024 * 1024;                   // an RSVP page is ~30 KB; stop well before anything silly
 const MAX_EVENTS = 60;
@@ -307,8 +312,34 @@ switch ($action) {
       if ($i >= 0) { array_splice($list, $i, 1); writeAll($list); }
       $d = PHOTO_DIR . '/' . $id;
       if (is_dir($d)) { foreach (glob($d . '/*') ?: [] as $f) @unlink($f); @rmdir($d); }
+      @unlink(AUDIT_DIR . '/' . $id . '.jsonl');
     });
     out(['ok' => true]);
+
+  case 'auditAdd':
+    requirePost(); requireAdmin();
+    $id = cleanId((string)($_POST['id'] ?? '')); if ($id === '' || $id === 'live') fail('Bad session id');
+    $raw = (string)($_POST['entries'] ?? '');
+    if ($raw === '' || strlen($raw) > MAX_AUDIT_POST) fail('Bad audit payload');
+    $list = json_decode($raw);
+    if (!is_array($list)) fail('Bad audit payload');
+    if (!is_dir(AUDIT_DIR) && !mkdir(AUDIT_DIR, 0755, true)) fail('data/audit folder cannot be created', 500);
+    $f = AUDIT_DIR . '/' . $id . '.jsonl';
+    if (is_file($f) && filesize($f) > MAX_AUDIT_FILE) fail('The audit for this open play is full', 413);
+    $lines = '';
+    foreach ($list as $e) if (is_object($e)) $lines .= json_encode($e, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
+    if ($lines !== '' && file_put_contents($f, $lines, FILE_APPEND | LOCK_EX) === false) fail('Could not save the audit', 500);
+    out(['ok' => true]);
+
+  case 'auditGet':
+    requirePost(); requireAdmin();
+    $id = cleanId((string)($_POST['id'] ?? '')); if ($id === '') fail('Bad session id');
+    $f = AUDIT_DIR . '/' . $id . '.jsonl'; $entries = [];
+    if (is_file($f)) foreach ((file($f, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: []) as $line) {
+      $e = json_decode($line); if (is_object($e)) $entries[] = $e;
+    }
+    usort($entries, fn($a, $b) => (($a->t ?? 0) <=> ($b->t ?? 0)));
+    out(['ok' => true, 'entries' => $entries]);
 
   case 'upload':
     requirePost(); requireAdmin();

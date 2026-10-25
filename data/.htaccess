@@ -6,6 +6,10 @@ Options -Indexes
 <FilesMatch "^\.(admin|lock|htaccess)$">
   Require all denied
 </FilesMatch>
+# The audit logs (data/audit/*.jsonl) are read only through api.php, by an admin.
+<FilesMatch "\.jsonl$">
+  Require all denied
+</FilesMatch>
 <IfModule mod_headers.c>
   <FilesMatch "\.json$">
     Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"

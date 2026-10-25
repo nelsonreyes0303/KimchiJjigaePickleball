@@ -29,6 +29,8 @@ const F = {
   seed: path.join(DATA, 'upcoming.seed.json'),
   live: path.join(DATA, 'live.json'),
 };
+const cleanId = s => String(s || '').replace(/[^A-Za-z0-9_-]/g, '');            // same rule as api.php
+const auditFile = id => path.join(DATA, 'audit', cleanId(id) + '.jsonl');       // one log per open play, like api.php
 
 /* ---- the admin PIN ----
  * By default it is the one the website uses, read straight out of api.php so the two never drift.
@@ -247,7 +249,24 @@ async function handleApi(req, res, url, body) {
       const all = readJson(F.openplays, []);
       if (all.some(x => String(x.id) === String(body.id) && x.locked)) return json(res, 409, { ok: false, error: 'This open play is locked — unlock it first' });
       writeJson(F.openplays, all.filter(x => String(x.id) !== String(body.id)));
+      try { fs.unlinkSync(auditFile(body.id)); } catch (_) {}
       return json(res, 200, { ok: true });
+    }
+    case 'auditAdd': {
+      if (!isAdmin) return needAdmin();
+      const id = cleanId(body.id); if (!id || id === 'live') return json(res, 400, { ok: false, error: 'Bad session id' });
+      let list; try { list = JSON.parse(body.entries || ''); } catch (_) { list = null; }
+      if (!Array.isArray(list) || String(body.entries).length > 512 * 1024) return json(res, 400, { ok: false, error: 'Bad audit payload' });
+      fs.mkdirSync(path.dirname(auditFile(id)), { recursive: true });
+      fs.appendFileSync(auditFile(id), list.filter(e => e && typeof e === 'object').map(e => JSON.stringify(e) + '\n').join(''));
+      return json(res, 200, { ok: true });
+    }
+    case 'auditGet': {
+      if (!isAdmin) return needAdmin();
+      const id = cleanId(body.id); if (!id) return json(res, 400, { ok: false, error: 'Bad session id' });
+      let lines = []; try { lines = fs.readFileSync(auditFile(id), 'utf8').split('\n').filter(Boolean); } catch (_) {}
+      const entries = lines.map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean).sort((a, b) => (a.t || 0) - (b.t || 0));
+      return json(res, 200, { ok: true, entries });
     }
     case 'upload': case 'deletePhoto':
       // Photos are stored on the host; locally we just report an empty album so the page still works.

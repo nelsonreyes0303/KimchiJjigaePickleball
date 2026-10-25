@@ -753,7 +753,6 @@ window.addEventListener("error",function(e){
   body.admin-on .admin-badge{display:inline-block}
   body:not(.admin-on) .admin-only{display:none!important}
   /* Secondary buttons — kept out of the way while a game night is running; the ⚙ Tools button brings them back. */
-  body:not(.tools-on) .tool-extra{display:none!important}
   .app-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:6px}
   .app-nav .navlink{background:transparent;border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:10px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit}
   .app-nav .navlink:hover{color:var(--txt);border-color:var(--accent)}
@@ -935,8 +934,8 @@ window.addEventListener("error",function(e){
   <div class="brand" id="brandMark"><img src="logo.png" alt="" class="brandlogo"><div>Kimchi Jjigae Pickleball Club<small>Your queue · you control the order</small></div></div>
   <div class="spacer"></div>
   <div class="app-nav">
-    <button type="button" class="navlink tool-extra" id="navHomeBtn">Club home</button>
-    <button type="button" class="navlink tool-extra" id="navHistoryBtn">History</button>
+    <button type="button" class="navlink" id="navHomeBtn">Club home</button>
+    <button type="button" class="navlink" id="navHistoryBtn">History</button>
     <span class="admin-badge">Admin</span>
     <button type="button" class="btn-ghost btn-sm" id="navAdminBtn" title="Login as admin">Admin login</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="tierToggle" title="Show or hide player categories everywhere in open play">Hide categories</button>
@@ -956,18 +955,11 @@ window.addEventListener("error",function(e){
       <button class="btn-accent btn-sm admin-only" id="opBtn">▶ Start open play</button>
       <button class="btn btn-sm admin-only" id="tvOpenBtn" title="Open TV mode in its own window. Drag it to the TV, then click it once for full screen and sound.">📺 TV</button>
       <span id="opStatus" class="hint" style="font-weight:700"></span>
-      <button class="btn btn-sm tool-extra" id="historyBtn">🕘 History</button>
-      <button class="btn btn-sm admin-only tool-extra" id="challengeBtn" title="Force everyone to play only within their own level — no mixing across tiers">🎯 Challenge</button>
-      <button class="btn btn-sm admin-only tool-extra" id="freshBtn" title="Avoid rematches: a player with the fewest games who has waited under 20 minutes can be passed over for a fresher game by someone with at most one more game who has waited about as long. Nobody is passed over by a player who just came off court, and anyone waiting 20 minutes or more is never passed over.">✨ Fresh matches</button>
       <button class="btn btn-sm admin-only" id="addCourt">+ Court</button>
       <button class="btn-ghost btn-sm admin-only" id="undoBtn" title="Undo the last action — shuffle, drag, start, or game">↶ Undo</button>
-      <button class="btn-ghost btn-sm admin-only" id="resetBtn">Reset scores</button>
       <button class="btn-ghost btn-sm admin-only" id="resetAllBtn">Reset all</button>
-      <button class="btn-ghost btn-sm admin-only tool-extra" id="skipTimeBtn" title="For testing: make 2 minutes pass at once — wait times, rest, check-in times and court timers all move forward. Not for a real open play.">⏩ +2 min</button>
-      <button class="btn-ghost btn-sm admin-only tool-extra" id="auditBtn" title="Download a log of every action — send it over if something looks wrong">🧾 Audit</button>
-      <button class="btn-ghost btn-sm admin-only tool-extra" data-backup title="Download everything — roster, open play history, photos — as one file">💾 Backup</button>
-      <label class="btn-ghost btn-sm admin-only tool-extra" title="Load a backup file made on another device" style="cursor:pointer">📥 Import<input type="file" accept="application/json,.json" data-restore style="display:none"></label>
-      <button class="btn-ghost btn-sm" id="toolsToggle" title="Show or hide the extra buttons — Club home, History, Challenge, Audit, Backup and Import">⚙ Tools</button>
+      <button class="btn-ghost btn-sm admin-only" id="skipTimeBtn" title="For testing: make 2 minutes pass at once — wait times, rest, check-in times and court timers all move forward. Not for a real open play.">⏩ +2 min</button>
+      <button class="btn-ghost btn-sm admin-only" id="auditBtn" title="Download a log of every action — send it over if something looks wrong">🧾 Audit</button>
     </div>
     <div class="courts" id="courts"></div>
   </div>
@@ -1118,6 +1110,7 @@ window.addEventListener("error",function(e){
     <div class="spacer"></div>
     <button type="button" class="btn-ghost btn-sm" id="sessTv" hidden title="Full-screen view for a TV: the courts, who's next and the standings, with a match intro">📺 TV mode</button>
     <button type="button" class="btn btn-sm" id="sessContinue" hidden>Continue open play</button>
+    <button type="button" class="btn-ghost btn-sm admin-only" id="sessAudit" title="Download everything that happened in this open play, from every admin device">🧾 Audit</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="sessLock" title="A locked open play cannot be deleted">🔓 Lock</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="sessDelete">Delete</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="sessLockBtn" title="Lock admin on this device">Log out</button>
@@ -1447,7 +1440,7 @@ async function pushLive(){
     else if(j.conflict){
       const theirs=j.state?JSON.stringify(j.state):"";
       if(theirs===js){ live.version=j.version; live.json=js; }       // our earlier push did land; the reply just got lost
-      else applyLive(j, "Another device changed the open play first — showing the latest. Please redo your last action.");
+      else { applyLive(j, "Another device changed the open play first — showing the latest. Please redo your last action."); audit("liveConflict","another device saved first (version "+j.version+"); this device's change after "+auditLastAct+" was not kept"); }
     }
     else toast(j.error||"Could not save the live open play to the website");
   }catch(e){
@@ -1630,13 +1623,70 @@ function fresh(){ return { players:{}, queue:[], courts:[], seq:1, courtSeq:1, g
    Records every action you take, with a snapshot of the queue, so a problem can be
    traced afterwards. Kept to the most recent 1500 entries; export it from 🧾 Audit. */
 const AUDIT_MAX=1500;
-function qsnap(){ try{ return state.queue.map(id=>(P(id)?P(id).name:id)).join(" > "); }catch(e){ return ""; } }
-function audit(act,detail){
+/* Each entry says what happened, on which device, during which open play, and (filled in by save(), so always
+   the state AFTER the action) what the screen showed: the courts, the groups in line, how many of them are fixed,
+   who is resting, and every waiting player's level, games, wait and rest. Decisions the app makes by itself are
+   entries too (fixGroup, unfixGroup, nextWaits, restEnded, autoLevel, avoidRematch, liveConflict), each with the
+   action that led to it. Entries go to the website per open play (auditAdd), so every admin device's actions end
+   up in one log you can download from the open play's page; this device keeps the last AUDIT_MAX as a fallback. */
+const AUDIT_SNAP_KEEP=300;                     // the local copy keeps snapshots on its latest entries only
+const DEVICE_KEY=KEY+"_device", AUDIT_OUT_KEY=KEY+"_auditOut";
+const AUDIT_DECISIONS=new Set(["fixGroup","unfixGroup","nextWaits","restEnded","autoLevel","autoLevel-SKIPPED","avoidRematch","liveConflict"]);
+let auditPending=[], auditLastAct="", lastRestKey="";
+let auditOut=(()=>{ try{ return JSON.parse(localStorage.getItem(AUDIT_OUT_KEY)||"[]"); }catch(e){ return []; } })();   // not yet on the website
+function deviceTag(){
+  try{ let d=localStorage.getItem(DEVICE_KEY);
+    if(!d){ d=((navigator.userAgent||"").match(/iPhone|iPad|Android|Windows|Macintosh|Linux/)||["Device"])[0].replace("Macintosh","Mac")+"-"+Math.random().toString(36).slice(2,6); localStorage.setItem(DEVICE_KEY,d); }
+    return d; }catch(e){ return "device"; }
+}
+function audit(act,detail,sid){
   try{
     if(!Array.isArray(state.audit)) state.audit=[];
-    state.audit.push({t:Date.now(), a:act, d:detail===undefined?"":String(detail), q:qsnap()});
+    const live_=state.session&&state.session.active;
+    const e={t:Date.now(), a:act, d:detail===undefined?"":String(detail), dev:deviceTag(),
+             sid:sid!=null?sid:(live_?state.session.id:null), v:(typeof live==="object"&&live)?live.version:0};
+    state.audit.push(e); auditPending.push(e);
+    if(!AUDIT_DECISIONS.has(act)) auditLastAct=act;
     if(state.audit.length>AUDIT_MAX) state.audit.splice(0, state.audit.length-AUDIT_MAX);
   }catch(e){}
+}
+function auditWhy(){ return auditLastAct ? " (after "+auditLastAct+")" : ""; }
+/* What the screen showed: [court, seats, minutes played]; the groups (the first f are fixed); who is resting;
+   whether your drag is in force; and per waiting player [name, level, games, late-arrival baseline, wait, rest]. */
+function auditSnap(){
+  try{
+    const now=Date.now(), ends=lastGameEnds(), gq=queueGroups(), min=ms=>Math.round(ms/6000)/10, lset=new Set(state.qlocked||[]);
+    return { c:state.courts.map(c=>[cname(c), c.seats.map(id=>id?nmsafe(id):"-"), c.started?min(now-c.started):null]),
+      g:gq.groups.map(g=>g.map(nmsafe)), f:pinnedFront(state.queue.slice()).length, r:gq.resting.map(nmsafe), m:gq.manual?1:0,
+      q:state.queue.map(id=>{ const p=P(id)||{};
+        return [nmsafe(id), lvlAbbr(p.level)||"-", p.games||0, p.pg||0, min(now-waitSince(id)), ends[id]?min(now-ends[id]):null,
+          [p.partner?"pair "+nmsafe(p.partner):"", p.grp?"group":"", lset.has(id)?"locked":""].filter(Boolean).join(" ")]; }) };
+  }catch(e){ return {err:String(e&&e.message||e)}; }
+}
+/* Called from save(): the entries recorded since the last save get the state as it is now, after the action. */
+function auditSnapshot(){
+  if(!auditPending.length) return;
+  const s=auditSnap();
+  auditPending.forEach(e=>{ e.s=s; if(e.sid!=null) auditOut.push(Object.assign({},e)); });
+  auditPending=[];
+  const a=state.audit||[]; for(let i=0;i<a.length-AUDIT_SNAP_KEEP;i++) if(a[i].s) delete a[i].s;
+  if(auditOut.length>3000) auditOut.splice(0, auditOut.length-3000);
+  try{ localStorage.setItem(AUDIT_OUT_KEY, JSON.stringify(auditOut)); }catch(e){}
+  scheduleAuditUpload(3000);
+}
+let auditTimer=null, auditSending=false, auditServerOk=true;
+function scheduleAuditUpload(ms){ clearTimeout(auditTimer); auditTimer=setTimeout(uploadAudit, ms); }
+async function uploadAudit(){
+  if(auditSending || !auditOut.length || !auditServerOk || !server.on || !isAdmin() || !adminKey()) return;
+  auditSending=true; let retry=0;
+  try{
+    const sid=auditOut[0].sid, batch=auditOut.filter(e=>e.sid===sid).slice(0,150);
+    const j=await api("auditAdd",{id:sid, entries:JSON.stringify(batch)});
+    if(j.ok || /full/i.test(j.error||"")){ const sent=new Set(batch); auditOut=auditOut.filter(e=>!sent.has(e)); try{ localStorage.setItem(AUDIT_OUT_KEY, JSON.stringify(auditOut)); }catch(e){} }
+    else if(/unknown action/i.test(j.error||"")) auditServerOk=false;       // an older api.php: keep the log on this device
+    else retry=30000;
+  }catch(e){ retry=30000; }
+  finally{ auditSending=false; if(auditOut.length && auditServerOk) scheduleAuditUpload(retry||1000); }
 }
 function nmsafe(id){ return P(id)?P(id).name:String(id); }
 function cname(c){ if(!c) return "court"; const i=state.courts.indexOf(c); return c.name||("Court "+(i>=0?i+1:"?")); }
@@ -1659,11 +1709,12 @@ function migrate(s){ if(!s)return null; if(!Array.isArray(s.queue))s.queue=[];
     if(!live && (s.queue||[]).length){ s.queue=[]; s.qlocked=[]; s.frontPinned=[]; } }
   Object.values(s.players||{}).forEach(p=>{ if(p.qkey===undefined)p.qkey=Math.random(); if(p.level==='intermediate')p.level='lowint'; }); // intermediate renamed to low intermediate
   if(!s.mixDefaulted){ Object.values(s.players||{}).forEach(p=>p.openMix=true); s.mixDefaulted=true; }  // one-time: everyone may mix by default
+  s.challenge=false; s.strictFair=false;   // their buttons were removed, so neither may be left switched on
   (s.history||[]).forEach(h=>{ if(!Array.isArray(h.photos)) h.photos=[]; });
   return s; }
 function ensureCourts(){ if(!state.courts.length){ addCourt(); addCourt(); addCourt(); } }
 function load(){ try{return JSON.parse(localStorage.getItem(KEY))}catch(e){return null} }
-function save(){ localStorage.setItem(KEY,JSON.stringify(state)); try{ historySync(); }catch(e){ console.warn(e); } try{ liveSync(); }catch(e){ console.warn(e); } }
+function save(){ try{ auditSnapshot(); }catch(e){ console.warn(e); } localStorage.setItem(KEY,JSON.stringify(state)); try{ historySync(); }catch(e){ console.warn(e); } try{ liveSync(); }catch(e){ console.warn(e); } }
 function commit(){
   selSwap=null; selPair=null; try{ pinFront(); }catch(e){} save(); render();
   const sp=$("sessionPage");
@@ -1824,7 +1875,7 @@ function queueGroups(){
 function restTick(){
   if(!restWake || Date.now()<restWake || dragSrc) return;
   restWake=0;
-  if(isAdmin()){ state.planSig=null; pinFront(); save(); }
+  if(isAdmin()){ audit("restEnded","rest ran out — the waiting group can form now"); state.planSig=null; pinFront(); save(); }
   render();
 }
 /* When each player's last game ended, by id. */
@@ -2016,7 +2067,29 @@ function pinFront(){
     try{ rebalanceTail(); }catch(e){ console.warn("rebalanceTail", e); }
   }
   try{ avoidRematch(); }catch(e){ console.warn("avoidRematch", e); }      // never let this block the queue
+  const before=(state.frontPinned||[]).map(g=>g.slice());
   state.frontPinned=queueGroups().groups.slice(0,pinnedGroups()).filter(g=>g.length===4).map(g=>g.slice());
+  try{ auditFixed(before); }catch(e){ console.warn("auditFixed", e); }
+}
+/* For the audit: which fixed groups appeared or went (and why), and when the next group is waiting for rest. */
+function auditFixed(before){
+  const key=g=>g.slice().sort().join("|"), was=before.map(key), now=state.frontPinned.map(key);
+  state.frontPinned.forEach((g,i)=>{ if(!was.includes(key(g))) audit("fixGroup", (i?"Group "+(i+1):"Next up")+" fixed: "+g.map(nmsafe).join(", ")+auditWhy()); });
+  before.forEach(g=>{
+    if(now.includes(key(g))) return;
+    const gone=g.filter(id=>!state.queue.includes(id));
+    if(gone.length===4 && gone.every(onCourt)) return;                     // it went on court; startCourt says so
+    audit("unfixGroup", "no longer fixed: "+g.map(nmsafe).join(", ")+(gone.length?" — "+gone.map(nmsafe).join(", ")+(gone.length>1?" are":" is")+" not in the line":" — re-formed")+auditWhy());
+  });
+  if(!(state.session&&state.session.active)) return;
+  const gq=queueGroups(), rk=gq.resting.slice().sort().join("|");
+  if(rk===lastRestKey) return;
+  lastRestKey=rk;
+  if(!rk) return;
+  const ends=lastGameEnds(), now_=Date.now(), rested=gq.leftovers.filter(id=>!gq.resting.includes(id));
+  audit("nextWaits", (gq.groups.length?"Group "+(gq.groups.length+1):"Next up")+" waits for rested players. Resting: "
+    +gq.resting.map(id=>nmsafe(id)+" ("+((now_-ends[id])/60000).toFixed(1)+"m)").join(", ")+" until about "+new Date(gq.readyAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})
+    +". The rested players left can't make a legal group: "+(rested.length?rested.map(id=>nmsafe(id)+" "+(lvlAbbr(P(id).level)||"-")+(P(id).partner?" (pair "+nmsafe(P(id).partner)+")":"")).join(", "):"nobody")+auditWhy());
 }
 function clearFrontPin(){ state.frontPinned=[]; }
 function toggleGroupLock(ids){                     // pin/unpin a group so auto-levelling leaves it alone
@@ -2260,7 +2333,9 @@ function startCourt(c){
   const gq=queueGroups(), g=gq.groups[0]||courtFallback(gq);
   if(!g){ audit("startCourt-FAILED","no legal group of 4 · "+cname(c)); toast("No group of 4 is ready"); return; }
   pushUndo();
-  audit("startCourt", cname(c)+": "+g.map(nmsafe).join(", "));
+  const ends=lastGameEnds(), fresh=g.filter(id=>ends[id] && Date.now()-ends[id]<REST_MIN*60000);
+  audit("startCourt", cname(c)+": "+g.map(nmsafe).join(", ")+(gq.groups[0] ? ""
+    : " · empty-court exception: nobody rested could make a game"+(fresh.length?" (just off court: "+fresh.map(id=>nmsafe(id)+" "+((Date.now()-ends[id])/60000).toFixed(1)+"m").join(", ")+")":"")));
   state.queue=state.queue.filter(x=>!g.includes(x));
   state.qlocked=(state.qlocked||[]).filter(x=>!g.includes(x));   // a group that's on court no longer needs its queue slot held
   state.manualSig=null;                          // arrangement consumed; remaining groups go back to level-legal
@@ -2386,15 +2461,6 @@ function toggleAgain(c){ c.again=!c.again; audit("playAgain", cname(c)+": "+(c.a
 /* A DUPR game is marked per court, off by default, and the mark lasts for that one game only: it goes
    with the game into the log, where Reclub entry can find it, and the court comes back unmarked. */
 function toggleDupr(c){ if(!isAdmin()){ toast("Admin only"); return; } c.dupr=!c.dupr; audit("duprGame", cname(c)+": "+(c.dupr?"ON":"off")); commit(); }
-function resetScores(){
-  if(!confirm("Reset scores, levels and pairs, and clear the courts? Only the player names stay."))return;
-  Object.values(state.players).forEach(p=>{ p.games=0;p.wins=0;p.losses=0;p.grp=null;p.partner=null;p.level=null;p.pg=0;p.in=false; });
-  audit("resetScores","scores, levels, pairs cleared");
-  state.games=0; state.log=[];
-  state.courts.forEach(c=>{ c.seats=[null,null,null,null]; c.started=null; c.again=false; c.dupr=false; });
-  state.queue=[];                                   // nobody is queued until you re-assign levels
-  commit(); toast("Reset — names kept, re-assign levels to play");
-}
 function resetSession(){
   if(!confirm("Clear the roster, queue, scores and courts?\n\nOpen play keeps running but its timer restarts from zero. Saved history is kept."))return;
   const keepHist=(state.history||[]).slice();
@@ -2628,7 +2694,7 @@ async function endOP(){
   state.session={active:false,startedAt:null};
   Object.values(state.players).forEach(p=>{ p.in=false; });            // the night is over: everyone is checked out
   state.queue=[]; state.qlocked=[]; state.frontPinned=[]; state.manualSig=null;
-  audit("endOpenPlay", state.history[0]?state.history[0].name+" · "+state.history[0].games+" games":"");
+  audit("endOpenPlay", state.history[0]?state.history[0].name+" · "+state.history[0].games+" games":"", sid);
   commit(); openSessionPage(sid); openPodium(sid); toast("Open play ended — saved to history");
 }
 async function toggleOP(){ if(!(await requireAdmin())) return; state.session.active ? endOP() : startOP(); }
@@ -2704,15 +2770,41 @@ function exportSession(id){
   const blob=new Blob([csv],{type:"text/csv"}), url=URL.createObjectURL(blob), a=document.createElement("a");
   a.href=url; a.download="kimchi-jjigae-pickleball-openplay-"+new Date(s.endedAt).toISOString().slice(0,10)+".csv"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
-function exportAudit(){
-  const a=state.audit||[];
-  if(!a.length){ toast("Nothing recorded yet"); return; }
-  let csv="#,Time,Action,Detail,Queue order after\n";
-  a.forEach((e,i)=>{ csv+=[i+1,csvq(new Date(e.t).toLocaleString()),csvq(e.a),csvq(e.d||""),csvq(e.q||"")].join(",")+"\n"; });
-  const blob=new Blob([csv],{type:"text/csv"}), url=URL.createObjectURL(blob), dl=document.createElement("a");
-  dl.href=url; dl.download="kimchi-jjigae-pickleball-audit-"+new Date().toISOString().slice(0,10)+".csv";
+/* The audit as a spreadsheet: one row per action, with the screen as it was right after it. */
+function auditCsv(entries){
+  const head=["#","Time","Device","Action","Detail","Courts after","Next up","Group 2","Later groups","Fixed groups","Resting (just off court)",
+    "Waiting: name level games(+late baseline) wait / rest since last game, in minutes","Your drag in force","Queue order (older entries)"];
+  const grp=(s,i)=>{ const g=(s.g||[])[i]; if(g) return g.join(" / "); return (s.r&&s.r.length&&(s.g||[]).length===i)?"forming":""; };
+  const rows=entries.map((e,i)=>{ const s=e.s||{};
+    return [i+1, new Date(e.t).toLocaleString(), e.dev||"", e.a, e.d||"",
+      (s.c||[]).map(c=>c[0]+": "+c[1].join(" / ")+(c[2]!=null?" ("+c[2]+"m)":"")).join(" | "),
+      grp(s,0), grp(s,1), (s.g||[]).slice(2).map(x=>x.join(" / ")).join(" | "), s.f!=null?s.f:"", (s.r||[]).join(", "),
+      (s.q||[]).map(x=>x[0]+" "+x[1]+" "+x[2]+(x[3]?"+"+x[3]:"")+"g · wait "+x[4]+(x[5]!=null?" / rest "+x[5]:"")+(x[6]?" · "+x[6]:"")).join("; "),
+      s.m?"yes":"", e.q||""].map(csvq).join(","); });
+  return head.map(csvq).join(",")+"\n"+rows.join("\n")+"\n";
+}
+/* Download one open play's audit: from the website (every admin device's actions, merged) when it can, plus
+   anything this device has not sent yet; otherwise this device's own copy. sid null = everything on this device.
+   range [start, end] picks this device's older entries, made before entries carried the open play's id. */
+async function downloadAudit(sid, label, range){
+  const k=e=>e.t+"|"+e.a+"|"+(e.dev||""), same=e=>String(e.sid)===String(sid) || (range && e.sid==null && e.t>=range[0] && e.t<=range[1]);
+  let entries=null, from="this device";
+  if(sid!=null && server.on && isAdmin() && adminKey()){
+    try{ await uploadAudit(); const j=await api("auditGet",{id:sid}); if(j.ok && Array.isArray(j.entries)){ entries=j.entries; if(entries.length) from="the website (every admin device)"; } }catch(e){}
+  }
+  if(!entries) entries=sid==null ? (state.audit||[]).slice() : (state.audit||[]).filter(same);
+  if(sid!=null){ const have=new Set(entries.map(k)); (state.audit||[]).concat(auditOut).forEach(e=>{ if(same(e) && !have.has(k(e))){ entries.push(e); have.add(k(e)); } }); }
+  entries.sort((a,b)=>a.t-b.t);
+  if(!entries.length){ toast("Nothing recorded for this open play"); return; }
+  const blob=new Blob([auditCsv(entries)],{type:"text/csv"}), url=URL.createObjectURL(blob), dl=document.createElement("a");
+  const name=String(label||new Date().toISOString().slice(0,10)).replace(/[^\w\- ]+/g,"").trim().replace(/\s+/g,"-").slice(0,60);
+  dl.href=url; dl.download="kimchi-jjigae-pickleball-audit-"+name+".csv";
   document.body.appendChild(dl); dl.click(); dl.remove(); URL.revokeObjectURL(url);
-  toast(a.length+" actions exported");
+  toast(entries.length+" actions exported from "+from);
+}
+function exportAudit(){                              // the toolbar button: tonight's open play, or everything on this device
+  const on=state.session&&state.session.active;
+  downloadAudit(on?state.session.id:null, on?(state.session.name||"open-play"):null);
 }
 /* ---------- backup / import ----------
    Backup writes one JSON file: the whole state plus every photo as a data URL. Import reads it back.
@@ -3852,8 +3944,6 @@ function renderBoard(){
 }
 function ord(l){const i=lvlIdx(l);return i<0?9:i;}
 function render(){
-  const sb=$("challengeBtn"); if(sb){ sb.classList.toggle("on",!!state.challenge); sb.textContent=state.challenge?"🎯 Challenge: ON":"🎯 Challenge"; }
-  const fb=$("freshBtn"); if(fb){ fb.classList.toggle("on",!state.strictFair); fb.textContent=state.strictFair?"✨ Fresh matches: off":"✨ Fresh matches"; }
   const ob=$("opBtn"); if(ob){ const on=state.session&&state.session.active; ob.textContent=on?"⏹ End open play":"▶ Start open play"; ob.className="btn-sm "+(on?"btn opactive":"btn-accent"); }
   renderCourts(); renderQueue(); renderRoster(); renderBoard(); renderLiveLog();
   if(tvMode) renderTv();
@@ -3947,7 +4037,6 @@ setInterval(()=>{
 $("addBtn").addEventListener("click",()=>{ if(!isAdmin()) return; const i=$("nameInput");addPlayers(i.value);i.value="";i.focus();});
 $("nameInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.metaKey||e.ctrlKey)){$("addBtn").click();}});
 $("addCourt").addEventListener("click",()=>{ if(!isAdmin()) return; addCourt(); });
-$("resetBtn").addEventListener("click",()=>{ if(!isAdmin()) return; resetScores(); });
 $("resetAllBtn").addEventListener("click",()=>{ if(!isAdmin()) return; resetSession(); });
 $("auditBtn").addEventListener("click",()=>{ if(!isAdmin()) return; exportAudit(); });
 $("skipTimeBtn").addEventListener("click",skipTime);
@@ -3982,7 +4071,6 @@ $("setupGo").addEventListener("click",confirmSetup);
 $("setupSearch").addEventListener("input",e=>{ setupSearch=e.target.value; renderSetup(); });
 $("setupModal").addEventListener("click",e=>{ if(e.target===$("setupModal")) closeSetup(); });
 $("opBtn").addEventListener("click",toggleOP);
-$("historyBtn").addEventListener("click",openHistory);
 $("playerClose").addEventListener("click",closePlayer);
 if($("ciBoardBtn")) $("ciBoardBtn").addEventListener("click",()=>openCiBoard("live"));
 document.body.addEventListener("click",e=>{ const b=e.target.closest("[data-ciboard]"); if(!b) return; e.preventDefault(); e.stopPropagation(); openCiBoard(b.dataset.ciboard); });   // inside a fold heading: must not fold it
@@ -4019,6 +4107,12 @@ if($("navAdminBtn")) $("navAdminBtn").addEventListener("click",()=>adminLogin())
 if($("adminLockBtn")) $("adminLockBtn").addEventListener("click",lockAdmin);
 if($("histLockBtn")) $("histLockBtn").addEventListener("click",lockAdmin);
 if($("sessLockBtn")) $("sessLockBtn").addEventListener("click",lockAdmin);
+if($("sessAudit")) $("sessAudit").addEventListener("click",()=>{
+  if(!isAdmin() || viewingSessionId==null) return;
+  if(String(viewingSessionId)==="live"){ exportAudit(); return; }
+  const s=(state.history||[]).find(h=>String(h.id)===String(viewingSessionId)); if(!s) return;
+  downloadAudit(s.id, s.name||fmtDate(s.endedAt), [s.startedAt, (s.endedAt||Date.now())+60000]);
+});
 if($("sessLock")) $("sessLock").addEventListener("click",()=>{ if(viewingSessionId!=null && String(viewingSessionId)!=="live") toggleHistoryLock(viewingSessionId); });
 if($("landLockBtn")) $("landLockBtn").addEventListener("click",lockAdmin);
 $("pinClose").addEventListener("click",()=>closePinModal(false));
@@ -4069,9 +4163,6 @@ document.body.addEventListener("change",e=>{
   const inp=e.target.closest("[data-addphotos]");
   if(inp&&inp.files){ addPhotosToSession(inp.dataset.addphotos, inp.files); inp.value=""; }
 });
-$("challengeBtn").addEventListener("click",()=>{ if(!isAdmin()) return; state.challenge=!state.challenge;audit("challenge",state.challenge?"ON":"off");commit();toast(state.challenge?"Challenge ON — everyone plays within their own level":"Challenge off — levels get mixed");});
-if($("freshBtn")) $("freshBtn").addEventListener("click",()=>{ if(!isAdmin()) return; state.strictFair=!state.strictFair; audit("freshMatches",state.strictFair?"off":"ON"); pushUndo(); rebalanceTail(); commit();
-  toast(state.strictFair?"Fresh matches off — strictly fewest games first":"Fresh matches on — short waiters may be passed over for a fresher game"); });
 $("sortSel").addEventListener("change",e=>{state.sort=e.target.value;save();renderRoster();});
 if($("checkOutAllBtn")) $("checkOutAllBtn").addEventListener("click",()=>{ if(!isAdmin()){ toast("Admin only"); return; } checkOutAll(); });
 if($("tierToggle")) $("tierToggle").addEventListener("click",()=>{
@@ -4080,25 +4171,6 @@ if($("tierToggle")) $("tierToggle").addEventListener("click",()=>{
 });
 function syncTierToggle(){ const b=$("tierToggle"); if(b) b.textContent=state.hideTiers?"Show categories":"Hide categories"; }
 syncTierToggle();
-/* ---------- the extra buttons ----------
-   History, Challenge, Audit, Backup, Import and the two header links matter between nights but crowd the
-   screen while one is running, so they stay tucked away until ⚙ Tools is switched on. It is a per-device
-   view preference kept outside state, so it never travels with the shared open play. */
-const TOOLS_KEY=KEY+"_tools";
-function toolsOn(){ try{ return localStorage.getItem(TOOLS_KEY)==="1"; }catch(_){ return false; } }
-function syncTools(){
-  const on=toolsOn();
-  document.body.classList.toggle("tools-on",on);
-  const b=$("toolsToggle");
-  if(b){ b.classList.toggle("on",on); b.textContent=on?"⚙ Hide tools":"⚙ Tools"; }
-}
-if($("toolsToggle")) $("toolsToggle").addEventListener("click",()=>{
-  const on=!toolsOn();
-  try{ localStorage.setItem(TOOLS_KEY, on?"1":"0"); }catch(_){}
-  syncTools();
-  toast(on?"Extra buttons shown on this device":"Extra buttons hidden — tap ⚙ Tools to bring them back");
-});
-syncTools();
 $("rSearch").addEventListener("input",e=>{rosterSearch=e.target.value.trim().toLowerCase();renderRoster();});
 document.body.addEventListener("input",e=>{ const t=e.target.closest("[data-logfilter]"); if(t) filterLogRows(t); const f=e.target.closest("[data-qfind]"); if(f) lvFind(f); });
 // a pasted or typed RSVP link fills the rest of the form

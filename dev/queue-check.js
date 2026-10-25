@@ -11,6 +11,7 @@ window.__fuzz=function(nNights, seed0, opts){
   const realNow=Date.now;
   const sv={save:window.save,toast:window.toast,confirm:window.confirm}, wasAdmin=sessionStorage.getItem(ADMIN_OK);
   const keepState=state, keepUndo=undoStack.slice();
+  const hasAudit=typeof auditPending!=="undefined", keepPend=hasAudit?auditPending.slice():null, keepOut=hasAudit?auditOut.slice():null;   // simulated actions must never reach the real audit
   window.save=()=>{}; window.toast=()=>{}; window.confirm=()=>true;
   sessionStorage.setItem(ADMIN_OK,"1");
   let trail=[]; const fail=(night,t,rule,detail)=>{ if(out.failures.length<40) out.failures.push({night,min:Math.round(t),rule,detail,trail:out.failures.some(f=>f.night===night)?undefined:trail.slice(-10)}); };
@@ -132,7 +133,7 @@ window.__fuzz=function(nNights, seed0, opts){
     out.nights++;
   }
   } catch(e){ out.failures.push({rule:"ERROR",detail:e.message+" "+(e.stack||"").split("\n").slice(1,3).join(" ")}); }
-  finally{ Date.now=realNow; Object.assign(window,sv); state=keepState; undoStack.length=0; keepUndo.forEach(x=>undoStack.push(x)); if(wasAdmin===null) sessionStorage.removeItem(ADMIN_OK); }
+  finally{ Date.now=realNow; Object.assign(window,sv); state=keepState; undoStack.length=0; keepUndo.forEach(x=>undoStack.push(x)); if(wasAdmin===null) sessionStorage.removeItem(ADMIN_OK); if(hasAudit){ auditPending=keepPend; auditOut=keepOut; } }
   out.stats.maxWait=Math.round(out.stats.maxWait);
   return out;
 };
@@ -144,6 +145,7 @@ window.__fuzz=function(nNights, seed0, opts){
    forms from them. Returns a list of "PASS …" / "FAIL …" lines. */
 window.__qcOct25=function(){
   const R=[], realNow=Date.now, keep=state, sv={save:window.save,toast:window.toast}, wasAdmin=sessionStorage.getItem(ADMIN_OK);
+  const hasAudit=typeof auditPending!=="undefined", keepPend=hasAudit?auditPending.slice():null, keepOut=hasAudit?auditOut.slice():null;
   const ok=(c,t)=>R.push((c?"PASS ":"FAIL ")+t);
   let now=1800000000000; Date.now=()=>now; window.save=()=>{}; window.toast=()=>{}; sessionStorage.setItem(ADMIN_OK,"1");
   try{
@@ -171,6 +173,6 @@ window.__qcOct25=function(){
     now+=3*60000; restTick();
     ok(true, "after 3 minutes the four who finished can join a later group ("+(queueGroups().groups.findIndex(x=>x.some(y=>off.includes(y)))+1||"none yet")+")");
   }catch(e){ R.push("FAIL error: "+e.message); }
-  finally{ Date.now=realNow; Object.assign(window,sv); state=keep; if(wasAdmin===null) sessionStorage.removeItem(ADMIN_OK); }
+  finally{ Date.now=realNow; Object.assign(window,sv); state=keep; if(wasAdmin===null) sessionStorage.removeItem(ADMIN_OK); if(hasAudit){ auditPending=keepPend; auditOut=keepOut; } }
   return R;
 };
