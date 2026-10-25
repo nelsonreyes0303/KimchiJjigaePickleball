@@ -1117,6 +1117,7 @@ window.addEventListener("error",function(e){
     <div class="spacer"></div>
     <button type="button" class="btn-ghost btn-sm" id="sessTv" hidden title="Full-screen view for a TV: the courts, who's next and the standings, with a match intro">📺 TV mode</button>
     <button type="button" class="btn btn-sm" id="sessContinue" hidden>Continue open play</button>
+    <button type="button" class="btn-ghost btn-sm admin-only" id="sessLock" title="A locked open play cannot be deleted">🔓 Lock</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="sessDelete">Delete</button>
     <button type="button" class="btn-ghost btn-sm admin-only" id="sessLockBtn" title="Lock admin on this device">Log out</button>
   </div>
@@ -2608,6 +2609,16 @@ function openLiveSession(){
   openSessionPage("live");
 }
 function closeHistory(){ hideHistoryPages(); showLanding(); }
+/* A locked open play cannot be deleted, here or on the website, until it is unlocked. */
+async function toggleHistoryLock(id){
+  if(!(await requireAdmin())) return;
+  const s=(state.history||[]).find(h=>String(h.id)===String(id)); if(!s) return;
+  s.locked=!s.locked;
+  const label=s.name||fmtDate(s.endedAt);
+  audit("historyLock", (s.locked?"locked: ":"unlocked: ")+label);
+  save(); refreshHistoryViews();
+  toast(s.locked?"Locked — “"+label+"” can't be deleted until you unlock it":"Unlocked — “"+label+"” can be deleted again");
+}
 let deletingHistory=false;
 async function deleteHistory(id){
   if(deletingHistory || !id) return;               // one prompt per click, whatever fires it
@@ -2617,6 +2628,7 @@ async function deleteHistory(id){
     const s=state.history.find(h=>String(h.id)===String(id));
     if(!s){ toast("That open play is already gone"); return; }
     const label=s.name||fmtDate(s.endedAt);
+    if(s.locked){ toast("“"+label+"” is locked — unlock it first to delete it"); return; }
     const shots=(s.photos||[]).length;
     if(!confirm("Delete “"+label+"”?\n\n"+(s.games||0)+" game"+(s.games===1?"":"s")
       +(shots?" and "+shots+" photo"+(shots===1?"":"s"):"")+" will be removed. This can't be undone."))return;
@@ -2984,12 +2996,12 @@ function renderSession(s,isLive){
   const bd=playerBreakdown(log);
   const pb=Object.values(bd).length? Object.values(bd).sort((a,b)=>b.games-a.games||a.name.localeCompare(b.name)).map(e=>`<div class="pb"><b>${esc(e.name)}</b> · ${e.games}g · ${e.wins}-${e.losses}<div class="hint">🤝 with: ${fmtCounts(e.partners)||'—'}</div><div class="hint">⚔️ vs: ${fmtCounts(e.opp)||'—'}</div></div>`).join("") : '<div class="hint" style="padding:6px">No games yet.</div>';
   const cols=showLvl?8:7;
-  return `<details class="histitem"><summary>${isLive?'🟢':'🏓'} ${esc(s.name||fmtDate(s.endedAt))}<span class="meta">· ${isLive?'in progress':fmtDate(s.endedAt)} · ${s.games} games${s.endedAt&&s.startedAt?' · '+fmtDur(s.endedAt-s.startedAt):''}${champ?' · 🏆 '+champ:''}</span>${(!isLive&&isAdmin())?`<button class="histdel" data-delhist="${s.id}" title="Delete this saved session">✕</button>`:''}</summary>
+  return `<details class="histitem"><summary>${isLive?'🟢':'🏓'} ${esc(s.name||fmtDate(s.endedAt))}<span class="meta">· ${isLive?'in progress':fmtDate(s.endedAt)} · ${s.games} games${s.endedAt&&s.startedAt?' · '+fmtDur(s.endedAt-s.startedAt):''}${champ?' · 🏆 '+champ:''}</span>${(!isLive&&isAdmin()&&!s.locked)?`<button class="histdel" data-delhist="${s.id}" title="Delete this saved session">✕</button>`:''}</summary>
     <div class="histinner">
       <details class="sub" open><summary>🎾 Game log (${log.length}) — latest first${noScore?' · '+noScore+' without a score':''}</summary>${log.length?'<input class="rsearch" data-logfilter placeholder="🔍 Filter by player…" autocomplete="off"><div class="hint logmatch"></div>':''}<div class="glwrap">${gl}</div></details>
       <details class="sub"><summary>🏆 Standings</summary><table class="lb"><thead><tr><th>#</th><th>Player</th>${showLvl?'<th>Lvl</th>':''}<th>Games</th><th>Wins</th><th>Losses</th><th>Win %</th><th title="Points for minus points against">+/−</th></tr></thead><tbody>${rows||'<tr><td colspan="'+cols+'" style="color:var(--muted)">No players</td></tr>'}</tbody></table></details>
       <details class="sub"><summary>👥 Per-player — partners &amp; opponents</summary><div class="pbwrap">${pb}</div></details>
-      ${isLive?'':`<div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-sm" data-csv="${s.id}">⬇ Standings CSV</button>${isAdmin()?`<button class="btn-ghost btn-sm" data-delhist="${s.id}">Delete</button>`:''}</div>`}
+      ${isLive?'':`<div style="display:flex;gap:10px;margin-top:12px"><button class="btn btn-sm" data-csv="${s.id}">⬇ Standings CSV</button>${isAdmin()&&!s.locked?`<button class="btn-ghost btn-sm" data-delhist="${s.id}">Delete</button>`:''}</div>`}
     </div></details>`;
 }
 /* ---------- set up a game: pick 4, they play together ---------- */
@@ -3153,7 +3165,7 @@ function renderHistory(){
     const pc=(s.photos&&s.photos.length)||0;
     return '<button type="button" class="hist-card" data-opensess="'+(s.live?"live":s.id)+'">'+
       '<div><p class="ht">'+esc(s.name||when)+'</p><p class="hm">'+esc(when)+(dur?" · "+dur:"")+'</p></div>'+
-      '<span class="htag">'+(s.games||0)+' games</span>'+
+      '<span class="htag">'+(s.locked?'🔒 ':'')+(s.games||0)+' games</span>'+
       '<div class="hmeta">'+(s.live?'<span class="htag live">Live</span>':'')+(champ?'<span class="htag champ">🏆 '+champ+'</span>':'')+(pc?'<span class="htag">📷 '+pc+'</span>':'')+'<span class="htag">'+((s.players&&s.players.length)||0)+' players</span></div>'+
       '</button>';
   }).join("");
@@ -3272,7 +3284,9 @@ async function renderSessionPage(id){
     return;
   }
   document.title="Kimchi Jjigae · "+(s.name||fmtDate(s.endedAt));
-  const del=$("sessDelete"); if(del){ del.dataset.delhist=live?"":String(s.id); del.hidden=!!live; del.style.display=live?"none":""; }
+  const del=$("sessDelete"), noDel=live||!!s.locked; if(del){ del.dataset.delhist=noDel?"":String(s.id); del.hidden=noDel; del.style.display=noDel?"none":""; }
+  const lk=$("sessLock"); if(lk){ lk.hidden=!!live; lk.style.display=live?"none":""; lk.textContent=s.locked?"🔒 Locked":"🔓 Lock";
+    lk.title=s.locked?"Locked — it cannot be deleted. Click to unlock.":"Lock this open play so it cannot be deleted"; }
   const cont=$("sessContinue"); if(cont) cont.hidden=!(live&&isAdmin());   // visitors watch; only admins continue
   const tvb=$("sessTv"); if(tvb) tvb.hidden=!live;
   const players=withPoints(s.players, live?null:(s.log||[]), true);     // live standings already carry their points
@@ -3936,6 +3950,7 @@ if($("navAdminBtn")) $("navAdminBtn").addEventListener("click",()=>adminLogin())
 if($("adminLockBtn")) $("adminLockBtn").addEventListener("click",lockAdmin);
 if($("histLockBtn")) $("histLockBtn").addEventListener("click",lockAdmin);
 if($("sessLockBtn")) $("sessLockBtn").addEventListener("click",lockAdmin);
+if($("sessLock")) $("sessLock").addEventListener("click",()=>{ if(viewingSessionId!=null && String(viewingSessionId)!=="live") toggleHistoryLock(viewingSessionId); });
 if($("landLockBtn")) $("landLockBtn").addEventListener("click",lockAdmin);
 $("pinClose").addEventListener("click",()=>closePinModal(false));
 $("pinCancel").addEventListener("click",()=>closePinModal(false));

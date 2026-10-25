@@ -244,7 +244,9 @@ async function handleApi(req, res, url, body) {
     }
     case 'delete': {
       if (!isAdmin) return needAdmin();
-      writeJson(F.openplays, readJson(F.openplays, []).filter(x => String(x.id) !== String(body.id)));
+      const all = readJson(F.openplays, []);
+      if (all.some(x => String(x.id) === String(body.id) && x.locked)) return json(res, 409, { ok: false, error: 'This open play is locked — unlock it first' });
+      writeJson(F.openplays, all.filter(x => String(x.id) !== String(body.id)));
       return json(res, 200, { ok: true });
     }
     case 'upload': case 'deletePhoto':

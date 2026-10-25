@@ -303,6 +303,7 @@ switch ($action) {
     $id = cleanId($_POST['id'] ?? ''); if ($id === '') fail('Bad session id');
     withLock(function () use ($id) {
       $list = readAll(); $i = findIdx($list, $id);
+      if ($i >= 0 && !empty($list[$i]->locked)) fail('This open play is locked — unlock it first', 409);
       if ($i >= 0) { array_splice($list, $i, 1); writeAll($list); }
       $d = PHOTO_DIR . '/' . $id;
       if (is_dir($d)) { foreach (glob($d . '/*') ?: [] as $f) @unlink($f); @rmdir($d); }
