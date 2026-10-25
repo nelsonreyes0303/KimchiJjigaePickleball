@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Queue checks</title>
+<style>
+  :root{ --bg:#fbf9f1; --fg:#24301f; --muted:#6b7464; --line:#e3e0d2; --ok:#2f7d32; --bad:#b3261e; }
+  @media (prefers-color-scheme: dark){ :root{ --bg:#171a15; --fg:#e8eadf; --muted:#9aa192; --line:#30352b; --ok:#7bc47f; --bad:#f08b84; } }
+  body{ margin:0; padding:20px 16px 40px; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main{ max-width:960px; margin:0 auto; }
+  h1{ font-size:1.4rem; margin:0 0 4px; } p{ color:var(--muted); margin:0 0 14px; }
+  button{ font:inherit; padding:9px 16px; border-radius:10px; border:1px solid var(--line); background:var(--fg); color:var(--bg); cursor:pointer; }
+  button:disabled{ opacity:.5; cursor:default; }
+  #verdict{ font-weight:700; font-size:1.1rem; margin:16px 0 8px; } .ok{ color:var(--ok); } .bad{ color:var(--bad); }
+  table{ width:100%; border-collapse:collapse; margin:10px 0 18px; font-variant-numeric:tabular-nums; }
+  th,td{ text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; } th{ color:var(--muted); font-weight:600; font-size:.85rem; }
+  .scroll{ overflow-x:auto; } pre{ white-space:pre-wrap; font-size:.82rem; color:var(--muted); margin:4px 0 12px; }
+  iframe{ width:1px; height:1px; border:0; position:absolute; left:-9999px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Queue checks</h1>
+  <p>Runs the real queue code through hundreds of simulated open plays and checks the club's rules after every action:
+  nobody just off court in Next up or Group 2, fixed groups never change on their own, a just-off player goes straight
+  back only to fill an empty court nobody rested can play on, groups follow the level rules, nobody is lost or doubled,
+  and no court sits idle while a legal game exists. Run it on the local dev server before pushing a queue change.
+  Nothing is saved.</p>
+  <button id="run" disabled>Loading the app…</button>
+  <div id="verdict"></div>
+  <div class="scroll"><table id="out"></table></div>
+  <div id="detail"></div>
+</main>
+<iframe id="app" src="../index.html" title="app under test"></iframe>
+<script>
+const SUITES=[
+  {name:"Busy nights — every admin action, random rosters (4–36 players, 1–4 courts)", chunks:6, per:5, seed:101, opts:{}},
+  {name:"Automatic only — no drags or undo", chunks:2, per:5, seed:999, opts:{drags:false,undo:false}},
+  {name:"High Int heavy, 22 players, 3 courts (like Oct 25)", chunks:2, per:4, seed:777, opts:{calm:true,mix:[1,0.4,2.2],courts:3,players:22}},
+  {name:"Balanced, 29 players, 3 courts (like Oct 24)", chunks:2, per:4, seed:555, opts:{calm:true,mix:[1,1,1],courts:3,players:29}},
+  {name:"16 players, 2 courts", chunks:2, per:4, seed:333, opts:{calm:true,courts:2,players:16}},
+];
+const $=id=>document.getElementById(id), esc=s=>String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const frame=$("app");
+frame.addEventListener("load", async ()=>{
+  const w=frame.contentWindow, d=frame.contentDocument;
+  await new Promise(r=>setTimeout(r,1200));                         // let the app finish starting up
+  const src=await fetch("queue-check.js?"+Date.now()).then(r=>r.text());
+  const s=d.createElement("script");                                 // in the app's own scope, so the checks reach its state
+  s.textContent=src+"\n;try{ server.live=false; clearTimeout(live.pollTimer); }catch(e){}";
+  d.body.appendChild(s);
+  $("run").disabled=false; $("run").textContent="Run the checks";
+});
+$("run").addEventListener("click", async ()=>{
+  const w=frame.contentWindow; $("run").disabled=true; $("run").textContent="Running…";
+  const rows=[], fails=[];
+  const oct=w.__qcOct25(); const octBad=oct.filter(x=>x.startsWith("FAIL"));
+  rows.push(`<tr><td>Oct 25 case (fixed steps)</td><td>1</td><td>—</td><td class="${octBad.length?"bad":"ok"}">${octBad.length?octBad.length+" failed":"all "+oct.length+" passed"}</td><td colspan="4"><pre>${esc(oct.join("\n"))}</pre></td></tr>`);
+  if(octBad.length) fails.push("Oct 25 case: "+octBad.join("; "));
+  render(rows);
+  for(const s of SUITES){
+    const agg={nights:0,actions:0,failures:[],rest:[],exc:0,maxWait:0,longest:""};
+    for(let k=0;k<s.chunks;k++){
+      await new Promise(r=>setTimeout(r,30));                        // let the page breathe between chunks
+      const r=w.__fuzz(s.per, s.seed+k*s.per*7919, s.opts);
+      agg.nights+=r.nights; agg.actions+=r.actions; agg.failures.push(...r.failures); agg.rest.push(...(r.rest||[]));
+      agg.exc+=r.stats.exceptionStarts||0; if(r.stats.maxWait>agg.maxWait){ agg.maxWait=r.stats.maxWait; agg.longest=r.longest||""; }
+      $("run").textContent=`Running… ${s.name.split(" —")[0].split(",")[0]} ${k+1}/${s.chunks}`;
+    }
+    const rest=agg.rest.sort((a,b)=>a-b), by={}; agg.failures.forEach(f=>by[f.rule]=(by[f.rule]||0)+1);
+    const nf=agg.failures.length;
+    rows.push(`<tr><td>${esc(s.name)}</td><td>${agg.nights}</td><td>${agg.actions.toLocaleString()}</td><td class="${nf?"bad":"ok"}">${nf?esc(Object.entries(by).map(([k,v])=>v+"× "+k).join(", ")):"none"}</td>`
+      +`<td>${agg.exc}</td><td>${rest.filter(x=>x<3).length} of ${rest.length}</td><td>${rest.length?rest[rest.length>>1].toFixed(1)+" min":"—"}</td><td title="${esc(agg.longest)}">${agg.maxWait} min</td></tr>`);
+    agg.failures.slice(0,5).forEach(f=>fails.push(s.name+" · night "+f.night+", minute "+f.min+": "+f.rule+" — "+f.detail+(f.trail?"\n   "+f.trail.slice(-4).join("\n   "):"")));
+    render(rows);
+  }
+  $("verdict").innerHTML=fails.length?`<span class="bad">✗ ${fails.length>=5?"Problems found":"Problem found"} — see below</span>`:`<span class="ok">✓ Every rule held in every simulated open play</span>`;
+  $("detail").innerHTML=fails.length?"<h2>First failures</h2><pre>"+esc(fails.join("\n\n"))+"</pre>":"";
+  $("run").disabled=false; $("run").textContent="Run again";
+});
+function render(rows){
+  $("out").innerHTML="<tr><th>Scenario</th><th>Nights</th><th>Actions checked</th><th>Rule failures</th><th>Empty-court exceptions</th><th>Back on court under 3 min</th><th>Median rest</th><th>Longest wait</th></tr>"+rows.join("");
+}
+</script>
+</body>
+</html>
