@@ -1625,13 +1625,13 @@ function fresh(){ return { players:{}, queue:[], courts:[], seq:1, courtSeq:1, g
 const AUDIT_MAX=1500;
 /* Each entry says what happened, on which device, during which open play, and (filled in by save(), so always
    the state AFTER the action) what the screen showed: the courts, the groups in line, how many of them are fixed,
-   who is resting, and every waiting player's level, games, wait and rest. Decisions the app makes by itself are
-   entries too (fixGroup, unfixGroup, nextWaits, restEnded, autoLevel, avoidRematch, liveConflict), each with the
+   who in them just came off court, and every waiting player's level, games, wait and rest. Decisions the app makes by itself are
+   entries too (fixGroup, unfixGroup, topUp, restEnded, autoLevel, avoidRematch, liveConflict), each with the
    action that led to it. Entries go to the website per open play (auditAdd), so every admin device's actions end
    up in one log you can download from the open play's page; this device keeps the last AUDIT_MAX as a fallback. */
 const AUDIT_SNAP_KEEP=300;                     // the local copy keeps snapshots on its latest entries only
 const DEVICE_KEY=KEY+"_device", AUDIT_OUT_KEY=KEY+"_auditOut";
-const AUDIT_DECISIONS=new Set(["fixGroup","unfixGroup","nextWaits","restEnded","autoLevel","autoLevel-SKIPPED","avoidRematch","liveConflict"]);
+const AUDIT_DECISIONS=new Set(["fixGroup","unfixGroup","topUp","restEnded","autoLevel","autoLevel-SKIPPED","avoidRematch","liveConflict"]);
 let auditPending=[], auditLastAct="", lastRestKey="";
 let auditOut=(()=>{ try{ return JSON.parse(localStorage.getItem(AUDIT_OUT_KEY)||"[]"); }catch(e){ return []; } })();   // not yet on the website
 function deviceTag(){
@@ -1651,13 +1651,13 @@ function audit(act,detail,sid){
   }catch(e){}
 }
 function auditWhy(){ return auditLastAct ? " (after "+auditLastAct+")" : ""; }
-/* What the screen showed: [court, seats, minutes played]; the groups (the first f are fixed); who is resting;
+/* What the screen showed: [court, seats, minutes played]; the groups (the first f are fixed); who in them just came off court;
    whether your drag is in force; and per waiting player [name, level, games, late-arrival baseline, wait, rest]. */
 function auditSnap(){
   try{
     const now=Date.now(), ends=lastGameEnds(), gq=queueGroups(), min=ms=>Math.round(ms/6000)/10, lset=new Set(state.qlocked||[]);
     return { c:state.courts.map(c=>[cname(c), c.seats.map(id=>id?nmsafe(id):"-"), c.started?min(now-c.started):null]),
-      g:gq.groups.map(g=>g.map(nmsafe)), f:pinnedFront(state.queue.slice()).length, r:gq.resting.map(nmsafe), m:gq.manual?1:0,
+      g:gq.groups.map(g=>g.map(nmsafe)), f:pinnedFront(state.queue.slice()).length, r:gq.fresh.map(nmsafe), m:gq.manual?1:0,
       q:state.queue.map(id=>{ const p=P(id)||{};
         return [nmsafe(id), lvlAbbr(p.level)||"-", p.games||0, p.pg||0, min(now-waitSince(id)), ends[id]?min(now-ends[id]):null,
           [p.partner?"pair "+nmsafe(p.partner):"", p.grp?"group":"", lset.has(id)?"locked":""].filter(Boolean).join(" ")]; }) };
@@ -1722,7 +1722,7 @@ function commit(){
     renderSessionPage("live");
 }
 let selSwap=null;   // currently-picked player for a manual teammate swap
-let restWake=0;      // when the first resting player may join the next group (set by renderQueue, read by the tick)
+let restWake=0;      // when a player just off court in the next groups has rested (set by renderQueue, read by the tick)
 let selPair=null;   // currently-picked player for a fixed-pair link
 let rosterSearch=""; // roster search filter
 
@@ -1851,37 +1851,43 @@ function queueGroups(){
     p.forEach(id=>{ const i=work.indexOf(id); if(i>=0) work.splice(i,1); });
     groups.push(arrangeTeams(p, false, false));
   });
-  // An open fixed slot (Next up, Group 2) takes only players who have rested REST_MIN since their last game; a 🔒
-  // group is yours and counts as ready. If no legal group of rested players exists, the slot waits and nothing forms
-  // behind it, so the players who just came off court never fill it. It fills when someone who can join checks in
-  // or the rest runs out (readyAt). Only an empty court with nobody else to play takes them sooner (courtFallback).
-  let resting=null, readyAt=0;
+  // An open fixed slot (Next up, Group 2) is filled from players who have rested REST_MIN since their last game
+  // first; a 🔒 group is yours and counts as ready. Only when the rested players cannot make a legal group is it
+  // topped up with players just off court, those who came off earliest first, so the next groups always show.
+  // A topped-up group is not fixed yet (pinFront leaves it out): when the rest runs out (readyAt) it is formed
+  // again and fixed, and if a rested player who can join checks in first, they take a just-played player's place.
+  let readyAt=0; const fresh=[];                       // players just off court who are in an open fixed slot
   if(!man && !state.locked && state.session && state.session.active){
     const ends=lastGameEnds(), now=Date.now(), lset=new Set(state.qlocked||[]), restMs=REST_MIN*60000;
     const ready=id=>lset.has(id) || !ends[id] || now-ends[id]>=restMs;
     while(groups.length<Math.max(1,pinnedGroups())){
-      const g=nextGroupFrom(work.filter(ready), false);
-      if(!g){ resting=work.filter(id=>!ready(id)); if(resting.length) readyAt=Math.min(...resting.map(id=>ends[id]+restMs)); break; }
-      g.forEach(id=>{ const i=work.indexOf(id); if(i>=0) work.splice(i,1); });
+      let g=nextGroupFrom(work.filter(ready), false);
+      if(!g){
+        const steps=[...new Set(work.filter(id=>!ready(id)).map(id=>ends[id]))].sort((a,b)=>a-b);
+        for(const s of steps){ g=nextGroupFrom(work.filter(id=>ready(id)||ends[id]<=s), false); if(g) break; }
+      }
+      if(!g) break;
+      g.forEach(id=>{ const i=work.indexOf(id); if(i>=0) work.splice(i,1); if(!ready(id)) fresh.push(id); });
       groups.push(g);
     }
+    if(fresh.length) readyAt=Math.min(...state.queue.filter(id=>!ready(id)).map(id=>ends[id]+restMs));
   }
-  if(!resting){ let g; while(g=nextGroupFrom(work, man)) groups.push(g); }
-  return {groups, leftovers:work, manual:man, resting:resting||[], readyAt};
+  let g; while(g=nextGroupFrom(work, man)) groups.push(g);
+  return {groups, leftovers:work, manual:man, fresh, readyAt};
 }
-/* Called every second: when the first resting player's rest runs out, form the waiting group now (and fix it, on an
-   admin device) without waiting for the next tap. A tap-to-swap you have started is kept, and nothing redraws
+/* Called every second: when a player just off court in the next groups has rested, form those groups again (and fix
+   them, on an admin device) without waiting for the next tap. A tap-to-swap you have started is kept, and nothing redraws
    under a drag in progress; it tries again a second later. */
 function restTick(){
   if(!restWake || Date.now()<restWake || dragSrc) return;
   restWake=0;
-  if(isAdmin()){ audit("restEnded","rest ran out — the waiting group can form now"); state.planSig=null; pinFront(); save(); }
+  if(isAdmin()){ audit("restEnded","rest ran out — the next groups can be re-formed and fixed"); state.planSig=null; pinFront(); save(); }
   render();
 }
 /* When each player's last game ended, by id. */
 function lastGameEnds(){ const m={}; (state.log||[]).forEach(g=>[...g.w,...g.l].forEach(x=>{ m[x.id]=Math.max(m[x.id]||0, g.t||0); })); return m; }
-/* The exception: a court is free and no group of rested players can play, so the players just off court may. */
-function courtFallback(gq){ return gq.resting.length ? nextGroupFrom(gq.leftovers.slice(), false) : null; }
+/* Is this group one of the fixed ones (held for the next courts)? A topped-up group shows in its slot but is not. */
+function isFixed(g){ const k=fourKey(g); return (state.frontPinned||[]).some(p=>fourKey(p)===k); }
 /* Auto-levelling: the planner. The held groups (Next up, Group 2) and 🔒 locked groups keep their players and
    their slots; everyone else is planned into foursomes, fewest games first, then longest waiting, and written
    back into the line as whole foursomes in order. Each foursome is level-legal and keeps its fixed pair or
@@ -2068,10 +2074,12 @@ function pinFront(){
   }
   try{ avoidRematch(); }catch(e){ console.warn("avoidRematch", e); }      // never let this block the queue
   const before=(state.frontPinned||[]).map(g=>g.slice());
-  state.frontPinned=queueGroups().groups.slice(0,pinnedGroups()).filter(g=>g.length===4).map(g=>g.slice());
+  // Fix the leading groups made of rested players only; a group topped up with players just off court waits.
+  const gq=queueGroups(), fx=new Set(gq.fresh); state.frontPinned=[];
+  for(const g of gq.groups.slice(0,pinnedGroups())){ if(g.length!==4 || g.some(id=>fx.has(id))) break; state.frontPinned.push(g.slice()); }
   try{ auditFixed(before); }catch(e){ console.warn("auditFixed", e); }
 }
-/* For the audit: which fixed groups appeared or went (and why), and when the next group is waiting for rest. */
+/* For the audit: which fixed groups appeared or went (and why), and when a next group is topped up with players just off court. */
 function auditFixed(before){
   const key=g=>g.slice().sort().join("|"), was=before.map(key), now=state.frontPinned.map(key);
   state.frontPinned.forEach((g,i)=>{ if(!was.includes(key(g))) audit("fixGroup", (i?"Group "+(i+1):"Next up")+" fixed: "+g.map(nmsafe).join(", ")+auditWhy()); });
@@ -2082,14 +2090,15 @@ function auditFixed(before){
     audit("unfixGroup", "no longer fixed: "+g.map(nmsafe).join(", ")+(gone.length?" — "+gone.map(nmsafe).join(", ")+(gone.length>1?" are":" is")+" not in the line":" — re-formed")+auditWhy());
   });
   if(!(state.session&&state.session.active)) return;
-  const gq=queueGroups(), rk=gq.resting.slice().sort().join("|");
+  const gq=queueGroups(), rk=gq.fresh.slice().sort().join("|");
   if(rk===lastRestKey) return;
   lastRestKey=rk;
   if(!rk) return;
-  const ends=lastGameEnds(), now_=Date.now(), rested=gq.leftovers.filter(id=>!gq.resting.includes(id));
-  audit("nextWaits", (gq.groups.length?"Group "+(gq.groups.length+1):"Next up")+" waits for rested players. Resting: "
-    +gq.resting.map(id=>nmsafe(id)+" ("+((now_-ends[id])/60000).toFixed(1)+"m)").join(", ")+" until about "+new Date(gq.readyAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})
-    +". The rested players left can't make a legal group: "+(rested.length?rested.map(id=>nmsafe(id)+" "+(lvlAbbr(P(id).level)||"-")+(P(id).partner?" (pair "+nmsafe(P(id).partner)+")":"")).join(", "):"nobody")+auditWhy());
+  const ends=lastGameEnds(), now_=Date.now(), slot=gq.groups.findIndex(g=>g.some(id=>gq.fresh.includes(id)));
+  const restedLeft=gq.groups.slice(slot).flat().concat(gq.leftovers).filter(id=>!(ends[id] && now_-ends[id]<REST_MIN*60000));
+  audit("topUp", (slot?"Group "+(slot+1):"Next up")+" topped up with players just off court: "
+    +gq.fresh.map(id=>nmsafe(id)+" ("+((now_-ends[id])/60000).toFixed(1)+"m)").join(", ")+". Not fixed until about "+new Date(gq.readyAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"})
+    +". The rested players could not make a legal group on their own: "+(restedLeft.length?restedLeft.map(id=>nmsafe(id)+" "+(lvlAbbr(P(id).level)||"-")+(P(id).partner?" (pair "+nmsafe(P(id).partner)+")":"")).join(", "):"nobody")+auditWhy());
 }
 function clearFrontPin(){ state.frontPinned=[]; }
 function toggleGroupLock(ids){                     // pin/unpin a group so auto-levelling leaves it alone
@@ -2330,12 +2339,11 @@ function removeCourt(id){ audit("removeCourt", id);
   state.courts=state.courts.filter(x=>x.id!==id); commit();
 }
 function startCourt(c){
-  const gq=queueGroups(), g=gq.groups[0]||courtFallback(gq);
+  const gq=queueGroups(), g=gq.groups[0];
   if(!g){ audit("startCourt-FAILED","no legal group of 4 · "+cname(c)); toast("No group of 4 is ready"); return; }
   pushUndo();
   const ends=lastGameEnds(), fresh=g.filter(id=>ends[id] && Date.now()-ends[id]<REST_MIN*60000);
-  audit("startCourt", cname(c)+": "+g.map(nmsafe).join(", ")+(gq.groups[0] ? ""
-    : " · empty-court exception: nobody rested could make a game"+(fresh.length?" (just off court: "+fresh.map(id=>nmsafe(id)+" "+((Date.now()-ends[id])/60000).toFixed(1)+"m").join(", ")+")":"")));
+  audit("startCourt", cname(c)+": "+g.map(nmsafe).join(", ")+(fresh.length ? " · topped up with players just off court (nobody rested could make the game): "+fresh.map(id=>nmsafe(id)+" "+((Date.now()-ends[id])/60000).toFixed(1)+"m").join(", ") : ""));
   state.queue=state.queue.filter(x=>!g.includes(x));
   state.qlocked=(state.qlocked||[]).filter(x=>!g.includes(x));   // a group that's on court no longer needs its queue slot held
   state.manualSig=null;                          // arrangement consumed; remaining groups go back to level-legal
@@ -2772,9 +2780,9 @@ function exportSession(id){
 }
 /* The audit as a spreadsheet: one row per action, with the screen as it was right after it. */
 function auditCsv(entries){
-  const head=["#","Time","Device","Action","Detail","Courts after","Next up","Group 2","Later groups","Fixed groups","Resting (just off court)",
+  const head=["#","Time","Device","Action","Detail","Courts after","Next up","Group 2","Later groups","Fixed groups","Just off court in Next up / Group 2 (not fixed yet)",
     "Waiting: name level games(+late baseline) wait / rest since last game, in minutes","Your drag in force","Queue order (older entries)"];
-  const grp=(s,i)=>{ const g=(s.g||[])[i]; if(g) return g.join(" / "); return (s.r&&s.r.length&&(s.g||[]).length===i)?"forming":""; };
+  const grp=(s,i)=>((s.g||[])[i]||[]).join(" / ");
   const rows=entries.map((e,i)=>{ const s=e.s||{};
     return [i+1, new Date(e.t).toLocaleString(), e.dev||"", e.a, e.d||"",
       (s.c||[]).map(c=>c[0]+": "+c[1].join(" / ")+(c[2]!=null?" ("+c[2]+"m)":"")).join(" | "),
@@ -3359,7 +3367,7 @@ function liveQueueBlock(){
   groups.forEach((g,gi)=>{
     const tag=gi===0?'▶ Next up':gi===1?'Up after that':'Later · '+(gi+1);
     g.forEach(id=>{ if(P(id)) lvWhere[P(id).name.toLowerCase()]={kind:"group",gi,pos:state.queue.indexOf(id)+1}; });
-    const badge = gi<pinnedGroups() ? '<span class="lv-fixed">Fixed</span>' : (gi<=1?'<span class="lvg-note">likely</span>':'');
+    const badge = isFixed(g) ? '<span class="lv-fixed">Fixed</span>' : (gi<=1?'<span class="lvg-note">likely</span>':'');
     qhtml+=`<div class="lvg ${gi===0?'next':gi>1?'later':''}"><div class="lvg-h"><span class="lvg-t">${tag}</span>${badge}</div>
       <div class="lvt">${lvRow(g[0],++n)}${lvRow(g[1],++n)}</div><div class="lv-vs">vs</div><div class="lvt b">${lvRow(g[2],++n)}${lvRow(g[3],++n)}</div></div>`;
   });
@@ -3549,8 +3557,7 @@ function handleSwap(slot){
 
 /* ---------- render ---------- */
 function renderCourts(){
-  const gq=queueGroups(); const preview=gq.groups.slice(); const strandable=!gq.resting.length && gq.leftovers.length>=4;  // stranded players who can't form a tier-legal group
-  let fallback=courtFallback(gq);                   // nobody rested can play: an empty court takes those just off court
+  const gq=queueGroups(); const preview=gq.groups.slice(); const strandable=gq.leftovers.length>=4;  // stranded players who can't form a tier-legal group
   $("courts").innerHTML=state.courts.map((c,idx)=>{
     const active=c.seats.every(x=>x);
     let head=`<div class="chead"><b class="cname"${isAdmin()?` data-cname="${c.id}" title="Click to rename"`:""}>${esc(c.name||('Court '+(idx+1)))}</b>`;
@@ -3580,8 +3587,6 @@ function renderCourts(){
       const g=preview.shift();                   // distinct preview per open court
       let inner;
       if(g){ inner=`<p>Next up${showCats()?' · <b>'+seatsLabel(g)+'</b>':''}: ${esc(g.map(nm).join(", "))}</p>`+(isAdmin()?`<button class="btn-accent" data-start="${c.id}" style="padding:12px 22px">Start game</button>`:""); }
-      else if(fallback && !preview.length && !gq.groups.length){ const f=fallback; fallback=null;
-        inner=`<p>Nobody rested can make a game, so the players just off court go again${showCats()?' · <b>'+seatsLabel(f)+'</b>':''}: ${esc(f.map(nm).join(", "))}</p>`+(isAdmin()?`<button class="btn-accent" data-start="${c.id}" style="padding:12px 22px">Start game</button>`:""); }
       else if(strandable){ inner=`<p>No same-tier group can form — <b>${gq.leftovers.length}</b> players are stuck waiting.</p>`+(isAdmin()?`<button class="btn-accent" data-startmix="${c.id}" style="padding:12px 22px">⤢ Start mixed-tier game</button>`:""); }
       else{ inner=`<p>Waiting for 4 players in the queue</p>`+(isAdmin()?`<button class="btn-accent" disabled style="padding:12px 22px">Start game</button>`:""); }
       body=`<div class="cidle">${inner}</div>
@@ -3605,36 +3610,33 @@ function renderQueue(){
   $("qCount").textContent=state.queue.length+" waiting";
   renderTopWait();
   if(!state.queue.length){ $("queue").innerHTML='<div class="qempty">No one queued — give players a category and check them in from the roster</div>'; return; }
-  const {groups,leftovers,manual,resting,readyAt}=queueGroups();
-  restWake=readyAt||0;                             // the tick re-forms the groups when the first of them has rested
+  const {groups,leftovers,manual,fresh,readyAt}=queueGroups();
+  restWake=readyAt||0;                             // the tick re-forms and fixes the next groups once those just off court have rested
+  const at=readyAt?new Date(readyAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):"";
   let n=0, html="";
   groups.forEach((grp,gi)=>{
     const set=[...new Set(grp.map(id=>P(id).level))];
     const lc=set.length>1?'mix':lvlCls(set[0]);
     const lab=seatsLabel(grp);
     const userLocked=grp.every(id=>(state.qlocked||[]).includes(id));
-    const pinned=gi<pinnedGroups();
+    const pinned=isFixed(grp);
+    const justOff=grp.filter(id=>fresh.includes(id));
+    const freshNote=justOff.length ? `<div class="qrepeat" title="Not enough rested players to make this group, so it is topped up with players who just came off court. It is not fixed yet.">⏳ ${esc(justOff.map(nm).join(", "))} just came off court — not enough rested players. Fixed at about ${at}, or a rested player who checks in takes their place.</div>` : "";
     const locked=pinned||userLocked;
     const lockBtn=!isAdmin() ? "" : (pinned
       ? `<span class="qglock static on" title="Held for the next court to free up — only you can change it, by dragging. With one court nothing is held, so the queue keeps rotating.">🔒</span>`
       : `<button class="qglock ${userLocked?'on':''}" data-glock="${grp.join(',')}" title="${userLocked?'Locked — these 4 stay exactly as you set them. Click to unlock.':'Lock this group so nothing can change these 4 or their spot'}">${userLocked?'🔒':'🔓'}</button>`);
     html+=`<div class="qgroup ${gi===0?'nextg':''} ${locked?'lockedg':''}">
         <div class="qghead"><span class="qgtag">${gi===0?'▶ Next up':'Group '+(gi+1)}</span><span class="qghd-r">${showCats()?'<span class="badge '+lc+'" style="font-size:.58rem;padding:2px 7px">'+lab+'</span>':''}${lockBtn}</span></div>
-        ${repeatNote(grp)}
+        ${freshNote}${repeatNote(grp)}
         <div class="qteam">${qrow(grp[0],++n)}${qrow(grp[1],++n)}</div>
         <div class="qvs">VS</div>
         <div class="qteam b">${qrow(grp[2],++n)}${qrow(grp[3],++n)}</div>
       </div>`;
   });
-  if(resting.length){
-    const at=new Date(readyAt).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
-    html+=`<div class="qgroup leftover resting"><div class="qghead"><span class="qgtag">${groups.length?'Group '+(groups.length+1):'▶ Next up'} · forming</span></div>`
-      + `<div class="hint" style="padding:0 3px 3px">Players just off court rest ${REST_MIN} minutes before they can be in the next group, and nobody else here can make a game right now. `
-      + `It forms at about <b>${at}</b>, or sooner if someone who can join checks in.<br>Resting: ${esc(resting.map(nm).join(", "))}</div></div>`;
-  }
   if(leftovers.length){
-    html+=`<div class="qgroup leftover"><div class="qghead"><span class="qgtag">${resting.length?'Waiting':'Waiting for a match'}</span></div>`
-      + `<div class="hint" style="padding:0 3px 3px">${manual?"Not enough left for another group of 4.":resting.length?"The groups after the next one form once it does.":(leftovers.length>=4?"Can't fill a tier-legal group — use “⤢ Start mixed-tier game” on an open court to let them play across tiers.":"Waiting for more compatible players in nearby tiers.")}</div>`
+    html+=`<div class="qgroup leftover"><div class="qghead"><span class="qgtag">Waiting for a match</span></div>`
+      + `<div class="hint" style="padding:0 3px 3px">${manual?"Not enough left for another group of 4.":(leftovers.length>=4?"Can't fill a tier-legal group — use “⤢ Start mixed-tier game” on an open court to let them play across tiers.":"Waiting for more compatible players in nearby tiers.")}</div>`
       + leftovers.map(id=>qrow(id,'·',true)).join("") + `</div>`;
   }
   $("queue").innerHTML=html;
@@ -4285,7 +4287,7 @@ function renderTv(){
     return '<div class="tv-court open"><div class="tv-ch"><b>'+name+'</b><span class="tv-badge">OPEN</span>'+(g?'<span class="tv-when">Starting next</span>':'')+'</div>'+(g?tvMatch(g):'<div class="tv-wait">Waiting for players</div>')+'</div>';
   }).join("");
   const grp=(g,gi)=>{
-    const head='<div class="tv-gh">'+(gi===0?"Next up":"Up after that")+(gi<pinnedGroups()?'<span class="tv-fixed">Fixed</span>':'')+'</div>';
+    const head='<div class="tv-gh">'+(gi===0?"Next up":"Up after that")+(g&&isFixed(g)?'<span class="tv-fixed">Fixed</span>':'')+'</div>';
     return '<div class="tv-grp'+(gi===0?' first':'')+'">'+head+(g?tvMatch(g):'<div class="tv-wait">'+(gi===0?"Nobody waiting yet":"—")+'</div>')+'</div>';
   };
   const pl=standings(), places=placeList(pl);

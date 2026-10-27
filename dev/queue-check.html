@@ -23,8 +23,8 @@
 <main>
   <h1>Queue checks</h1>
   <p>Runs the real queue code through hundreds of simulated open plays and checks the club's rules after every action:
-  nobody just off court in Next up or Group 2, fixed groups never change on their own, a just-off player goes straight
-  back only to fill an empty court nobody rested can play on, groups follow the level rules, nobody is lost or doubled,
+  Next up and Group 2 take rested players first and a player just off court only when the rested ones cannot
+  make the group (those off court longest first, and such a group is never fixed), fixed groups never change on their own, groups follow the level rules, nobody is lost or doubled,
   and no court sits idle while a legal game exists. Run it on the local dev server before pushing a queue change.
   Nothing is saved.</p>
   <button id="run" disabled>Loading the app…</button>
@@ -55,9 +55,11 @@ frame.addEventListener("load", async ()=>{
 $("run").addEventListener("click", async ()=>{
   const w=frame.contentWindow; $("run").disabled=true; $("run").textContent="Running…";
   const rows=[], fails=[];
-  const oct=w.__qcOct25(); const octBad=oct.filter(x=>x.startsWith("FAIL"));
-  rows.push(`<tr><td>Oct 25 case (fixed steps)</td><td>1</td><td>—</td><td class="${octBad.length?"bad":"ok"}">${octBad.length?octBad.length+" failed":"all "+oct.length+" passed"}</td><td colspan="4"><pre>${esc(oct.join("\n"))}</pre></td></tr>`);
-  if(octBad.length) fails.push("Oct 25 case: "+octBad.join("; "));
+  for(const [name,fn] of [["Oct 25 case (fixed steps)","__qcOct25"],["Small night, like the Oct 27 screenshot (fixed steps)","__qcSmall"]]){
+    const res=w[fn](), bad=res.filter(x=>x.startsWith("FAIL"));
+    rows.push(`<tr><td>${name}</td><td>1</td><td>—</td><td class="${bad.length?"bad":"ok"}">${bad.length?bad.length+" failed":"all "+res.length+" passed"}</td><td colspan="4"><pre>${esc(res.join("\n"))}</pre></td></tr>`);
+    if(bad.length) fails.push(name+": "+bad.join("; "));
+  }
   render(rows);
   for(const s of SUITES){
     const agg={nights:0,actions:0,failures:[],rest:[],exc:0,maxWait:0,longest:""};
@@ -80,7 +82,7 @@ $("run").addEventListener("click", async ()=>{
   $("run").disabled=false; $("run").textContent="Run again";
 });
 function render(rows){
-  $("out").innerHTML="<tr><th>Scenario</th><th>Nights</th><th>Actions checked</th><th>Rule failures</th><th>Empty-court exceptions</th><th>Back on court under 3 min</th><th>Median rest</th><th>Longest wait</th></tr>"+rows.join("");
+  $("out").innerHTML="<tr><th>Scenario</th><th>Nights</th><th>Actions checked</th><th>Rule failures</th><th>Starts topped up with just-off players</th><th>Back on court under 3 min</th><th>Median rest</th><th>Longest wait</th></tr>"+rows.join("");
 }
 </script>
 </body>
