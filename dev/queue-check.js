@@ -6,6 +6,7 @@
 window.__fuzz=function(nNights, seed0, opts){
   const RESTM=(typeof REST_MIN==="number")?REST_MIN:3, CF=(typeof courtFallback==="function")?courtFallback:(()=>null), RT=(typeof restTick==="function")?restTick:(()=>{}), LGE=(typeof lastGameEnds==="function")?lastGameEnds:(()=>{ const m={}; (state.log||[]).forEach(g=>[...g.w,...g.l].forEach(x=>{ m[x.id]=Math.max(m[x.id]||0,g.t||0); })); return m; });
   opts=opts||{};
+  const MIXOK=(typeof mixOK==="function")?mixOK:(()=>false), LEGAL=ids=>levelsOK(ids)||MIXOK(ids);
   const LV=["novice","lowint","highint"], MIX=[[1,1,1],[1,1,3],[3,1,1],[1,3,1],[2,0.4,2],[1,0.3,3],[0,1,1],[1,1,0]];
   const out={nights:0,actions:0,failures:[],stats:{starts:0,exceptionStarts:0,restBreaks:0,idleMinutes:0,maxWait:0,drags:0,ticks:0,undo:0,setups:0}};
   const realNow=Date.now;
@@ -49,10 +50,10 @@ window.__fuzz=function(nNights, seed0, opts){
     // the first legal foursome among ids (level rules, pairs together; Play-again players left out), or null
     const legalAmong=ids=>{ ids=ids.filter(id=>!P(id).grp); const n=ids.length;
       for(let a=0;a<n;a++)for(let b=a+1;b<n;b++)for(let c=b+1;c<n;c++)for(let d=c+1;d<n;d++){ const g=[ids[a],ids[b],ids[c],ids[d]];
-        if(levelsOK(g) && !g.some(x=>{ const pt=P(x).partner; return pt && !g.includes(pt); })) return g; } return null; };
+        if(LEGAL(g) && !g.some(x=>{ const pt=P(x).partner; return pt && !g.includes(pt); })) return g; } return null; };
     const anyLegalGroupExists=()=>{ const ids=state.queue.filter(id=>!P(id).grp), n=ids.length;
       for(let a=0;a<n;a++)for(let b=a+1;b<n;b++)for(let c=b+1;c<n;c++)for(let d=c+1;d<n;d++){ const g=[ids[a],ids[b],ids[c],ids[d]];
-        if(levelsOK(g) && !g.some(x=>{ const pt=P(x).partner; return pt && !g.includes(pt); })) return true; } return false; };
+        if(LEGAL(g) && !g.some(x=>{ const pt=P(x).partner; return pt && !g.includes(pt); })) return true; } return false; };
     const check=(label)=>{
       out.actions++; if(label!=="clock") { trail.push(Math.round(minute()*10)/10+" "+label+" | courts "+state.courts.map(c=>c.seats.map(x=>x?nm(x).replace(/^Nd+-/,""):"-").join(",")).join(" ; ")+" | queue "+state.queue.map(x=>P(x)?nm(x).replace(/^Nd+-/,""):"??"+x).join(",")); if(trail.length>30) trail.shift(); }
       const e=lastEnd(), man=manualActive(), gq=queueGroups(), lset=new Set(state.qlocked||[]);
@@ -63,7 +64,7 @@ window.__fuzz=function(nNights, seed0, opts){
       gq.groups.forEach((g,i)=>{
         if(g.length!==4 || new Set(g).size!==4) fail(night,minute(),"group not four players",label);
         if(g.some(x=>!state.queue.includes(x))) fail(night,minute(),"group has someone not in line",label);
-        if(!man && !levelsOK(g) && !g.every(x=>lset.has(x)) && !adminMade.has(fourKey(g)) && !(P(g[0]).grp && g.every(x=>P(x).grp===P(g[0]).grp)) && !g.some(x=>levelChanged.has(x))) fail(night,minute(),"illegal levels",g.map(x=>nm(x)+"/"+lvlAbbr(P(x).level)).join(" ")+" after "+label);
+        if(!man && !LEGAL(g) && !g.every(x=>lset.has(x)) && !adminMade.has(fourKey(g)) && !(P(g[0]).grp && g.every(x=>P(x).grp===P(g[0]).grp)) && !g.some(x=>levelChanged.has(x))) fail(night,minute(),"illegal levels",g.map(x=>nm(x)+"/"+lvlAbbr(P(x).level)).join(" ")+" after "+label);
       });
       // the rest rule on Next up / Group 2: rested players first; a just-off player only when the rested ones cannot
       // make the group, those who came off earliest first, and such a group is never fixed
@@ -77,10 +78,10 @@ window.__fuzz=function(nNights, seed0, opts){
           const avail=state.queue.filter(x=>!slots.slice(0,i).flat().includes(x)), restedIds=avail.filter(x=>lset.has(x)||restedOK(x,e));
           const alt=legalAmong(restedIds);
           if(alt){ fail(night,minute(),"just-off player in "+where+" though rested players could make it",who+" · rested option "+alt.map(nm).join("/")+" after "+label); return; }
-          const steps=[...new Set(avail.filter(x=>!lset.has(x)&&!restedOK(x,e)).map(x=>e[x]))].sort((a,b)=>a-b);
-          const need=steps.find(st=>legalAmong(avail.filter(x=>lset.has(x)||restedOK(x,e)||e[x]<=st)));
-          const used=Math.max(...fresh.map(x=>e[x]));
-          if(need!==undefined && used>need+1000) fail(night,minute(),"topped up with players who came off later than needed ("+where+")",who+" after "+label);
+          const isFresh=x=>!lset.has(x)&&!restedOK(x,e), ids=avail.filter(x=>!P(x).grp), n=ids.length; let fewest=5;
+          for(let a=0;a<n;a++)for(let b=a+1;b<n;b++)for(let c=b+1;c<n;c++)for(let d=c+1;d<n;d++){ const q=[ids[a],ids[b],ids[c],ids[d]];
+            if(!LEGAL(q) || q.some(x=>{ const pt=P(x).partner; return pt && !q.includes(pt); })) continue; const f=q.filter(isFresh).length; if(f<fewest) fewest=f; }
+          if(fresh.length>fewest) fail(night,minute(),"more players just off court than needed in "+where,who+" · a legal group needs only "+fewest+" after "+label);
         });
       }
       const w=Math.max(0,...state.queue.map(id=>(now-waitSince(id))/60000)); if(w>out.stats.maxWait){ out.stats.maxWait=w; const id=state.queue.reduce((a,b)=>waitSince(a)<=waitSince(b)?a:b); const p=P(id); out.longest=p.name+" "+lvlAbbr(p.level)+(p.partner?" pair with "+nm(p.partner)+"/"+lvlAbbr(P(p.partner).level)+(onCourt(p.partner)?" (on court)":state.queue.includes(p.partner)?"":" (partner not in line)"):"")+(p.grp?" set-up/play-again group":"")+" · queue levels "+state.queue.map(x=>lvlAbbr(P(x).level)).join("")+" · "+(manualActive()?"after a drag":""); }
@@ -102,8 +103,9 @@ window.__fuzz=function(nNights, seed0, opts){
         else out.stats.exceptionStarts++;   // a topped-up group: nobody rested could make the game
       }
       const key=fourKey(g);
-      if(!man && !levelsOK(g) && !adminMade.has(key) && !g.every(x=>lset.has(x)) && !(P(g[0]).grp && g.every(x=>P(x).grp===P(g[0]).grp)) && !g.some(x=>levelChanged.has(x))) fail(night,minute(),"illegal group sent on court",g.map(x=>nm(x)+"/"+lvlAbbr(P(x).level)).join(" ")+(fromFallback?" (empty-court exception)":" (Next up)"));
+      if(!man && !LEGAL(g) && !adminMade.has(key) && !g.every(x=>lset.has(x)) && !(P(g[0]).grp && g.every(x=>P(x).grp===P(g[0]).grp)) && !g.some(x=>levelChanged.has(x))) fail(night,minute(),"illegal group sent on court",g.map(x=>nm(x)+"/"+lvlAbbr(P(x).level)).join(" ")+(fromFallback?" (empty-court exception)":" (Next up)"));
       stable(()=>startCourt(c),"start",gq.groups[0]?fourKey(gq.groups[0]):null);
+      { const s4=c.seats, lv=x=>P(x)&&P(x).level; if(s4.every(Boolean) && !levelsOK(s4) && MIXOK(s4) && !man && !adminMade.has(key)) [[s4[0],s4[1]],[s4[2],s4[3]]].forEach(t=>{ if(!(t.some(x=>lv(x)==="highint") && t.some(x=>lv(x)==="novice"))) fail(night,minute(),"High Int + Novice game without one of each per team",s4.map(x=>nm(x)+"/"+lvlAbbr(lv(x))).join(" ")); }); }
       if(!c.seats.every(Boolean)) { fail(night,minute(),"start did nothing",key); return false; }
       out.stats.starts++; { const e2=lastEnd(); c.seats.forEach(x=>{ if(e2[x]){ const m=(now-e2[x])/60000; out.rest=out.rest||[]; out.rest.push(m); } }); } ends[c.id]=now+(6+rnd()*10)*60000; delete freeSince[c.id]; return true;
     };
@@ -130,7 +132,8 @@ window.__fuzz=function(nNights, seed0, opts){
         const waiting=state.queue.slice();
         if(x<0.012 && waiting.length){ const id=pick(waiting); checkOut(id); check("check-out");   /* may break a group, so not a stability check */ }
         else if(x<0.02){ const out_=Object.values(state.players).filter(p=>!p.in&&p.level&&ai>=arrivals.length); if(out_.length){ const id=pick(out_).id; stable(()=>checkIn(id),"re-check-in"); } }
-        else if(x<0.03 && waiting.length>=2){ const a=pick(waiting), b=pick(waiting); if(a!==b && !onCourt(a)&&!onCourt(b)){ selPair=null; stable(()=>{ pairToggle(a); pairToggle(b); },"pairing"); } }
+        else if(x<0.03 && waiting.length>=2){ const a=pick(waiting), b=pick(waiting); if(a!==b && !onCourt(a)&&!onCourt(b)){ selPair=null; const before=pinKeys(); pairToggle(a); pairToggle(b);   /* a pair may re-form a fixed mixed game it is in, nothing else */
+          before.forEach(k=>{ if(!pinKeys().includes(k) && !(k.split("|").includes(a)&&k.split("|").includes(b))) fail(night,minute(),"fixed group changed by pairing",k.split("|").map(nm).join("/")); }); check("pairing"); } }
         else if(x<0.04 && opts.drags!==false && waiting.length>=2){ const a=pick(waiting), b=pick(waiting); if(a!==b){ out.stats.drags++; doSwap({type:"queue",id:a},{type:"queue",id:b}); commit(); pinKeys().forEach(k=>adminMade.add(k)); check("drag"); } }
         else if(x<0.05){ const g=queueGroups().groups; if(g.length>2){ const gg=pick(g.slice(2)); toggleGroupLock(gg); adminMade.add(fourKey(gg)); check("lock a group"); } }
         else if(x<0.06){ stable(()=>skipTime(),"+2 min"); tick(); check("+2 min tick"); }
@@ -170,9 +173,10 @@ function qcScene(build, steps){
   return R;
 }
 const qcSlot=i=>queueGroups().groups[i]||[], qcFixed=g=>g.length===4 && (state.frontPinned||[]).some(p=>fourKey(p)===fourKey(g));
-/* Oct 25: three courts, Next up fixed, only two High Ints and two Novices waiting. A game of three High Ints and a
-   Low Int ends. Group 2 shows the two High Ints topped up with two who just finished, not fixed; when six rested
-   players check in a minute later, they take those places and both groups are fixed. */
+/* Oct 25: three courts, Next up fixed, two High Ints and two Novices waiting (all rested). A game of three High Ints
+   and a Low Int ends. Group 2 must not take the four who just finished: the four rested players make High Int +
+   Novice vs High Int + Novice, so Group 2 is them, fixed. When six more check in, nobody just off court is in the
+   fixed groups. */
 window.__qcOct25=function(){
   return qcScene((add,T)=>{
     state.courts=[1,2,3].map(i=>({id:"c"+i,seats:[null,null,null,null],started:null}));
@@ -184,18 +188,21 @@ window.__qcOct25=function(){
     state.queue=["NextH1","NextH2","NextH3","NextL1","WaitH1","WaitH2","WaitN1","WaitN2"];
     state.session={active:true,startedAt:T.now-15*60000,name:"oct25",id:T.now}; state.frontPinned=[["NextH1","NextH2","NextH3","NextL1"]];
   },(ok,T)=>{
-    const off=["OffH1","OffL1","OffH2","OffH3"], late=["LateN1","LateN2","LateL1","LateL2","LateH1","LateH2"];
+    const off=["OffH1","OffL1","OffH2","OffH3"], late=["LateN1","LateN2","LateL1","LateL2","LateH1","LateH2"], lv=x=>P(x).level;
+    const inFixed=()=>queueGroups().groups.slice(0,2).flat();
     finishGame(state.courts[1],"A",{ws:11,ls:7});
     const g2=qcSlot(1);
     ok(qcFixed(qcSlot(0)) && qcSlot(0).includes("NextH1"), "winner picked: Next up stays as it was, fixed");
-    ok(g2.length===4 && g2.includes("WaitH1") && g2.includes("WaitH2"), "winner picked: Group 2 shows, with the two rested High Ints ("+g2.join("/")+")");
-    ok(!qcFixed(g2), "winner picked: Group 2 is topped up with players just off court, so it is not fixed");
+    ok(g2.length===4 && ["WaitH1","WaitH2","WaitN1","WaitN2"].every(x=>g2.includes(x)), "winner picked: Group 2 is the four rested players, nobody just off court ("+g2.join("/")+")");
+    ok([[g2[0],g2[1]],[g2[2],g2[3]]].every(t=>t.some(x=>lv(x)==="highint") && t.some(x=>lv(x)==="novice")), "winner picked: Group 2 has a High Int and a Novice on each side");
+    ok(qcFixed(g2), "winner picked: Group 2 is fixed");
     T.now+=20000; startCourt(state.courts[1]);
     ok(state.courts[1].seats.join()==="NextH1,NextH2,NextH3,NextL1", "Start game: the fixed Next up goes on court");
-    ok(qcSlot(0).length===4 && !qcFixed(qcSlot(0)), "after the start: Next up shows the topped-up group, not fixed yet ("+qcSlot(0).join("/")+")");
+    ok(!qcSlot(0).some(x=>off.includes(x)) && qcFixed(qcSlot(0)), "after the start: Next up is the rested foursome, fixed");
+    ok(!qcFixed(qcSlot(1)), "after the start: Group 2 can only be the four who just finished (nobody else is waiting), so it is not fixed ("+qcSlot(1).join("/")+")");
     T.now+=60000; late.forEach(id=>checkIn(id));
     const fx=queueGroups().groups.slice(0,2);
-    ok(fx.length===2 && !fx.flat().some(x=>off.includes(x)), "six rested players check in: they replace the players just off court ("+fx.map(x=>x.join("/")).join(" | ")+")");
+    ok(fx.length===2 && !fx.flat().some(x=>off.includes(x)), "six rested players check in: still nobody just off court in the next groups ("+fx.map(x=>x.join("/")).join(" | ")+")");
     ok(fx.every(qcFixed), "six rested players check in: Next up and Group 2 are both fixed");
     T.now+=3*60000; restTick();
     ok(qcSlot(0).length===4, "after 3 minutes the queue still shows its groups");
@@ -219,5 +226,29 @@ window.__qcSmall=function(){
     ok(qcFixed(qcSlot(0)), "after "+REST_MIN+" minutes: Next up is fixed");
     T.now+=20000; startCourt(state.courts[0]);
     ok(state.courts[0].seats.every(Boolean), "Start game works");
+  });
+};
+/* Oct 27, 1:15 PM: every High Int and Low Int is on a court except two High Ints, one of whom has waited 36
+   minutes. One Novice has rested; four Novices just came off. Next up must be the two High Ints, the rested Novice
+   and one Novice just off court (High Int + Novice on each side) — not four Novices, three of them just off. */
+window.__qcHiNov=function(){
+  return qcScene((add,T)=>{
+    state.courts=[1,2,3].map(i=>({id:"c"+i,seats:[null,null,null,null],started:null}));
+    ["Long:H","Late:H","RestN:N","OffN1:N","OffN2:N","OffN3:N","OffN4:N","C1a:H","C1b:H","C1c:L","C1d:H","C3a:L","C3b:H","C3c:L","C3d:H"].forEach(x=>{ const [id,l]=x.split(":"); add(id,l); });
+    state.players.Long.games=4; state.players.RestN.games=3; ["OffN1","OffN2","OffN3","OffN4"].forEach(id=>{ state.players[id].games=2; });
+    state.players.Late.games=0; state.players.Late.pg=5;
+    state.courts[0].seats=["C1a","C1b","C1c","C1d"]; state.courts[2].seats=["C3a","C3b","C3c","C3d"]; state.courts[1].seats=["OffN1","OffN2","OffN3","OffN4"];
+    state.courts.forEach(c=>{ c.started=T.now-12*60000; });
+    state.players.Long.waitSince=T.now-34*60000; state.players.Late.waitSince=T.now-6*60000; state.players.RestN.waitSince=T.now-11*60000;
+    state.queue=["RestN","Long","Late"]; state.session={active:true,startedAt:T.now-60*60000,name:"hinov",id:T.now};
+  },(ok,T)=>{
+    finishGame(state.courts[1],"A",{ws:11,ls:9});
+    const g=qcSlot(0), lv=x=>P(x).level;
+    ok(g.includes("Long") && g.includes("Late"), "Next up has both High Ints, including the one who waited 34 minutes ("+g.join("/")+")");
+    ok(g.includes("RestN") && g.filter(x=>x.startsWith("OffN")).length===1, "Next up uses the rested Novice and only one Novice just off court");
+    ok([[g[0],g[1]],[g[2],g[3]]].every(t=>t.some(x=>lv(x)==="highint") && t.some(x=>lv(x)==="novice")), "teams: a High Int and a Novice on each side");
+    ok(!qcFixed(g), "it is not fixed while that Novice has just played");
+    T.now+=20000; startCourt(state.courts[1]);
+    ok(state.courts[1].seats.includes("Long"), "Start game: the High Int who waited longest is on court");
   });
 };
