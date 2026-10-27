@@ -252,3 +252,21 @@ window.__qcHiNov=function(){
     ok(state.courts[1].seats.includes("Long"), "Start game: the High Int who waited longest is on court");
   });
 };
+/* A late arrival is counted as the median games of the players already checked in (the lower middle when even),
+   not as many as the busiest player. A returning player who checked out is topped up to the median the same way. */
+window.__qcLate=function(){
+  return qcScene((add,T)=>{
+    state.courts=[1,2].map(i=>({id:"c"+i,seats:[null,null,null,null],started:null}));
+    [["A",1],["B",2],["C",2],["D",2],["E",3],["F",3],["G",3],["H",4],["Busy",9]].forEach(([id,g])=>{ add(id,"L"); state.players[id].games=g; });
+    add("Late","L",false); add("Back","L",false); state.players.Back.games=1;
+    state.queue=["A","B","C","D","E","F","G","H","Busy"]; state.games=7; state.session={active:true,startedAt:T.now-60*60000,name:"late",id:T.now};
+  },(ok,T)=>{
+    checkIn("Late");
+    ok(P("Late").pg===3, "a late arrival counts as the median 3 games, not the busiest player's 9 (got "+P("Late").pg+")");
+    checkIn("Back");
+    ok(P("Back").games+P("Back").pg===3, "a returning player with 1 game is counted at the median 3 too (got "+(P("Back").games+P("Back").pg)+")");
+    ["C","D","F","G","H","Busy","Late"].forEach(id=>checkOut(id)); state.players.Late.pg=0;   // left: A 1, B 2, E 3, Back 3
+    checkIn("Late");
+    ok(P("Late").pg===2, "with an even count (1, 2, 3, 3) it takes the lower middle, 2 (got "+P("Late").pg+")");
+  });
+};

@@ -2306,9 +2306,11 @@ function inPlay(id){ const p=P(id); return !!(p && p.level && p.in); }
 /* Put a checked-in player with a category into the line, with the late-joiner baseline. */
 function joinQueue(id){
   if(state.queue.includes(id) || onCourt(id)) return;
-  if(state.games>0){                    // late joiner: hand them a baseline so 0 games doesn't jump them ahead
-    const eff=Object.values(state.players).filter(p=>p.id!==id && inPlay(p.id)).map(p=>p.games+(p.pg||0));
-    P(id).pg = eff.length ? Math.max(0, Math.max(...eff)-P(id).games) : 0;
+  // Late joiner: counted as having played the median games of everyone already here (the lower middle when the
+  // count is even), so 0 games doesn't jump them ahead, yet one busy player can't push every newcomer to the back.
+  if(state.games>0){
+    const eff=Object.values(state.players).filter(p=>p.id!==id && inPlay(p.id)).map(p=>p.games+(p.pg||0)).sort((a,b)=>a-b);
+    P(id).pg = eff.length ? Math.max(0, eff[(eff.length-1)>>1]-P(id).games) : 0;
   } else P(id).pg=0;
   enqueue(id);
 }

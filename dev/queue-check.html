@@ -55,7 +55,7 @@ frame.addEventListener("load", async ()=>{
 $("run").addEventListener("click", async ()=>{
   const w=frame.contentWindow; $("run").disabled=true; $("run").textContent="Running…";
   const rows=[], fails=[];
-  for(const [name,fn] of [["Oct 25 case (fixed steps)","__qcOct25"],["Small night, like the Oct 27 screenshot (fixed steps)","__qcSmall"],["High Int + Novice vs High Int + Novice, Oct 27 1:15 PM (fixed steps)","__qcHiNov"]]){
+  for(const [name,fn] of [["Oct 25 case (fixed steps)","__qcOct25"],["Small night, like the Oct 27 screenshot (fixed steps)","__qcSmall"],["High Int + Novice vs High Int + Novice, Oct 27 1:15 PM (fixed steps)","__qcHiNov"],["Late arrivals count as the median games (fixed steps)","__qcLate"]]){
     const res=w[fn](), bad=res.filter(x=>x.startsWith("FAIL"));
     rows.push(`<tr><td>${name}</td><td>1</td><td>—</td><td class="${bad.length?"bad":"ok"}">${bad.length?bad.length+" failed":"all "+res.length+" passed"}</td><td colspan="4"><pre>${esc(res.join("\n"))}</pre></td></tr>`);
     if(bad.length) fails.push(name+": "+bad.join("; "));
