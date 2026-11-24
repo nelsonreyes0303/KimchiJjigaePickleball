@@ -1172,6 +1172,22 @@ window.addEventListener("error",function(e){
   </div>
 </div>
 
+<div id="startModal" class="modal ask-modal hidden" role="dialog" aria-modal="true" aria-labelledby="startTitle">
+  <div class="modalcard">
+    <div class="modalhead"><b id="startTitle">Start open play</b><button class="btn-ghost btn-sm" data-startclose>Close</button></div>
+    <div class="modalbody up-form">
+      <label for="startRsvp">From a Reclub link</label>
+      <input id="startRsvp" type="url" placeholder="Paste the Reclub link" autocomplete="off" spellcheck="false">
+      <p class="hint" id="startHint"></p>
+      <p class="hint" id="startErr" style="color:#e05252"></p>
+      <button class="btn-accent" id="startReclub" style="width:100%;margin-top:6px">Start from Reclub</button>
+      <label style="margin-top:20px">Or a manual open play</label>
+      <button class="btn" id="startManual" style="width:100%">Start a manual open play</button>
+      <p class="hint">Keeps the roster as it is — add, paste or check players in yourself.</p>
+    </div>
+  </div>
+</div>
+
 <div id="podiumModal" class="modal podium-modal hidden" role="dialog" aria-modal="true" aria-labelledby="podTitle">
   <canvas class="pfx" id="podiumFx" aria-hidden="true"></canvas>
   <div class="podium-card">
@@ -2740,7 +2756,7 @@ async function endOP(){
   audit("endOpenPlay", state.history[0]?state.history[0].name+" · "+state.history[0].games+" games":"", sid);
   commit(); openSessionPage(sid); openPodium(sid); toast("Open play ended — saved to history");
 }
-async function toggleOP(){ if(!(await requireAdmin())) return; state.session.active ? endOP() : startOP(); }
+async function toggleOP(){ if(!(await requireAdmin())) return; state.session.active ? endOP() : openStartChooser(); }
 let undoStack=[];
 function pushUndo(withHistory){ try{ const snap={players:state.players,queue:state.queue,courts:state.courts,games:state.games,log:state.log||[],manualSig:state.manualSig||null,challenge:state.challenge,locked:state.locked}; if(withHistory) snap.history=state.history||[]; undoStack.push(JSON.stringify(snap)); if(undoStack.length>50)undoStack.shift(); }catch(e){} }
 function undo(){
@@ -2970,6 +2986,10 @@ async function addRsvpToRoster(ev){
   try{ j=await api("rsvp",{id:ev.id}); }
   catch(e){ console.warn(e); toast("Could not reach the website — add the players by hand"); return; }
   if(!j.ok){ toast((j.error||"Could not read the RSVP page")+" — the roster is unchanged, add the players by hand"); return; }
+  applyRsvpNames(j);
+}
+/* Make the RSVP page's confirmed players tonight's roster ({names, guests, total} from api rsvp or rsvpLookup). */
+function applyRsvpNames(j){
   const names=Array.isArray(j.names)?j.names:[];
   if(!names.length){ toast("No confirmed names on the RSVP page — add the players by hand"); return; }
   /* The RSVP list IS tonight's attendance, so it replaces the roster rather than piling on top of it.
@@ -3009,6 +3029,45 @@ async function addRsvpToRoster(ev){
     +(dropped?" · "+dropped+" from last time removed":"")
     +(missing?" · "+missing+" of "+total+" had no name on the page":"")
     +(guests?" · "+guests+" guest"+(guests===1?"":"s")+" noted":""));
+}
+/* ---------- starting an open play: from a Reclub link, or by hand ----------
+   Open courts and ▶ Start open play ask which. A Reclub link makes its confirmed players tonight's roster (the
+   same as a scheduled open play's Start), pre-filled with today's scheduled open play when it has a link. A link
+   that belongs to a scheduled open play starts that one, so its card shows it running. A manual open play keeps
+   the roster as it is. */
+function todaysScheduled(){
+  const a=new Date(); a.setHours(0,0,0,0); const b=new Date(a); b.setDate(a.getDate()+1);
+  return upcomingAll.find(ev=>ev.rsvp && ev.d>=a && ev.d<b) || null;
+}
+function openStartChooser(){
+  const m=$("startModal"); if(!m){ startOP(); return; }
+  const ev=todaysScheduled();
+  $("startRsvp").value=ev?ev.rsvp:""; $("startErr").textContent="";
+  $("startHint").textContent = !server.on ? "Reading a Reclub link needs the website — start a manual open play here."
+    : ev ? "Today's scheduled open play: "+ev.title+". Its confirmed players become tonight's roster; regulars keep their category."
+    : "Its confirmed players become tonight's roster; regulars keep their category.";
+  $("startRsvp").disabled=$("startReclub").disabled=!server.on;
+  m.classList.remove("hidden");
+  setTimeout(()=>{ if(server.on) $("startRsvp").focus(); },40);
+}
+function closeStartChooser(){ const m=$("startModal"); if(m) m.classList.add("hidden"); }
+async function startFromReclub(){
+  const url=$("startRsvp").value.trim(), err=$("startErr"), btn=$("startReclub");
+  if(!/^https:\/\//i.test(url)){ err.textContent="Paste the full Reclub link — it starts with https://"; return; }
+  const ev=upcomingAll.find(x=>x.rsvp && x.rsvp.trim()===url);
+  if(ev){ closeStartChooser(); await startFromUpcoming(ev.id); return; }
+  err.textContent="Reading the link…"; btn.disabled=true;
+  let j;
+  try{ j=await api("rsvpLookup",{url}); }catch(e){ console.warn(e); j={ok:false,error:"Could not reach the website"}; }
+  btn.disabled=false;
+  if(!j.ok){ err.textContent=(j.error||"Could not read that page")+". Check the link, or start a manual open play."; return; }
+  if(!(Array.isArray(j.names)&&j.names.length)){ err.textContent="No confirmed players on that page yet. Check the link, or start a manual open play."; return; }
+  closeStartChooser();
+  const d=(j.start && upDate({start:j.start})) || new Date();
+  await startOP({name:"Open play — "+d.toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"})+(j.venue?" · "+j.venue:"")});
+  if(state.session&&state.session.active&&Date.now()-state.session.startedAt<60000){   // started now, not cancelled at the name prompt
+    audit("reclubLink", url); applyRsvpNames(j);
+  }
 }
 async function startFromUpcoming(id){
   const ev=upcomingAll.find(x=>String(x.id)===String(id));
@@ -3138,6 +3197,7 @@ document.addEventListener("click",e=>{
   const st=e.target.closest("[data-upstart]"); if(st){ if(!isAdmin()){ toast("Admin only"); return; } startFromUpcoming(st.dataset.upstart); }
 });
 document.addEventListener("keydown",e=>{ if($("upModal")&&!$("upModal").classList.contains("hidden")&&e.key==="Escape") closeUpModal(); });
+document.addEventListener("keydown",e=>{ if($("startModal")&&!$("startModal").classList.contains("hidden")&&e.key==="Escape") closeStartChooser(); });
 /* Top three with at least one game get a medal and a podium row tint. */
 /* ---------- places ----------
    The same record earns the same place, and the next record skips the places already used: 1, 1, 3, 3, 5.
@@ -3538,9 +3598,8 @@ async function adminLogin(){
 }
 async function enterAdminPlay(){
   if(!(await requireAdmin())) return;
-  hideLanding(); hideHistoryPages();
-  if(state.session&&state.session.active){ render(); toast("Continuing open play"); return; }
-  await startOP();
+  if(state.session&&state.session.active){ hideLanding(); hideHistoryPages(); render(); toast("Continuing open play"); return; }
+  openStartChooser();                                   // from a Reclub link, or a manual open play
 }
 
 
@@ -4116,6 +4175,10 @@ $("ciModal").addEventListener("click",e=>{ if(e.target===$("ciModal")) closeCiBo
 $("playerModal").addEventListener("click",e=>{ if(e.target===$("playerModal")) closePlayer(); });
 $("landingAdmin").addEventListener("click",()=>adminLogin());
 if($("landingGoCourts")) $("landingGoCourts").addEventListener("click",()=>enterAdminPlay());
+if($("startReclub")) $("startReclub").addEventListener("click",startFromReclub);
+if($("startManual")) $("startManual").addEventListener("click",()=>{ closeStartChooser(); startOP(); });
+if($("startRsvp")) $("startRsvp").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); startFromReclub(); } });
+document.addEventListener("click",e=>{ if(e.target.closest("[data-startclose]") || e.target.id==="startModal") closeStartChooser(); });
 if($("landingLive")) $("landingLive").addEventListener("click",openLiveSession);
 $("landingHistory").addEventListener("click",openHistory);
 $("themeBtn").addEventListener("click",()=>{ state.theme=state.theme==="light"?"dark":"light"; save(); applyTheme(); const tb=$("homeThemeBtn"); if(tb) tb.textContent=state.theme==="light"?"☀️":"🌙"; });
