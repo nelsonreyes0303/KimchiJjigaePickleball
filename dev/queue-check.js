@@ -340,3 +340,22 @@ window.__qcVariety=function(){
     qcVarietyCase("Off 12 minutes apart: the first four have waited much longer, fairness first", 12, false, false),
     qcVarietyCase("Off 2 minutes apart, but the second four have one more game: fewer games first", 2, true, false));
 };
+/* On four or more courts only Next up and Group 2 are fixed; the groups after them are the plan and are formed again
+   as they move up (four fixed groups on five courts sent the same four back on together, night after night). */
+window.__qcFiveCourts=function(){
+  return qcScene((add,T)=>{
+    state.courts=[1,2,3,4,5].map(i=>({id:"c"+i,seats:[null,null,null,null],started:T.now-5*60000}));
+    for(let i=1;i<=20;i++) add("C"+i,"L");
+    for(let i=1;i<=20;i++) add("W"+i,"L");
+    state.courts.forEach((c,k)=>{ c.seats=["C"+(4*k+1),"C"+(4*k+2),"C"+(4*k+3),"C"+(4*k+4)]; });
+    state.queue=[]; for(let i=1;i<=20;i++) state.queue.push("W"+i);
+    state.session={active:true,startedAt:T.now-30*60000,name:"five",id:T.now};
+  },(ok,T)=>{
+    const gs=()=>queueGroups().groups;
+    ok(pinnedGroups()===2, "five courts: two groups are held, Next up and Group 2 (got "+pinnedGroups()+")");
+    ok((state.frontPinned||[]).length===2 && qcFixed(gs()[0]) && qcFixed(gs()[1]), "Next up and Group 2 are fixed");
+    ok(gs().length>=5 && !gs().slice(2).some(qcFixed), "the groups after Group 2 are shown but not fixed ("+gs().length+" groups)");
+    finishGame(state.courts[0],"A",{ws:11,ls:4}); T.now+=20000; startCourt(state.courts[0]);
+    ok((state.frontPinned||[]).length===2 && qcFixed(gs()[0]) && qcFixed(gs()[1]), "after a game and a start: still exactly Next up and Group 2 fixed");
+  });
+};
