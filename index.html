@@ -35,6 +35,7 @@ window.addEventListener("error",function(e){
     --nov:#eab35f; --nov-soft:#392c12;
     --int:#8fbf6e; --int-soft:#20331a;
     --hi:#c39bf2; --hi-soft:#2c2340;
+    --adv:#f08a7a; --adv-soft:#3f201c;
     --accent:#f2a5ad; --accent-h:#f7b7be; --ink:#2c211f;
     --headerbg:rgba(20,26,18,.82);
     --danger:#f27070; --win:#f4c542; --gold:#f0b84a;
@@ -155,8 +156,8 @@ window.addEventListener("error",function(e){
 
   /* level chips */
   .chip{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:2px 6px;border-radius:6px;flex:none}
-  .chip.beg{background:var(--beg-soft);color:var(--beg)} .chip.int{background:var(--int-soft);color:var(--int)} .chip.nov{background:var(--nov-soft);color:var(--nov)} .chip.hi{background:var(--hi-soft);color:var(--hi)}
-  .badge.mix{background:#2f3a2a;color:#cfe1b5} .badge.nov{background:var(--nov-soft);color:var(--nov)} .badge.hi{background:var(--hi-soft);color:var(--hi)}
+  .chip.beg{background:var(--beg-soft);color:var(--beg)} .chip.int{background:var(--int-soft);color:var(--int)} .chip.nov{background:var(--nov-soft);color:var(--nov)} .chip.hi{background:var(--hi-soft);color:var(--hi)} .chip.adv{background:var(--adv-soft);color:var(--adv)}
+  .badge.mix{background:#2f3a2a;color:#cfe1b5} .badge.nov{background:var(--nov-soft);color:var(--nov)} .badge.hi{background:var(--hi-soft);color:var(--hi)} .badge.adv{background:var(--adv-soft);color:var(--adv)}
 
   /* courts — auto-fit so cards stretch to fill the main column (no dead gap at 67%/ultrawide) */
   .courts{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));margin-bottom:22px}
@@ -313,6 +314,7 @@ window.addEventListener("error",function(e){
   .pill.sel.nov{background:var(--nov-soft);border-color:var(--nov);color:var(--nov)}
   .pill.sel.int{background:var(--int-soft);border-color:var(--int);color:var(--int)}
   .pill.sel.hi{background:var(--hi-soft);border-color:var(--hi);color:var(--hi)}
+  .pill.sel.adv{background:var(--adv-soft);border-color:var(--adv);color:var(--adv)}
   .pill.sel.bench{background:#2a2f36;border-color:#3a4652;color:var(--txt)}
   .pill.chk{border-color:var(--accent);color:var(--accent);flex:none}
   .pill.chk.sel{background:var(--int-soft);border-color:var(--int);color:var(--int)}
@@ -765,6 +767,7 @@ window.addEventListener("error",function(e){
     --nov:#c07a1e; --nov-soft:#f7e6cd;
     --int:#5a7d4c; --int-soft:#dcebcf;
     --hi:#7c4fd0; --hi-soft:#e9e0fb;
+    --adv:#b5382b; --adv-soft:#f9dcd7;
     --accent:#f2a5ad; --accent-h:#f7b7be; --ink:#3a2226;
     --headerbg:rgba(251,250,241,.86);
     --danger:#c94b4b; --win:#a86f14; --gold:#b8842a;
@@ -1857,7 +1860,7 @@ function autoGroupFrom(list, cop){
 }
 function queueSig(){ return state.queue.slice().sort().join("|"); }
 function manualActive(){ return state.manualSig===queueSig(); }      // true right after a drag, until the players in the queue change
-/* Groups follow your queue order. Normally they respect the level ladder (Beg↔Nov↔L.Int↔H.Int, adjacent only).
+/* Groups follow your queue order. Normally they respect the level ladder (Beg↔Nov↔L.Int↔H.Int↔Adv, adjacent only).
    A manual drag flags an override so that arrangement is honored even across non-adjacent tiers. */
 function queueGroups(){
   const man=manualActive();
@@ -2146,22 +2149,23 @@ function pairToggle(id){
   if(!selPair){ selPair=id; render(); toast("Tap 🔗 on their partner to link them"); return; }
   if(selPair===id){ selPair=null; render(); return; }
   const a=selPair; pairOff(a); pairOff(id); P(a).partner=id; P(id).partner=a; selPair=null;
-  // A fixed High Int + Novice game cannot keep two of the same level as a pair: they would be one team. It re-forms.
-  state.frontPinned=(state.frontPinned||[]).filter(g=>!(g.includes(a)&&g.includes(id)) || levelsOK(g) || mixOK(g));
+  // A pair plays on one team, so a fixed group holding only one of the two, or one the pair makes illegal (two of
+  // the same level in High Int + Novice, or any pair in the wait-relief game), is re-formed.
+  state.frontPinned=(state.frontPinned||[]).filter(g=>{ const ha=g.includes(a), hb=g.includes(id); return ha!==hb ? false : (!ha || levelsOK(g) || mixOK(g)); });
   audit("pairLink", nmsafe(a)+" + "+nmsafe(id));
   const bad=Math.abs(levelOf(a)-levelOf(id))>1;
   commit(); toast(bad?"Paired — heads up: their levels can't share a game, adjust one":"Paired for the session: "+nm(a)+" & "+nm(id));
 }
 
 function take(list,idx){ const g=idx.map(i=>list[i]); for(let k=idx.length-1;k>=0;k--)list.splice(idx[k],1); return g; }
-const LVLS=['beginner','novice','lowint','highint'];               // ladder: only adjacent tiers may mix
+const LVLS=['beginner','novice','lowint','highint','advanced'];   // ladder: only adjacent tiers may mix
 const ROSTER_SORTS=["name","level","nolevel","out","in","time"];   // what the roster dropdown may hold; every one is a sort, never a filter
-function lvlIdx(l){ return LVLS.indexOf(l); }                       // Beg 0 · Nov 1 · Low Int 2 · High Int 3
+function lvlIdx(l){ return LVLS.indexOf(l); }                       // Beg 0 · Nov 1 · Low Int 2 · High Int 3 · Advanced 4
 function levelOf(id){ return lvlIdx(P(id).level); }
-function lvlCls(l){ return {beginner:'beg',novice:'nov',lowint:'int',highint:'hi'}[l]||''; }
-function lvlAbbr(l){ return {beginner:'B',novice:'N',lowint:'LI',highint:'HI'}[l]||''; }
-function lvlName(l){ return {beginner:'Beginner',novice:'Novice',lowint:'Low Int',highint:'High Int'}[l]||''; }
-function lvlShort(l){ return {beginner:'Beg',novice:'Nov',lowint:'L.Int',highint:'H.Int'}[l]||''; }
+function lvlCls(l){ return {beginner:'beg',novice:'nov',lowint:'int',highint:'hi',advanced:'adv'}[l]||''; }
+function lvlAbbr(l){ return {beginner:'B',novice:'N',lowint:'LI',highint:'HI',advanced:'ADV'}[l]||''; }
+function lvlName(l){ return {beginner:'Beginner',novice:'Novice',lowint:'Low Int',highint:'High Int',advanced:'Advanced'}[l]||''; }
+function lvlShort(l){ return {beginner:'Beg',novice:'Nov',lowint:'L.Int',highint:'H.Int',advanced:'Adv'}[l]||''; }
 function seatsLabel(ids){
   const set=[...new Set(ids.map(id=>P(id).level))].sort((a,b)=>lvlIdx(a)-lvlIdx(b));
   return set.map(lvlShort).join(" / ");
@@ -3742,9 +3746,9 @@ function renderRoster(){
   // Every choice is a sort: nobody is hidden, the group you asked for just comes first (A–Z inside each group).
   // Only the search box narrows the list, so a name you can see on the leaderboard is always findable here.
   const s=state.sort;
-  const rung=id=>{ const l=P(id).level; return l?lvlIdx(l):LVLS.length; };               // no category sits after the four tiers
+  const rung=id=>{ const l=P(id).level; return l?lvlIdx(l):LVLS.length; };               // no category sits after the five tiers
   ids.sort((a,b)=>{const A=P(a),B=P(b);
-    if(s==="level") return rung(a)-rung(b) || A.name.localeCompare(B.name);              // Category: Beginner up to High Int, then no category
+    if(s==="level") return rung(a)-rung(b) || A.name.localeCompare(B.name);              // Category: Beginner up to Advanced, then no category
     if(s==="nolevel") return (!!A.level)-(!!B.level) || A.name.localeCompare(B.name);    // No category first, then the rest
     if(s==="out") return (A.in?1:0)-(B.in?1:0) || A.name.localeCompare(B.name);          // Not checked in first: who is still to arrive
     if(s==="in") return (B.in?1:0)-(A.in?1:0) || A.name.localeCompare(B.name);           // Checked in first: who is here tonight
@@ -3763,7 +3767,7 @@ function renderRoster(){
   }
   el.innerHTML=ids.map(id=>{
     const p=P(id), court=onCourt(id);
-    // Bench sits beside the name; the four tiers wrap onto their own line below.
+    // Bench sits beside the name; the five tiers wrap onto their own line below.
     // With categories hidden (or for a non-admin) the row shows one read-only status pill instead.
     const editTiers = isAdmin() && !state.hideTiers;
     const tiers = !editTiers ? "" : `<div class="pills">
@@ -3771,6 +3775,7 @@ function renderRoster(){
            <button class="pill nov ${p.level==='novice'?'sel':''}" data-set="${id}:novice">Nov</button>
            <button class="pill int ${p.level==='lowint'?'sel':''}" data-set="${id}:lowint">L.Int</button>
            <button class="pill hi ${p.level==='highint'?'sel':''}" data-set="${id}:highint">H.Int</button>
+           <button class="pill adv ${p.level==='advanced'?'sel':''}" data-set="${id}:advanced">Adv</button>
          </div>`;
     // With categories hidden they go here too. Bench still shows — that is availability, not a category.
     const benchEl = editTiers

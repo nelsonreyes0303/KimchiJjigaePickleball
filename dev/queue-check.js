@@ -23,7 +23,8 @@ window.__fuzz=function(nNights, seed0, opts){
     const t0=1800000000000; let now=t0; Date.now=()=>now; const minute=()=>(now-t0)/60000;
     const nP=opts.players||(4+Math.floor(rnd()*33)), nC=opts.courts||(1+Math.floor(rnd()*4));
     const mix=opts.mix||pick(MIX); const wsum=mix.reduce((a,b)=>a+b,0);
-    const lvl=()=>{ let x=rnd()*wsum; for(let i=0;i<3;i++){ if((x-=mix[i])<0) return LV[i]; } return LV[2]; };
+    const lvl0=()=>{ let x=rnd()*wsum; for(let i=0;i<3;i++){ if((x-=mix[i])<0) return LV[i]; } return LV[2]; };
+    const lvl=()=>{ const l=lvl0(); return (l==="highint" && !opts.noAdvanced && rnd()<0.3) ? "advanced" : l; };   // some High Ints are Advanced
     state=fresh(); state.courts=[]; for(let i=0;i<nC;i++) state.courts.push({id:"c"+(i+1),seats:[null,null,null,null],started:null});
     for(let i=1;i<=nP;i++) state.players["p"+i]={id:"p"+i,name:"N"+night+"-"+i,level:lvl(),in:false,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
     state.seq=nP+1; state.queue=[]; state.session={active:true,startedAt:now,name:"fuzz",id:now};
@@ -132,8 +133,8 @@ window.__fuzz=function(nNights, seed0, opts){
         const waiting=state.queue.slice();
         if(x<0.012 && waiting.length){ const id=pick(waiting); checkOut(id); check("check-out");   /* may break a group, so not a stability check */ }
         else if(x<0.02){ const out_=Object.values(state.players).filter(p=>!p.in&&p.level&&ai>=arrivals.length); if(out_.length){ const id=pick(out_).id; stable(()=>checkIn(id),"re-check-in"); } }
-        else if(x<0.03 && waiting.length>=2){ const a=pick(waiting), b=pick(waiting); if(a!==b && !onCourt(a)&&!onCourt(b)){ selPair=null; const before=pinKeys(); pairToggle(a); pairToggle(b);   /* a pair may re-form a fixed mixed game it is in, nothing else */
-          before.forEach(k=>{ if(!pinKeys().includes(k) && !(k.split("|").includes(a)&&k.split("|").includes(b))) fail(night,minute(),"fixed group changed by pairing",k.split("|").map(nm).join("/")); }); check("pairing"); } }
+        else if(x<0.03 && waiting.length>=2){ const a=pick(waiting), b=pick(waiting); if(a!==b && !onCourt(a)&&!onCourt(b)){ selPair=null; const before=pinKeys(); pairToggle(a); pairToggle(b);   /* a pair may re-form the fixed groups it touches, nothing else */
+          before.forEach(k=>{ const m=k.split("|"); if(!pinKeys().includes(k) && !m.includes(a) && !m.includes(b)) fail(night,minute(),"fixed group changed by pairing",m.map(nm).join("/")); });   /* only the groups the pair is in may re-form */ check("pairing"); } }
         else if(x<0.04 && opts.drags!==false && waiting.length>=2){ const a=pick(waiting), b=pick(waiting); if(a!==b){ out.stats.drags++; doSwap({type:"queue",id:a},{type:"queue",id:b}); commit(); pinKeys().forEach(k=>adminMade.add(k)); check("drag"); } }
         else if(x<0.05){ const g=queueGroups().groups; if(g.length>2){ const gg=pick(g.slice(2)); toggleGroupLock(gg); adminMade.add(fourKey(gg)); check("lock a group"); } }
         else if(x<0.06){ stable(()=>skipTime(),"+2 min"); tick(); check("+2 min tick"); }
@@ -268,5 +269,22 @@ window.__qcLate=function(){
     ["C","D","F","G","H","Busy","Late"].forEach(id=>checkOut(id)); state.players.Late.pg=0;   // left: A 1, B 2, E 3, Back 3
     checkIn("Late");
     ok(P("Late").pg===2, "with an even count (1, 2, 3, 3) it takes the lower middle, 2 (got "+P("Late").pg+")");
+  });
+};
+/* Advanced sits above High Int: it plays with Advanced and High Int only, never with Low Int or Novice, and neither
+   last-resort mix includes it. */
+window.__qcAdv=function(){
+  return qcScene((add,T)=>{
+    state.courts=[1,2].map(i=>({id:"c"+i,seats:[null,null,null,null],started:null}));
+    ["A1:H","A2:H","H1:H","H2:H","L1:L","L2:L","N1:N","N2:N","A3:H"].forEach(x=>{ const [id,l]=x.split(":"); add(id,l); });
+    ["A1","A2","A3"].forEach(id=>{ state.players[id].level="advanced"; });
+    state.queue=Object.keys(state.players); state.session={active:true,startedAt:T.now-30*60000,name:"adv",id:T.now};
+  },(ok,T)=>{
+    const L=ids=>levelsOK(ids)||mixOK(ids);
+    ok(levelsOK(["A1","A2","H1","H2"]), "two Advanced + two High Int is a normal game");
+    ok(!L(["A1","A2","L1","L2"]) && !L(["A1","H1","L1","L2"]), "Advanced never plays with Low Int");
+    ok(!L(["A1","N1","H1","N2"]), "Advanced is not part of the High Int + Novice mix");
+    const gs=queueGroups().groups, bad=gs.filter(g=>g.some(id=>P(id).level==="advanced") && g.some(id=>["lowint","novice","beginner"].includes(P(id).level)));
+    ok(gs.length>=1 && !bad.length, "the queue never groups Advanced with Low Int or Novice ("+gs.map(g=>g.join("/")).join(" | ")+")");
   });
 };
