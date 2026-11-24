@@ -1819,15 +1819,34 @@ function repeatGames(ids){
   (state.log||[]).forEach((g,i)=>{ if(fourKey([...g.w,...g.l].map(x=>x.id))===key) out.push(i+1); });
   return out;
 }
+/* Games tonight in which exactly three of these four were on court together, oldest first: [{n, ids, last}], where
+   last means it was the most recent game for all three (they would walk straight back on together). */
+function trioGames(ids){
+  if(!ids || ids.length!==4) return [];
+  const set=new Set(ids), lastG={}, out=[];
+  (state.log||[]).forEach((g,i)=>[...g.w,...g.l].forEach(x=>{ if(set.has(x.id)) lastG[x.id]=i; }));
+  (state.log||[]).forEach((g,i)=>{ const inG=[...g.w,...g.l].map(x=>x.id).filter(id=>set.has(id));
+    if(inG.length===3) out.push({n:i+1, ids:inG, last:inG.every(id=>lastG[id]===i)}); });
+  return out;
+}
 function repeatNote(grp){
   const gid=P(grp[0])&&P(grp[0]).grp;
   if(gid && grp.every(id=>P(id)&&P(id).grp===gid)) return "";      // they chose to play again
+  const tip=' title="Drag a player in or out to change the mix."';
   const hits=repeatGames(grp);
-  if(!hits.length) return "";
-  const shown=hits.slice(-3).join(", #");
-  const label=hits.length===1 ? "Same four as game #"+hits[0]
-    : "These four already played "+hits.length+"\u00d7 (game"+(hits.length>1?"s":"")+" #"+shown+")";
-  return '<div class="qrepeat" title="Drag a player in or out to change the mix.">\u26a0 '+esc(label)+'</div>';
+  if(hits.length){
+    const shown=hits.slice(-3).join(", #");
+    const label=hits.length===1 ? "Same four as game #"+hits[0]
+      : "These four already played "+hits.length+"\u00d7 (game"+(hits.length>1?"s":"")+" #"+shown+")";
+    return '<div class="qrepeat"'+tip+'>\u26a0 '+esc(label)+'</div>';
+  }
+  // three of the four have shared a court tonight: the game they just came off counts most, else the latest
+  const trios=trioGames(grp); if(!trios.length) return "";
+  const t=trios.find(x=>x.last) || trios[trios.length-1];
+  const names=t.ids.map(nm), who=names.slice(0,-1).join(", ")+" and "+names[names.length-1];
+  const label=(t.last ? who+" just played together (game #"+t.n+")" : who+" were on court together in game #"+t.n)
+    +(trios.length>1 ? " \u00b7 three of these four have shared a court "+trios.length+"\u00d7 tonight" : "");
+  return '<div class="qrepeat"'+tip+'>\u26a0 '+esc(label)+'</div>';
 }
 function coplayCount(){ const m={}; (state.log||[]).forEach(g=>{ const all=[...g.w,...g.l].map(x=>x.id);
   for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){ const k=[all[i],all[j]].sort().join("|"); m[k]=(m[k]||0)+1; } }); return m; }
@@ -3684,7 +3703,7 @@ function renderCourts(){
     }else{
       const g=preview.shift();                   // distinct preview per open court
       let inner;
-      if(g){ inner=`<p>Next up${showCats()?' · <b>'+seatsLabel(g)+'</b>':''}: ${esc(g.map(nm).join(", "))}</p>`+(isAdmin()?`<button class="btn-accent" data-start="${c.id}" style="padding:12px 22px">Start game</button>`:""); }
+      if(g){ inner=`<p>Next up${showCats()?' · <b>'+seatsLabel(g)+'</b>':''}: ${esc(g.map(nm).join(", "))}</p>`+(isAdmin()?repeatNote(g):"")+(isAdmin()?`<button class="btn-accent" data-start="${c.id}" style="padding:12px 22px">Start game</button>`:""); }
       else if(strandable){ inner=`<p>No same-tier group can form — <b>${gq.leftovers.length}</b> players are stuck waiting.</p>`+(isAdmin()?`<button class="btn-accent" data-startmix="${c.id}" style="padding:12px 22px">⤢ Start mixed-tier game</button>`:""); }
       else{ inner=`<p>Waiting for 4 players in the queue</p>`+(isAdmin()?`<button class="btn-accent" disabled style="padding:12px 22px">Start game</button>`:""); }
       body=`<div class="cidle">${inner}</div>
