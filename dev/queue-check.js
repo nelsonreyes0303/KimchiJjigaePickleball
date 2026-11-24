@@ -2,13 +2,20 @@
    action. Loaded into the app page by dev/queue-check.html. Nothing is saved: the app's save is switched off and
    its state is put back afterwards.
    window.__fuzz(nights, seed, opts) -> { nights, actions, failures:[{rule, detail, trail}], stats, rest:[minutes] }
-   opts: players, courts, mix:[novice, lowint, highint] weights, calm (arrivals and games only), drags:false, undo:false */
+   opts: players, courts, mix:[novice, lowint, highint] weights, counts:{level:n} (an exact roster instead), calm (arrivals
+   and games only), drags:false, undo:false. stats also counts repeats: sameFour (a group that already played together
+   tonight), trioAny (three of the four shared a court earlier), trioLast (three walk straight back on together). */
 window.__fuzz=function(nNights, seed0, opts){
   const RESTM=(typeof REST_MIN==="number")?REST_MIN:3, CF=(typeof courtFallback==="function")?courtFallback:(()=>null), RT=(typeof restTick==="function")?restTick:(()=>{}), LGE=(typeof lastGameEnds==="function")?lastGameEnds:(()=>{ const m={}; (state.log||[]).forEach(g=>[...g.w,...g.l].forEach(x=>{ m[x.id]=Math.max(m[x.id]||0,g.t||0); })); return m; });
   opts=opts||{};
   const MIXOK=(typeof mixOK==="function")?mixOK:(()=>false), LEGAL=ids=>levelsOK(ids)||MIXOK(ids);
   const LV=["novice","lowint","highint"], MIX=[[1,1,1],[1,1,3],[3,1,1],[1,3,1],[2,0.4,2],[1,0.3,3],[0,1,1],[1,1,0]];
-  const out={nights:0,actions:0,failures:[],stats:{starts:0,exceptionStarts:0,restBreaks:0,idleMinutes:0,maxWait:0,drags:0,ticks:0,undo:0,setups:0}};
+  const out={nights:0,actions:0,failures:[],stats:{starts:0,exceptionStarts:0,restBreaks:0,idleMinutes:0,maxWait:0,drags:0,ticks:0,undo:0,setups:0,auto:0,sameFour:0,trioAny:0,trioLast:0},waits:[],spread:[]};
+  // counted from the game log here, so an older version of the app can be measured the same way
+  const ids4=x=>[...x.w,...x.l].map(y=>y.id), key4=g=>g.slice().sort().join("|");
+  const RG=g=>(state.log||[]).filter(x=>key4(ids4(x))===key4(g));
+  const TG=g=>{ const set=new Set(g), lastG={}, outT=[]; (state.log||[]).forEach((x,i)=>ids4(x).forEach(id=>{ if(set.has(id)) lastG[id]=i; }));
+    (state.log||[]).forEach((x,i)=>{ const inG=ids4(x).filter(id=>set.has(id)); if(inG.length===3) outT.push({last:inG.every(id=>lastG[id]===i)}); }); return outT; };
   const realNow=Date.now;
   const sv={save:window.save,toast:window.toast,confirm:window.confirm}, wasAdmin=sessionStorage.getItem(ADMIN_OK);
   const keepState=state, keepUndo=undoStack.slice();
@@ -21,17 +28,19 @@ window.__fuzz=function(nNights, seed0, opts){
     let r=(seed0+night*7919)>>>0; const rnd=()=>{r=r+0x6D2B79F5|0;let t=Math.imul(r^r>>>15,1|r);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
     const pick=a=>a[Math.floor(rnd()*a.length)];
     const t0=1800000000000; let now=t0; Date.now=()=>now; const minute=()=>(now-t0)/60000;
-    const nP=opts.players||(4+Math.floor(rnd()*33)), nC=opts.courts||(1+Math.floor(rnd()*4));
+    const roster=opts.counts ? (()=>{ const a=[]; Object.entries(opts.counts).forEach(([l,n])=>{ for(let i=0;i<n;i++) a.push(l); });
+      for(let i=a.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; })() : null;
+    const nP=roster?roster.length:(opts.players||(4+Math.floor(rnd()*33))), nC=opts.courts||(1+Math.floor(rnd()*4));
     const mix=opts.mix||pick(MIX); const wsum=mix.reduce((a,b)=>a+b,0);
     const lvl0=()=>{ let x=rnd()*wsum; for(let i=0;i<3;i++){ if((x-=mix[i])<0) return LV[i]; } return LV[2]; };
     const lvl=()=>{ const l=lvl0(); return (l==="highint" && !opts.noAdvanced && rnd()<0.3) ? "advanced" : l; };   // some High Ints are Advanced
     state=fresh(); state.courts=[]; for(let i=0;i<nC;i++) state.courts.push({id:"c"+(i+1),seats:[null,null,null,null],started:null});
-    for(let i=1;i<=nP;i++) state.players["p"+i]={id:"p"+i,name:"N"+night+"-"+i,level:lvl(),in:false,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
+    for(let i=1;i<=nP;i++) state.players["p"+i]={id:"p"+i,name:"N"+night+"-"+i,level:roster?roster[i-1]:lvl(),in:false,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0};
     state.seq=nP+1; state.queue=[]; state.session={active:true,startedAt:now,name:"fuzz",id:now};
     try{ undoStack.length=0; }catch(e){} trail=[];
     const early=opts.calm ? Math.max(4,Math.floor(nP*0.8)) : Math.max(4,Math.floor(nP*(0.3+rnd()*0.6)));
     const arrivals=Object.keys(state.players).map((id,i)=>({id,t:t0+(i<early?Math.floor(rnd()*3*60000):Math.floor(rnd()*(opts.calm?25:70)*60000))})).sort((a,b)=>a.t-b.t);
-    const ends={}, pendingStart={}, adminMade=new Set(), levelChanged=new Set(); let freeSince={};
+    const ends={}, pendingStart={}, adminMade=new Set(), levelChanged=new Set(), left=new Set(); let freeSince={};
     const pinKeys=()=>(state.frontPinned||[]).map(fourKey);
     const lastEnd=LGE;
     const restedOK=(id,e)=>!e[id] || now-e[id]>=RESTM*60000;
@@ -105,6 +114,11 @@ window.__fuzz=function(nNights, seed0, opts){
       }
       const key=fourKey(g);
       if(!man && !LEGAL(g) && !adminMade.has(key) && !g.every(x=>lset.has(x)) && !(P(g[0]).grp && g.every(x=>P(x).grp===P(g[0]).grp)) && !g.some(x=>levelChanged.has(x))) fail(night,minute(),"illegal group sent on court",g.map(x=>nm(x)+"/"+lvlAbbr(P(x).level)).join(" ")+(fromFallback?" (empty-court exception)":" (Next up)"));
+      if(!man && !adminMade.has(key) && !g.every(x=>lset.has(x)) && !(P(g[0]).grp && g.every(x=>P(x).grp===P(g[0]).grp))){   // the queue's own choice
+        out.stats.auto++; if(RG(g).length) out.stats.sameFour++;
+        const tr=TG(g); if(tr.length) out.stats.trioAny++; if(tr.some(x=>x.last)) out.stats.trioLast++;
+      }
+      g.forEach(x=>out.waits.push((now-waitSince(x))/60000));
       stable(()=>startCourt(c),"start",gq.groups[0]?fourKey(gq.groups[0]):null);
       { const s4=c.seats, lv=x=>P(x)&&P(x).level; if(s4.every(Boolean) && !levelsOK(s4) && MIXOK(s4) && !man && !adminMade.has(key)) [[s4[0],s4[1]],[s4[2],s4[3]]].forEach(t=>{ if(!(t.some(x=>lv(x)==="highint") && t.some(x=>lv(x)==="novice"))) fail(night,minute(),"High Int + Novice game without one of each per team",s4.map(x=>nm(x)+"/"+lvlAbbr(lv(x))).join(" ")); }); }
       if(!c.seats.every(Boolean)) { fail(night,minute(),"start did nothing",key); return false; }
@@ -131,7 +145,7 @@ window.__fuzz=function(nNights, seed0, opts){
         // random admin actions, a few times an hour each
         const x=opts.calm ? (rnd()<0.05?0.055:1) : rnd();   /* calm: only the odd +2 min */
         const waiting=state.queue.slice();
-        if(x<0.012 && waiting.length){ const id=pick(waiting); checkOut(id); check("check-out");   /* may break a group, so not a stability check */ }
+        if(x<0.012 && waiting.length){ const id=pick(waiting); left.add(id); checkOut(id); check("check-out");   /* may break a group, so not a stability check */ }
         else if(x<0.02){ const out_=Object.values(state.players).filter(p=>!p.in&&p.level&&ai>=arrivals.length); if(out_.length){ const id=pick(out_).id; stable(()=>checkIn(id),"re-check-in"); } }
         else if(x<0.03 && waiting.length>=2){ const a=pick(waiting), b=pick(waiting); if(a!==b && !onCourt(a)&&!onCourt(b)){ selPair=null; const before=pinKeys(); pairToggle(a); pairToggle(b);   /* a pair may re-form the fixed groups it touches, nothing else */
           before.forEach(k=>{ const m=k.split("|"); if(!pinKeys().includes(k) && !m.includes(a) && !m.includes(b)) fail(night,minute(),"fixed group changed by pairing",m.map(nm).join("/")); });   /* only the groups the pair is in may re-form */ check("pairing"); } }
@@ -148,6 +162,8 @@ window.__fuzz=function(nNights, seed0, opts){
             if(now-freeSince[c.id]>=2*60000 && anyLegalGroupExists() && !manualActive()){ out.stats.idleMinutes+=0.25; if(now-freeSince[c.id]<2*60000+15000) fail(night,minute(),"court idle 2 min while a legal game exists",c.id+" · queue "+state.queue.map(id=>nm(id)+"/"+lvlAbbr(P(id).level)).join(" ")); } } });
       }
     }
+    { const early=new Set(arrivals.filter(a=>a.t-t0<3*60000).map(a=>a.id)), gs=Object.values(state.players).filter(p=>early.has(p.id) && !left.has(p.id)).map(p=>p.games);
+      if(gs.length) out.spread.push(Math.max(...gs)-Math.min(...gs)); }
     out.nights++;
   }
   } catch(e){ out.failures.push({rule:"ERROR",detail:e.message+" "+(e.stack||"").split("\n").slice(1,3).join(" ")}); }
@@ -167,7 +183,7 @@ function qcScene(build, steps){
   const T={now:1800000000000}; Date.now=()=>T.now; window.save=()=>{}; window.toast=()=>{}; sessionStorage.setItem(ADMIN_OK,"1");
   const ok=(c,t)=>R.push((c?"PASS ":"FAIL ")+t);
   try{
-    const L={H:"highint",L:"lowint",N:"novice"}, add=(id,l,inNow)=>{ state.players[id]={id,name:id,level:L[l],in:inNow!==false,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0,waitSince:T.now-10*60000,checkedInAt:T.now-12*60000}; };
+    const L={B:"beginner",N:"novice",L:"lowint",H:"highint",A:"advanced"}, add=(id,l,inNow)=>{ state.players[id]={id,name:id,level:L[l],in:inNow!==false,openMix:true,qkey:0,games:0,wins:0,losses:0,pg:0,waitSince:T.now-10*60000,checkedInAt:T.now-12*60000}; };
     state=fresh(); build(add,T); commit(); steps(ok,T);
   }catch(e){ R.push("FAIL error: "+e.message); }
   finally{ Date.now=realNow; Object.assign(window,sv); state=keep; if(wasAdmin===null) sessionStorage.removeItem(ADMIN_OK); if(hasAudit){ auditPending=keepPend; auditOut=keepOut; } }
@@ -287,4 +303,40 @@ window.__qcAdv=function(){
     const gs=queueGroups().groups, bad=gs.filter(g=>g.some(id=>P(id).level==="advanced") && g.some(id=>["lowint","novice","beginner"].includes(P(id).level)));
     ok(gs.length>=1 && !bad.length, "the queue never groups Advanced with Low Int or Novice ("+gs.map(g=>g.join("/")).join(" | ")+")");
   });
+};
+/* Next up and Group 2 avoid repeats when it costs nobody. Four Low Ints come off one court and four more off another
+   a little later, all on the same games; when the slots open they are mixed two and two instead of going back on as
+   the same four. Only players about as owed as each other are mixed: waits within 5 minutes (10 to stop three off one
+   court walking straight back on together), and never someone with more games. */
+function qcVarietyCase(label, gapMin, eMoreGames, expectMix){
+  return qcScene((add,T)=>{
+    state.courts=[1,2,3].map(i=>({id:"c"+i,seats:[null,null,null,null],started:T.now-10*60000}));
+    ["A1","A2","A3","A4","E1","E2","E3","E4"].forEach(id=>add(id,"L"));
+    ["N1","N2","N3","N4","G1","G2","G3","G4","X1","X2","X3","X4"].forEach(id=>add(id,"H"));
+    if(eMoreGames) ["E1","E2","E3","E4"].forEach(id=>{ state.players[id].games=1; });
+    state.courts[0].seats=["A1","A2","A3","A4"]; state.courts[1].seats=["E1","E2","E3","E4"]; state.courts[2].seats=["X1","X2","X3","X4"];
+    state.queue=["N1","N2","N3","N4","G1","G2","G3","G4"]; state.frontPinned=[["N1","N2","N3","N4"],["G1","G2","G3","G4"]];
+    state.session={active:true,startedAt:T.now-30*60000,name:"variety",id:T.now};
+  },(ok,T)=>{
+    finishGame(state.courts[0],"A",{ws:11,ls:6}); T.now+=gapMin*60000;
+    finishGame(state.courts[1],"A",{ws:11,ls:8}); T.now+=4*60000; restTick();
+    startCourt(state.courts[0]);                                   // Next up goes on: Group 2 opens
+    const g2=qcSlot(1), from=g=>["A","E"].map(c=>g.filter(x=>x[0]===c).length).join("+");
+    T.now+=20000; startCourt(state.courts[1]);                     // Group 2 moves up, a new Group 2 opens
+    const n=qcSlot(0), m=qcSlot(1), mixed=g=>g.length===4 && from(g)==="2+2";
+    if(expectMix){
+      ok(mixed(g2), label+": Group 2 mixes the two courts two and two, not the same four ("+g2.join("/")+")");
+      ok(mixed(n) && mixed(m), label+": after the next start, Next up and Group 2 are both two and two ("+n.join("/")+" | "+m.join("/")+")");
+      ok(qcFixed(n), label+": the mixed Next up is fixed");
+    } else {
+      ok(g2.length===4 && from(g2)==="4+0", label+": Group 2 is the four who came off first ("+g2.join("/")+")");
+    }
+  });
+}
+window.__qcVariety=function(){
+  return [].concat(
+    qcVarietyCase("Off 2 minutes apart, same games", 2, false, true),
+    qcVarietyCase("Off 8 minutes apart, same games (three would walk straight back on)", 8, false, true),
+    qcVarietyCase("Off 12 minutes apart: the first four have waited much longer, fairness first", 12, false, false),
+    qcVarietyCase("Off 2 minutes apart, but the second four have one more game: fewer games first", 2, true, false));
 };

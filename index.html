@@ -2012,6 +2012,67 @@ function rebalanceTail(){
     return null;
   };
   const fillAny=(grp,avail)=>fill(grp,avail,false) || fill(grp,avail,true);   // High Int + Novice vs High Int + Novice only as a last resort
+  /* Variety for Next up and Group 2. pickSlotGroup's group (g0) settles who is owed this game: rested players first,
+     as few just off court as possible, the most owed player who can play first in line. The four who come off a court
+     together have the same games and the same wait, so g0 is often them again. Here a player in g0 may be traded
+     only for one just as owed: no more games, and waited no more than FRESH_SLACK_MIN less than the one traded out
+     (REUNION_SLACK_MIN only to stop three off one court walking straight back on together). The most owed player
+     always stays, a long waiter (LONG_WAIT_MIN) gives way only to someone at least as owed, and nobody left out may
+     be owed the seat by more than that. Among those groups it takes the fewest earlier games with the same four, then
+     with three of the four, then the fewest pairs who have played together tonight; a tie keeps g0. A play-again
+     four, wait relief (Nov + HI vs LI + LI) and High Int + Novice vs High Int + Novice are kept as picked. The group
+     is written to the front of the line, so queueGroups() forms the same one. Measured on simulated nights of 30 to
+     50 players (dev/queue-check.html). */
+  const logIds=(state.log||[]).map(x=>[...x.w,...x.l].map(n=>n.id));
+  const slotVariety=(g0, avail, ready)=>{
+    const flat=us=>[].concat(...us.map(u=>u.ids)), span=ids=>{ const ix=ids.map(levelOf); return Math.max(...ix)-Math.min(...ix); };
+    const plain=ids=>levelsOK(ids) && span(ids)<=1;
+    const ids0=flat(g0);
+    if(g0.some(u=>u.four) || ids0.length!==4 || !plain(ids0)) return g0;
+    const in0=new Set(ids0), anchor=g0[0], now=Date.now(), idx=new Map(avail.map((u,i)=>[u,i]));
+    const eg=effGames, ws=waitSince, longW=id=>now-ws(id)>=LONG_WAIT_MIN*60000;
+    // may player u take the seat of player v? (no more games; waited at most `slack` less; a long waiter only for someone at least as owed)
+    const mayTake=(u,v,slack)=> eg(u)<eg(v) || (eg(u)===eg(v) && ws(u)<=ws(v)+(longW(v)?0:slack*60000));
+    const uG=u=>Math.min(...u.ids.map(eg)), uW=u=>Math.min(...u.ids.map(ws));
+    const unitMayTake=(u,x,slack)=> uG(u)<uG(x) || (uG(u)===uG(x) && uW(u)<=uW(x)+(now-uW(x)>=LONG_WAIT_MIN*60000?0:slack*60000));
+    const pool=avail.filter(u=>u!==anchor && !u.four && u.ids.every(id=>ready(id) || in0.has(id)));   // the same players just off court as g0, no others
+    const G=Math.max(...ids0.map(eg));
+    const score=ids=>{ const set=new Set(ids); let same=0, trio=0, pairs=0;
+      logIds.forEach(g=>{ const k=g.filter(id=>set.has(id)).length; if(k===4) same++; else if(k===3) trio++; });
+      for(let i=0;i<4;i++) for(let j=i+1;j<4;j++) pairs+=cop[[ids[i],ids[j]].sort().join("|")]||0;
+      return [same,trio,pairs]; };
+    const straightBack=ids=>{ const n={}; ids.forEach(id=>{ if(id in lastG) n[lastG[id]]=(n[lastG[id]]||0)+1; }); return Object.values(n).some(k=>k>=3); };
+    const better=(a,b)=>{ for(let i=0;i<a.length;i++){ if(a[i]!==b[i]) return a[i]<b[i]; } return false; };
+    const best=(slack, mustBreakUp)=>{
+      const cutW=Math.max(...ids0.filter(id=>eg(id)===G).map(ws));
+      const near=new Set(pool.filter(u=>!in0.has(u.ids[0]) && plain(anchor.ids.concat(u.ids)) && u.ids.every(id=>eg(id)<G || (eg(id)===G && ws(id)<=cutW+slack*60000))).slice(0,20));
+      const win=pool.filter(u=>in0.has(u.ids[0]) || near.has(u));   // g0's players and the 20 most owed who could take a seat
+      let top=null;
+      const consider=us=>{
+        const ids=flat(us); if(ids.length!==4 || !plain(ids)) return;
+        if(mustBreakUp && straightBack(ids)) return;
+        const add=ids.filter(id=>!in0.has(id)), out=ids0.filter(id=>!ids.includes(id));
+        if(add.length){                                         // each player traded in is about as owed as the one traded out
+          const byOwed=(a,b)=>eg(a)-eg(b) || ws(a)-ws(b);
+          add.sort(byOwed); out.sort(byOwed);
+          if(add.some((u,i)=>!mayTake(u,out[i],slack))) return;
+          // nobody left out who could take a seat here is owed it by more than the slack
+          for(const u of us){ if(u===anchor) continue;
+            for(const x of pool){ if(us.includes(x) || x.ids.length!==u.ids.length || unitMayTake(u,x,slack)) continue;
+              if(plain(ids.filter(id=>!u.ids.includes(id)).concat(x.ids))) return; } }
+        }
+        const s=score(ids).concat(us.map(u=>idx.get(u)).sort((a,b)=>a-b));   // a tie goes to the one most in line order (g0)
+        if(!top || better(s,top.s)) top={us,s};
+      };
+      const pick=(us,from,n)=>{ if(n===4){ consider(us); return; } for(let i=from;i<win.length;i++){ const u=win[i]; if(n+u.ids.length<=4) pick(us.concat([u]),i+1,n+u.ids.length); } };
+      pick([anchor],0,anchor.ids.length);
+      return top;
+    };
+    let r=best(FRESH_SLACK_MIN,false);
+    if(!r) return g0;
+    if(straightBack(flat(r.us))){ const r2=best(REUNION_SLACK_MIN,true); if(r2) r=r2; }
+    return r.us.slice().sort((a,b)=>idx.get(a)-idx.get(b));
+  };
   // The next groups to be fixed (Next up / Group 2, whichever are not held yet) take rested players first and as few
   // players just off court as a legal group needs (pickSlotGroup), so they match what queueGroups() shows.
   const lastEnd={}; (state.log||[]).forEach(x=>[...x.w,...x.l].forEach(n=>{ lastEnd[n.id]=Math.max(lastEnd[n.id]||0, x.t||0); }));
@@ -2027,6 +2088,7 @@ function rebalanceTail(){
       const order=[].concat(...avail.map(u=>u.ids)), endsNow=id=>lastEnd[id]&&now-lastEnd[id]<REST_MIN*60000;
       const g=pickSlotGroup(order, id=>!endsNow(id), lastEnd);
       if(g){ grp=avail.filter(u=>u.ids.some(id=>g.includes(id))); if([].concat(...grp.map(u=>u.ids)).length!==4) grp=null; }
+      if(grp) grp=slotVariety(grp, avail, id=>!endsNow(id));   // among groups just as fair, the one that repeats the least
     }
     if(!grp){
       const a=avail[0];
